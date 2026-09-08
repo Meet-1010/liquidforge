@@ -23,6 +23,8 @@ function Studio() {
   const params = useSearchParams()
   const [config, setConfig] = useState<LiquidConfig>(() => configFromPreset())
   const [exporting, setExporting] = useState(false)
+  // Bumped to snap the camera back; double clicking the canvas does the same.
+  const [resetToken, setResetToken] = useState(0)
 
   // A shared link carries the whole editor state, so opening one has to land on
   // exactly the look it was made from rather than on the default.
@@ -121,9 +123,25 @@ function Studio() {
             preset={preset}
             quality={config.quality}
             motion={config.motion}
+            // The Studio is an editor, so it takes the wheel. A hero does not:
+            // a page that stops scrolling under the pointer reads as broken.
+            controls={{ zoom: true, zoomRange: [0.3, 4], resetToken }}
             transparent={config.transparent}
             style={{ height: "100%", minHeight: 0 }}
           />
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-3">
+            <p className="font-mono text-[10px] text-bone/25">
+              drag to turn · scroll to zoom · double click to reset
+            </p>
+            <button
+              type="button"
+              onClick={() => setResetToken((token) => token + 1)}
+              className="pointer-events-auto rounded-[var(--radius-pill)] border border-rule bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-bone/60 backdrop-blur-sm transition-colors hover:border-rule-bright hover:text-bone"
+            >
+              Reset view
+            </button>
+          </div>
         </main>
       </div>
 

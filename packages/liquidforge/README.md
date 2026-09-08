@@ -47,7 +47,7 @@ Any of these; they all arrive as one mesh, fitted into the same box, so the mate
 | `svg` | `src` or `markup` | contours extruded directly |
 | `image` | `src` | contour-traced to a silhouette, then extruded. Logos and icons — a photograph has no outline to find |
 | `shape` | `sphere` `torus` `torusknot` `capsule` `icosahedron` `rounded-box` | parametric, no assets |
-| `model` | a `.glb` URL | every mesh baked into one surface. Materials, skins and animation clips are dropped |
+| `model` | a `.glb` URL | every mesh baked into one surface. Materials are dropped; animation is kept |
 
 ```tsx
 <LiquidCanvas object={{ type: "text", value: "SHIP IT", depth: 0.5 }} />
@@ -92,6 +92,33 @@ Practical limits, all handled rather than hit:
   removes the 404s from models whose textures sit beside the file.
 - Draco and Meshopt geometry, and KTX2 textures, need decoders this package
   does not bundle. Re-export uncompressed.
+
+### Animated models
+
+Rigged and morph-target `.glb` files animate. Three.js's own GPU skinning
+cannot be used here — it lives in the material, and this material is a custom
+shader doing its own displacement, over a mesh that is every mesh in the file
+welded into one. So the skinning happens on the CPU: the scene graph, the
+skeleton and the mixer are kept alive off-screen, and each frame their result is
+read back into the flat buffer the shader draws.
+
+That is affordable because the welding is done once — which vertices started
+life in the same place is a fact about topology, and a rig moving them does not
+change it. Per frame it is one transform per vertex and a cross product per
+face, with no hashing.
+
+Past **60,000 vertices** a per-frame re-bake costs more than the frame has, so
+the model is posed rather than animated. The models that actually animate are an
+order of magnitude under that; a photogrammetry scan is not, and does not
+animate.
+
+```tsx
+<LiquidHero
+  object={{ type: "model", src: "/soldier.glb" }}
+  motion={{ animation: "Run", animationSpeed: 1.2 }}
+  onReady={({ animations }) => console.log(animations)}
+/>
+```
 
 ---
 

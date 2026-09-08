@@ -21,6 +21,19 @@ export interface PreparedGeometry {
   triangles: number
   /** Triangle count before decimation, when the input was too heavy to process. */
   decimatedFrom?: number
+  /**
+   * Vertices grouped by welded position, and the crease threshold used.
+   *
+   * Handed back so an animated mesh can rebuild its normals every frame without
+   * redoing the bucketing, which is the expensive half and depends only on
+   * topology — which does not change as a rig moves.
+   */
+  weld: WeldGroups
+}
+
+export interface WeldGroups {
+  groups: number[][]
+  creaseCos: number
 }
 
 /**
@@ -69,10 +82,16 @@ export function prepareGeometry(
   // Clustering it down first is also no loss here: this material reflects an
   // environment off a displaced surface and has almost no interior detail to
   // spend, so what carries the effect is the silhouette, which survives.
+  // A rig writes new positions into this buffer every frame, addressing
+  // vertices by index. Decimating or subdividing renumbers them, so for an
+  // animated source both passes are skipped and the vertex order is carried
+  // through 1:1 — which is what `RIG_VERTEX_LIMIT` exists to keep affordable.
+  const rigged = Boolean(input.userData?.rig)
+
   const inputTriangles = positions.length / 9
   const ceiling = vertexBudget / 3
   let decimatedFrom: number | undefined
-  if (inputTriangles > ceiling) {
+  if (!rigged && inputTriangles > ceiling) {
     positions = decimate(positions, ceiling)
     decimatedFrom = inputTriangles
   }
@@ -81,7 +100,7 @@ export function prepareGeometry(
   // the same way, so neighbours always agree on their shared edge. Splitting
   // selectively would leave T-junctions, and a T-junction is exactly where a
   // displaced surface cracks open.
-  let guard = 6
+  let guard = rigged ? 0 : 6
   while (guard-- > 0) {
     const vertexCount = positions.length / 3
     if (vertexCount * 4 > vertexBudget) break
@@ -89,7 +108,11 @@ export function prepareGeometry(
     positions = subdivide(positions)
   }
 
-  const { normal, flowNormal } = buildNormals(positions, Math.cos((creaseAngle * Math.PI) / 180))
+  const creaseCos = Math.cos((creaseAngle * Math.PI) / 180)
+  const groups = weldByPosition(positions)
+  const normal = new Float32Array(positions.length)
+  const flowNormal = new Float32Array(positions.length)
+  computeNormals(positions, { groups, creaseCos }, normal, flowNormal)
 
   const out = new BufferGeometry()
   out.setAttribute("position", new BufferAttribute(positions, 3))
@@ -103,7 +126,14 @@ export function prepareGeometry(
 
   if (geometry !== input) geometry.dispose()
 
-  return { geometry: out, radius, extents, triangles: positions.length / 9, decimatedFrom }
+  return {
+    geometry: out,
+    radius,
+    extents,
+    triangles: positions.length / 9,
+    decimatedFrom,
+    weld: { groups, creaseCos },
+  }
 }
 
 /**
@@ -260,12 +290,51 @@ function subdivide(positions: Float32Array): Float32Array {
 }
 
 /**
- * Two normal sets from one non-indexed mesh.
+ * Bucket vertices by welded position.
+ *
+ * Topology only, so an animated mesh does this once and reuses it for every
+ * frame — it is the expensive half, and a rig moving its vertices does not
+ * change which of them started life in the same place.
+ *
+ * Quantising at 1e-4 of the model's own scale is coarse enough to absorb the
+ * float error between two subdivision paths that should have produced the same
+ * point, and still two orders of magnitude finer than the closest genuinely
+ * distinct vertices the tessellation budget allows.
+ */
+function weldByPosition(positions: Float32Array): number[][] {
+  const vertexCount = positions.length / 3
+
+  let extent = 0
+  for (let i = 0; i < positions.length; i++) {
+    const v = Math.abs(positions[i])
+    if (v > extent) extent = v
+  }
+  const quantum = Math.max(extent, 1e-6) * 1e-4
+
+  const buckets = new Map<string, number[]>()
+  for (let v = 0; v < vertexCount; v++) {
+    const o = v * 3
+    const key = `${Math.round(positions[o] / quantum)},${Math.round(positions[o + 1] / quantum)},${Math.round(positions[o + 2] / quantum)}`
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(v)
+    else buckets.set(key, [v])
+  }
+
+  return [...buckets.values()]
+}
+
+/**
+ * Two normal sets from one non-indexed mesh, given its weld groups.
  *
  * `flowNormal` sums every face touching a position. `normal` sums only the
  * faces within the crease angle of the one this vertex belongs to.
  */
-function buildNormals(positions: Float32Array, creaseCos: number) {
+export function computeNormals(
+  positions: Float32Array,
+  weld: WeldGroups,
+  normal: Float32Array,
+  flowNormal: Float32Array,
+): void {
   const vertexCount = positions.length / 3
   const triangles = vertexCount / 3
 
@@ -294,42 +363,19 @@ function buildNormals(positions: Float32Array, creaseCos: number) {
     cross.toArray(faceNormals, t * 3)
   }
 
-  // Bucket vertices by welded position. Quantising at 1e-4 of the model's own
-  // scale is coarse enough to absorb the float error between two subdivision
-  // paths that should have produced the same point, and still two orders of
-  // magnitude finer than the closest genuinely distinct vertices the
-  // tessellation budget allows.
-  let extent = 0
-  for (let i = 0; i < positions.length; i++) {
-    const v = Math.abs(positions[i])
-    if (v > extent) extent = v
-  }
-  const quantum = Math.max(extent, 1e-6) * 1e-4
-  const buckets = new Map<string, number[]>()
-
-  for (let v = 0; v < vertexCount; v++) {
-    const o = v * 3
-    const key = `${Math.round(positions[o] / quantum)},${Math.round(positions[o + 1] / quantum)},${Math.round(positions[o + 2] / quantum)}`
-    const bucket = buckets.get(key)
-    if (bucket) bucket.push(v)
-    else buckets.set(key, [v])
-  }
-
-  const normal = new Float32Array(vertexCount * 3)
-  const flowNormal = new Float32Array(vertexCount * 3)
   const smooth = new Vector3()
   const flow = new Vector3()
   const own = new Vector3()
   const other = new Vector3()
 
-  for (const bucket of buckets.values()) {
+  for (const bucket of weld.groups) {
     flow.set(0, 0, 0)
     for (const v of bucket) {
       const t = (v / 3) | 0
       other.fromArray(faceNormals, t * 3).multiplyScalar(faceAreas[t])
       flow.add(other)
     }
-    if (flow.lengthSq() < 1e-20) flow.fromArray(faceNormals, (((bucket[0] / 3) | 0) * 3))
+    if (flow.lengthSq() < 1e-20) flow.fromArray(faceNormals, ((bucket[0] / 3) | 0) * 3)
     flow.normalize()
 
     for (const v of bucket) {
@@ -339,7 +385,7 @@ function buildNormals(positions: Float32Array, creaseCos: number) {
       for (const w of bucket) {
         const tw = (w / 3) | 0
         other.fromArray(faceNormals, tw * 3)
-        if (other.dot(own) < creaseCos) continue
+        if (other.dot(own) < weld.creaseCos) continue
         smooth.addScaledVector(other, faceAreas[tw])
       }
       if (smooth.lengthSq() < 1e-20) smooth.copy(own)
@@ -347,6 +393,4 @@ function buildNormals(positions: Float32Array, creaseCos: number) {
       flow.toArray(flowNormal, v * 3)
     }
   }
-
-  return { normal, flowNormal }
 }

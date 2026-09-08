@@ -1,5 +1,15 @@
-import { BufferAttribute, BufferGeometry, LoadingManager, Mesh, Object3D } from "three"
+import {
+  AnimationClip,
+  BufferAttribute,
+  BufferGeometry,
+  LoadingManager,
+  Mesh,
+  Object3D,
+  Vector3,
+} from "three"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js"
+import { LiquidRig, RIG_VERTEX_LIMIT, type RigSource } from "./rig"
 import type { ModelObjectSource } from "../types"
 
 /** A 1x1 transparent PNG. Small enough to be free, real enough to decode. */
@@ -28,6 +38,7 @@ function geometryOnlyManager(): LoadingManager {
 
 interface LoadedGltf {
   scene: Object3D
+  animations: AnimationClip[]
 }
 
 const cache = new Map<string, Promise<LoadedGltf>>()
@@ -39,7 +50,7 @@ function loadGltf(src: string): Promise<LoadedGltf> {
   const promise = new Promise<LoadedGltf>((resolve, reject) => {
     new GLTFLoader(geometryOnlyManager()).load(
       src,
-      (gltf) => resolve({ scene: gltf.scene }),
+      (gltf) => resolve({ scene: gltf.scene, animations: gltf.animations ?? [] }),
       undefined,
       (cause) => {
         const detail = cause instanceof Error ? cause.message : ""
@@ -58,40 +69,71 @@ function loadGltf(src: string): Promise<LoadedGltf> {
 }
 
 /**
- * Flatten a `.glb` into one geometry.
+ * Flatten a `.glb` into one surface — and keep it moving, if it moves.
  *
- * A glTF is a scene graph — many meshes, each with its own transform and its
- * own material. The liquid surface is a single shader over a single mesh, so
- * everything gets baked into world space and concatenated. Materials, skins and
- * animation clips are dropped: none of them survive being turned into liquid.
+ * A glTF is a scene graph: many meshes, each with its own transform, its own
+ * material, and possibly a skeleton. The liquid surface is one shader over one
+ * mesh, so everything is baked into world space and concatenated, and materials
+ * are dropped. Only positions are kept, because the normals are rebuilt from
+ * scratch anyway — a glTF's own are usually split for hard-surface shading,
+ * which is the opposite of what a molten version of it wants.
  *
- * Only positions are kept, because `prepareGeometry` rebuilds the normals from
- * scratch anyway — a glTF's own normals are usually split for hard-surface
- * shading, which is the opposite of what a molten version of it wants.
+ * When the file carries animation, the scene graph is kept alive alongside the
+ * flattened copy and `LiquidRig` re-bakes it every frame. Three.js's own GPU
+ * skinning cannot be used here: it lives in the material, and this material is
+ * a custom shader doing its own displacement — and in any case the mesh being
+ * drawn is a weld of every mesh in the file, which no single skeleton indexes.
  */
 export async function forgeModel(source: ModelObjectSource): Promise<BufferGeometry> {
   if (!source.src) throw new Error("liquidforge: no model file chosen yet")
 
-  const { scene } = await loadGltf(source.src)
+  const loaded = await loadGltf(source.src)
+  // SkeletonUtils.clone, not Object3D.clone: a plain clone leaves SkinnedMeshes
+  // pointing at the original's bones, so two heroes sharing a cached glTF would
+  // drive each other's skeletons.
+  const scene = loaded.animations.length > 0 ? cloneSkinned(loaded.scene) : loaded.scene
   scene.updateWorldMatrix(true, true)
 
   const chunks: Float32Array[] = []
+  const sources: RigSource[] = []
   let total = 0
+
+  const world = new Vector3()
 
   scene.traverse((child) => {
     const mesh = child as Mesh
     if (!mesh.isMesh || !mesh.geometry) return
 
-    const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone()
-    geometry.applyMatrix4(mesh.matrixWorld)
-
-    const position = geometry.getAttribute("position")
-    if (position) {
-      const array = new Float32Array(position.array as ArrayLike<number>)
-      chunks.push(array)
-      total += array.length
+    /*
+     * The mesh keeps its geometry in LOCAL space and the flattened copy is in
+     * world space, and the two must not be the same object.
+     *
+     * De-indexing is what forces the issue: the flattened buffer is
+     * non-indexed, so an indexed mesh has to be converted, and the rig then has
+     * to read from that same converted geometry or its vertex numbering will
+     * not line up. Handing the mesh a copy that had already been baked into
+     * world space meant the rig applied `matrixWorld` a second time on top of
+     * the bone transform — the soldier came out as a scatter of stretched
+     * shards that still, unhelpfully, animated.
+     */
+    const local = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry
+    if (local !== mesh.geometry) {
+      mesh.geometry.dispose()
+      mesh.geometry = local
     }
-    geometry.dispose()
+
+    const position = local.getAttribute("position")
+    if (!position) return
+
+    const array = new Float32Array(position.count * 3)
+    for (let i = 0; i < position.count; i++) {
+      world.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+      world.toArray(array, i * 3)
+    }
+
+    chunks.push(array)
+    sources.push({ mesh, offset: total / 3, count: position.count })
+    total += array.length
   })
 
   if (total === 0) throw new Error(`liquidforge: "${source.src}" contains no meshes`)
@@ -105,5 +147,18 @@ export async function forgeModel(source: ModelObjectSource): Promise<BufferGeome
 
   const geometry = new BufferGeometry()
   geometry.setAttribute("position", new BufferAttribute(positions, 3))
+
+  const vertices = total / 3
+  if (loaded.animations.length > 0 && vertices <= RIG_VERTEX_LIMIT) {
+    // Filled in by `fitGeometry`, which is the only thing that knows how the
+    // rest pose was framed. The rig holds the same object, so it reapplies the
+    // exact transform every frame instead of re-fitting and breathing.
+    const fit = { offset: new Vector3(), scale: 1 }
+    geometry.userData.fit = fit
+    geometry.userData.rig = new LiquidRig(scene, sources, loaded.animations, fit)
+  } else if (loaded.animations.length > 0) {
+    geometry.userData.animationSkipped = `${vertices.toLocaleString()} vertices is past the ${RIG_VERTEX_LIMIT.toLocaleString()} a per-frame re-bake can carry, so this one is posed rather than animated.`
+  }
+
   return geometry
 }

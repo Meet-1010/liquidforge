@@ -11,6 +11,7 @@ export { forgeSvg } from "./svg"
 export { forgeImage } from "./image"
 export { forgeShape, SHAPE_KINDS } from "./shapes"
 export { forgeModel } from "./model"
+export { LiquidRig, RIG_VERTEX_LIMIT, type RigSource } from "./rig"
 export { exportModel, downloadModel, downloadBlob, type ExportOptions } from "./export"
 export {
   traceContours,
@@ -75,8 +76,18 @@ export function fitGeometry(geometry: BufferGeometry, targetSize = 2): BufferGeo
   const centre = box.getCenter(new Vector3())
   const longest = Math.max(size.x, size.y, size.z) || 1
 
+  const scale = targetSize / longest
   geometry.translate(-centre.x, -centre.y, -centre.z)
-  geometry.scale(targetSize / longest, targetSize / longest, targetSize / longest)
+  geometry.scale(scale, scale, scale)
   geometry.computeBoundingSphere()
+
+  // An animated source needs to reapply exactly this every frame, or the object
+  // rescales itself as its bounds change and appears to breathe.
+  const fit = geometry.userData.fit as { offset: Vector3; scale: number } | undefined
+  if (fit) {
+    fit.offset.copy(centre).negate()
+    fit.scale = scale
+  }
+
   return geometry
 }

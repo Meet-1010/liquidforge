@@ -169,6 +169,26 @@ export interface QualityProfile {
   trail: number
 }
 
+/** Viewport navigation. Separate from `motion`, which is about the object. */
+export interface ControlOptions {
+  /**
+   * Scroll or pinch to zoom.
+   *
+   * Off by default on purpose: in a hero section, capturing the wheel means the
+   * page stops scrolling the moment the pointer crosses the canvas, which
+   * visitors read as the page being broken. Turn it on for editors and viewers.
+   * @default false
+   */
+  zoom?: boolean
+  /** Zoom limits as multipliers of the auto-framed distance. @default [0.35, 3] */
+  zoomRange?: [number, number]
+  /**
+   * Change this number to snap the view back to the framed default. Double
+   * clicking the canvas does the same thing with no wiring.
+   */
+  resetToken?: number
+}
+
 export interface MotionOptions {
   /** Idle spin in radians/second. 0 keeps the object still. @default 0 */
   autoRotate?: number
@@ -187,6 +207,18 @@ export interface MotionOptions {
    * @default true
    */
   draggable?: boolean
+  /**
+   * Play animation clips embedded in a `.glb`. `true` plays the first clip, a
+   * string picks one by name, `false` leaves the model in its bind pose.
+   *
+   * A rigged model is re-baked onto the liquid surface every frame, so this
+   * costs real CPU — see `RIG_VERTEX_LIMIT`, past which a model is posed
+   * rather than animated.
+   * @default true
+   */
+  animation?: boolean | string
+  /** Playback speed multiplier. @default 1 */
+  animationSpeed?: number
   /**
    * Honour `prefers-reduced-motion`. When the visitor has asked for reduced
    * motion the drift, ripples and advection freeze and the object renders as a

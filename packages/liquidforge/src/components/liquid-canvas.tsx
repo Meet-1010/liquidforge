@@ -10,12 +10,14 @@ import {
   type ReactNode,
 } from "react"
 import { LiquidEngine } from "../engine/liquid-engine"
+import { LiquidLoading } from "./loading"
 import { forgeGeometry, DEFAULT_OBJECT } from "../forge"
 import { backgroundColor } from "../material/environment"
 import { resolvePreset } from "../presets"
 import { useInView } from "../hooks/use-in-view"
 import { useReducedMotion } from "../hooks/use-reduced-motion"
 import type {
+  ControlOptions,
   LiquidPreset,
   MaterialFamily,
   MotionOptions,
@@ -72,6 +74,11 @@ export interface LiquidCanvasProps {
   /** Pixel ratio, tessellation and trail length. @default "auto" */
   quality?: Quality
   motion?: MotionOptions
+  /**
+   * Viewport navigation — scroll or pinch to zoom, double click to reset.
+   * Off by default: a hero that eats the page's scroll reads as broken.
+   */
+  controls?: ControlOptions
   /** Composite over the page instead of painting a background. @default false */
   transparent?: boolean
   /** Override the preset's background colour. */
@@ -82,7 +89,8 @@ export interface LiquidCanvasProps {
   fallback?: ReactNode
   /** Shown if WebGL is unavailable or the object fails to build. */
   errorFallback?: ReactNode | ((error: Error) => ReactNode)
-  onReady?: () => void
+  /** Fires when the object is on screen. `animations` is empty for static ones. */
+  onReady?: (result: { animations: string[] }) => void
   onError?: (error: Error) => void
   className?: string
   style?: CSSProperties
@@ -107,6 +115,7 @@ export function LiquidCanvas({
   shading,
   quality = "auto",
   motion,
+  controls,
   transparent = false,
   background,
   pauseOffscreen = true,
@@ -167,6 +176,7 @@ export function LiquidCanvas({
         preset: resolved,
         quality,
         motion,
+        controls,
         transparent,
         background,
         reducedMotion,
@@ -231,7 +241,7 @@ export function LiquidCanvas({
         }
 
         setReady(true)
-        onReady?.()
+        onReady?.({ animations: engine.animations })
       })
       .catch((cause) => {
         if (cancelled) return
@@ -253,6 +263,16 @@ export function LiquidCanvas({
     engineRef.current?.setMotion(motion ?? {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(motion ?? {}), epoch])
+
+  useEffect(() => {
+    engineRef.current?.setControls(controls ?? {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(controls ?? {}), epoch])
+
+  useEffect(() => {
+    if (controls?.resetToken === undefined) return
+    engineRef.current?.resetView()
+  }, [controls?.resetToken, epoch])
 
   useEffect(() => {
     engineRef.current?.setTransparent(transparent, background)
@@ -348,7 +368,7 @@ export function LiquidCanvas({
 
       {!error && !incomplete && !ready && (
         <div style={overlayStyle} data-liquidforge="loading">
-          {fallback ?? <DefaultLoading light={resolved.background === "light"} />}
+          {fallback ?? <LiquidLoading light={resolved.background === "light"} />}
         </div>
       )}
     </div>
@@ -363,22 +383,6 @@ const overlayStyle: CSSProperties = {
   pointerEvents: "none",
 }
 
-function DefaultLoading({ light }: { light: boolean }) {
-  return (
-    <span
-      style={{
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        fontSize: 11,
-        letterSpacing: "0.22em",
-        textTransform: "uppercase",
-        color: light ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.35)",
-      }}
-    >
-      forging
-    </span>
-  )
-}
-
 const PROMPTS: Record<string, string> = {
   model: "choose a .glb",
   image: "choose an image",
@@ -386,13 +390,14 @@ const PROMPTS: Record<string, string> = {
   text: "type something",
 }
 
+/** The state between picking a kind of object and choosing the thing itself. */
 function DefaultWaiting({ source, light }: { source: ObjectSource; light: boolean }) {
   return (
     <span
       style={{
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        fontSize: 11,
-        letterSpacing: "0.22em",
+        fontSize: 10,
+        letterSpacing: "0.24em",
         textTransform: "uppercase",
         color: light ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.3)",
       }}

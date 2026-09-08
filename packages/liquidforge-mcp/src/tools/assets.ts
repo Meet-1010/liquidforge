@@ -27,7 +27,7 @@ No API key and no account: every one of these serves CORS-open metadata and file
 
 What makes a good result here is not what makes a good result in a model viewer. The liquid material reflects an environment off a displaced surface and carries almost no interior detail, so **silhouette is everything** — a duck, a bust, a helmet, a logo. A photogrammetry scan of grass is 1.6 million triangles of specks; it will import, but it will be clustered down first and it will not read. Results are ranked with that in mind.
 
-Animation does not survive: every mesh is baked into one static surface and the clips are dropped. There is no animated filter, on purpose.
+Animation works for rigged and morph-target models under about 60,000 vertices, above which the model is posed instead. There is still no animated filter, because animation is not what makes a good result here — silhouette is.
 
 Args:
   - query (string, optional): search terms. Omit for a curated starting set

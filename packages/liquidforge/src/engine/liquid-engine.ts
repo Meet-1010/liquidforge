@@ -11,11 +11,12 @@ import {
 } from "three"
 import { applyPreset, createLiquidMaterial, type LiquidMaterialHandle } from "../material/liquid-material"
 import { backgroundColor } from "../material/environment"
-import { prepareGeometry } from "./prepare-geometry"
+import { computeNormals, prepareGeometry } from "./prepare-geometry"
 import { SurfaceProbe, type ProbeMode } from "./pointer"
 import { Trail } from "./trail"
 import { resolveQuality } from "./quality"
-import type { LiquidPreset, MotionOptions, Quality } from "../types"
+import type { LiquidRig } from "../forge/rig"
+import type { ControlOptions, LiquidPreset, MotionOptions, Quality } from "../types"
 
 /**
  * Above this, a per-frame raycast costs more than the frame has to spare, so
@@ -41,12 +42,20 @@ export interface LiquidEngineOptions {
   preset: LiquidPreset
   quality?: Quality
   motion?: MotionOptions
+  controls?: ControlOptions
   /** Composite over the page instead of painting the preset's background. */
   transparent?: boolean
   /** Override the preset's background colour. */
   background?: string
   /** Render one still frame and stop. */
   reducedMotion?: boolean
+  /**
+   * Bind pointer, wheel and pinch listeners. Off for an engine used only to
+   * capture stills, so a cursor somewhere else on the page cannot press a
+   * dimple into a thumbnail.
+   * @default true
+   */
+  interactive?: boolean
   /**
    * The WebGL context went away — the tab was backgrounded for a long time, the
    * GPU process restarted, or too many contexts are live and the browser
@@ -64,6 +73,13 @@ export interface LiquidEngineOptions {
  * emission, all of which are awkward through a reconciler — and it keeps the
  * package's peer dependencies down to `three` and `react`.
  */
+/** Distance between two tracked pointers. */
+function spread(points: Map<number, { x: number; y: number }>): number {
+  const [a, b] = [...points.values()]
+  if (!a || !b) return 0
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
 export class LiquidEngine {
   readonly scene = new Scene()
   readonly camera = new PerspectiveCamera(38, 1, 0.1, 100)
@@ -74,6 +90,7 @@ export class LiquidEngine {
   private preset: LiquidPreset
   private quality: Quality
   private motion: MotionOptions
+  private controls: ControlOptions
   private profile = resolveQuality("auto")
 
   private trail: Trail
@@ -97,6 +114,8 @@ export class LiquidEngine {
   private pointerSeen = false
   private dragging = false
   private radius = 1
+  private zoom = 1
+  private rig: LiquidRig | null = null
   private readonly extents = new Vector3(1, 1, 1)
 
   private frame = 0
@@ -119,6 +138,7 @@ export class LiquidEngine {
     this.preset = options.preset
     this.quality = options.quality ?? "auto"
     this.motion = options.motion ?? {}
+    this.controls = options.controls ?? {}
     this.reduced = options.reducedMotion ?? false
     this.transparent = options.transparent ?? false
     this.background = options.background
@@ -157,7 +177,7 @@ export class LiquidEngine {
     this.applyClearColor()
 
     this.camera.position.set(0, 0, 4.4)
-    this.bindPointer()
+    if (options.interactive !== false) this.bindPointer()
   }
 
   /**
@@ -207,6 +227,20 @@ export class LiquidEngine {
     this.probeMode =
       options.forceSphereProbe || prepared.triangles > RAYCAST_TRIANGLE_LIMIT ? "sphere" : "mesh"
 
+    // An animated source rewrites its own positions each frame. It reuses the
+    // weld groups computed above rather than re-bucketing, which is what makes
+    // rebuilding both normal sets per frame affordable at all.
+    const rig = geometry.userData?.rig as LiquidRig | undefined
+    if (rig) {
+      const normal = prepared.geometry.getAttribute("normal").array as Float32Array
+      const flowNormal = prepared.geometry.getAttribute("flowNormal").array as Float32Array
+      rig.bind(prepared.geometry, (positions) =>
+        computeNormals(positions, prepared.weld, normal, flowNormal),
+      )
+      this.rig = rig
+      rig.play(this.motion.animation ?? true)
+    }
+
     this.bind(this.handle, prepared.radius)
     this.trail.clear()
     this.frameCamera()
@@ -252,7 +286,7 @@ export class LiquidEngine {
     const halfZ = this.extents.z + bulge
 
     const distance = Math.max(halfY / tan, halfX / (tan * aspect)) + halfZ
-    this.camera.position.z = distance * 1.12
+    this.camera.position.z = distance * 1.12 * this.zoom
     this.camera.lookAt(0, 0, 0)
     this.camera.updateProjectionMatrix()
   }
@@ -282,7 +316,32 @@ export class LiquidEngine {
   }
 
   setMotion(motion: MotionOptions): void {
+    const changed = motion.animation !== this.motion.animation
     this.motion = motion
+    if (changed) this.rig?.play(motion.animation ?? true)
+  }
+
+  setControls(controls: ControlOptions): void {
+    this.controls = controls
+  }
+
+  /** Multiplier on the auto-framed camera distance. 1 is the framed default. */
+  setZoom(zoom: number): void {
+    const [min, max] = this.controls.zoomRange ?? [0.35, 3]
+    this.zoom = Math.max(min, Math.min(max, zoom))
+    this.frameCamera()
+    this.renderOnce()
+  }
+
+  getZoom(): number {
+    return this.zoom
+  }
+
+  resetView(): void {
+    this.zoom = 1
+    this.spin.set(0, 0)
+    this.frameCamera()
+    this.renderOnce()
   }
 
   setReducedMotion(reduced: boolean): void {
@@ -366,16 +425,75 @@ export class LiquidEngine {
       this.dragging = false
     }
 
+    /**
+     * Wheel-to-zoom is opt-in and `passive: false`, because it has to call
+     * `preventDefault` — otherwise the page scrolls at the same time and the
+     * hero appears to fight the visitor for the gesture.
+     */
+    const wheel = (event: WheelEvent) => {
+      if (!this.controls.zoom) return
+      event.preventDefault()
+      // Exponential, so a notch feels the same at every distance.
+      this.setZoom(this.zoom * Math.exp(event.deltaY * 0.0012))
+    }
+
+    /** Pinch, tracked as the distance between two live pointers. */
+    const pinch = new Map<number, { x: number; y: number }>()
+    let pinchFrom = 0
+
+    const pinchDown = (event: PointerEvent) => {
+      if (!this.controls.zoom || event.target !== canvas) return
+      pinch.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (pinch.size === 2) {
+        pinchFrom = spread(pinch)
+        // Two fingers means zoom, not spin.
+        this.dragging = false
+      }
+    }
+
+    const pinchMove = (event: PointerEvent) => {
+      if (!pinch.has(event.pointerId)) return
+      pinch.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (pinch.size !== 2 || pinchFrom === 0) return
+      const now = spread(pinch)
+      if (now > 0) {
+        this.setZoom(this.zoom * (pinchFrom / now))
+        pinchFrom = now
+      }
+    }
+
+    const pinchUp = (event: PointerEvent) => {
+      pinch.delete(event.pointerId)
+      if (pinch.size < 2) pinchFrom = 0
+    }
+
+    const doubleClick = (event: MouseEvent) => {
+      if (event.target !== canvas) return
+      this.resetView()
+    }
+
     window.addEventListener("pointermove", move, { passive: true })
     window.addEventListener("pointerdown", down, { passive: true })
     window.addEventListener("pointerup", up, { passive: true })
     window.addEventListener("pointercancel", up, { passive: true })
+    window.addEventListener("pointerdown", pinchDown, { passive: true })
+    window.addEventListener("pointermove", pinchMove, { passive: true })
+    window.addEventListener("pointerup", pinchUp, { passive: true })
+    window.addEventListener("pointercancel", pinchUp, { passive: true })
+    canvas.addEventListener("wheel", wheel, { passive: false })
+    canvas.addEventListener("dblclick", doubleClick)
 
     this.detach.push(() => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerdown", down)
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
+      window.removeEventListener("pointerdown", pinchDown)
+      window.removeEventListener("pointermove", pinchMove)
+      window.removeEventListener("pointerup", pinchUp)
+      window.removeEventListener("pointercancel", pinchUp)
+      canvas.removeEventListener("wheel", wheel)
+      canvas.removeEventListener("dblclick", doubleClick)
     })
   }
 
@@ -417,6 +535,10 @@ export class LiquidEngine {
 
     const u = handle.material.uniforms
     u.uTime.value = this.time
+
+    // Before anything reads the surface: the probe raycasts it and the shader
+    // displaces it, and both want this frame's pose rather than last frame's.
+    this.rig?.update((Math.min(deltaMs, 100) / 1000) * (this.motion.animationSpeed ?? 1))
 
     this.adaptResolution(deltaMs)
 
@@ -494,6 +616,24 @@ export class LiquidEngine {
     this.renderer.setSize(size.x, size.y, false)
   }
 
+  /**
+   * Copy the current frame into a 2D canvas.
+   *
+   * The copy has to happen in the same task as the render: a WebGL drawing
+   * buffer is cleared once the browser composites it, and `preserveDrawingBuffer`
+   * would cost a full-buffer copy on every frame of every scene just to serve
+   * this one. Rendering and copying back to back avoids both.
+   */
+  snapshotTo(target: HTMLCanvasElement): boolean {
+    if (!this.mesh || !this.handle) return false
+    this.renderOnce()
+    const context = target.getContext("2d")
+    if (!context) return false
+    context.clearRect(0, 0, target.width, target.height)
+    context.drawImage(this.canvas, 0, 0, target.width, target.height)
+    return true
+  }
+
   /** One frame, outside the loop — for a resize, a preset change, or reduced motion. */
   renderOnce(): void {
     const mesh = this.mesh
@@ -508,7 +648,20 @@ export class LiquidEngine {
 
   // -- teardown --------------------------------------------------------------
 
+  /** Animation clips in the current object, empty for anything static. */
+  get animations(): string[] {
+    return this.rig?.names ?? []
+  }
+
+  /** `true` plays the first clip, a string picks one by name, `false` stops. */
+  playAnimation(which: boolean | string = true): void {
+    this.rig?.play(which)
+    this.renderOnce()
+  }
+
   private disposeMesh(): void {
+    this.rig?.dispose()
+    this.rig = null
     if (this.mesh) {
       this.scene.remove(this.mesh)
       this.mesh.geometry.dispose()

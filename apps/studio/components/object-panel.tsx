@@ -209,8 +209,8 @@ export function ObjectPanel({
             Upload a .glb
           </Button>
           <p className="font-mono text-[10px] leading-relaxed text-bone/30">
-            Every mesh is baked into one surface. Materials, skins and animation clips are
-            dropped — none of them survive being turned into liquid.
+            Every mesh is baked into one surface and materials are dropped. Rigged and
+            morph-target models animate, up to about 60k vertices — past that they are posed.
           </p>
         </>
       )}

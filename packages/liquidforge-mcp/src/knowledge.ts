@@ -143,10 +143,12 @@ on import before anything else can touch it, and past 90,000 the cursor probe
 falls back to the bounding sphere rather than raycasting the mesh. Results carry
 a polycount where the catalogue reports one, and search ranks heavy models down.
 
-**Animation never survives.** Every mesh in a glTF is baked into one static
-surface and the clips are dropped, so a rigged character arrives as a
-character-shaped lump. There is deliberately no animated filter — offering one
-would imply the rig comes through.
+**Animation works, under a budget.** Rigged and morph-target models animate:
+the skeleton and mixer are kept alive and re-baked onto the liquid surface each
+frame, because three's GPU skinning cannot be used through a custom
+displacement shader. Past 60,000 vertices that re-bake costs more than the frame
+has, so a heavier model is posed rather than animated. Control it with
+\`motion={{ animation: "Run" }}\`.
 
 **Compression is not supported.** Draco and Meshopt geometry, and KTX2
 textures, need decoders this library does not bundle. Re-export uncompressed.

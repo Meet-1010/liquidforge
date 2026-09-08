@@ -37,9 +37,9 @@ export default function PresetsPage() {
             Five families, nine colourways each.
           </h1>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
-            A colourway is data — a palette and about twenty numbers. Every card below is a
-            running scene, not a screenshot; move the cursor across one. Click a card to open it
-            in the Studio.
+            A colourway is data — a palette and about twenty numbers. Every card below is the
+            real material on the real object, drawn by one shared context. Point at one and it
+            comes alive: ripples, cursor, and hold-and-drag to turn it over.
           </p>
         </header>
 

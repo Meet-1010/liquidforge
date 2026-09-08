@@ -9,11 +9,17 @@
 export { LiquidHero, type LiquidHeroProps } from "./components/liquid-hero"
 export { LiquidCanvas, type LiquidCanvasProps } from "./components/liquid-canvas"
 export { findBlendIsolator, warnIfBlendIsolated } from "./components/blend-check"
+export { LiquidLoading, type LoadingProps } from "./components/loading"
 
 // Engine — for anyone who wants the surface without React
 export { LiquidEngine, type LiquidEngineOptions } from "./engine/liquid-engine"
 export { prepareGeometry, type PrepareOptions, type PreparedGeometry } from "./engine/prepare-geometry"
 export { SurfaceProbe, type ProbeMode, type SurfaceHit } from "./engine/pointer"
+export {
+  PreviewRenderer,
+  sharedPreviewRenderer,
+  type CaptureRequest,
+} from "./engine/preview-renderer"
 export { Trail } from "./engine/trail"
 export { QUALITY_PROFILES, resolveQuality } from "./engine/quality"
 
@@ -85,6 +91,7 @@ export {
 
 // Types
 export type {
+  ControlOptions,
   ImageObjectSource,
   LiquidPreset,
   LiquidPresetOverrides,

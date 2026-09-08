@@ -19,10 +19,10 @@ interface Entry {
 /**
  * The gallery.
  *
- * Every entry is a running scene rather than a screenshot, which is the only
- * honest way to show something whose whole point is that it moves under your
- * cursor. It costs a WebGL context per card, so `LazyPreview` mounts what is
- * near the viewport and holds a ceiling on the rest.
+ * Every entry is the real material on the real object rather than a screenshot,
+ * which is the only honest way to show something whose whole point is that it
+ * moves under your cursor. The stills come from one shared context; pointing at
+ * a card hands it a live one of its own.
  *
  * The list is a JSON file in the repository on purpose. There is no backend
  * here, and an entry is only ever what you would have pasted into a page — an
