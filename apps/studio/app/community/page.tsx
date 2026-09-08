@@ -75,6 +75,8 @@ export default function CommunityPage() {
                       {entry.author}
                     </a>
                   </div>
+                  {/* A link beside the surface, not around it: the preview
+                      takes the drag gesture. */}
                   <a href={href} className="shrink-0 font-mono text-[10px] text-muted hover:text-bone">
                     {preset.label} · {presetName(entry.preset)}
                   </a>

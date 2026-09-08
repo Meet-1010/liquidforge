@@ -78,21 +78,37 @@ export default function PresetsPage() {
                 const href = shareUrl(configFromPreset(id, object), "/studio") ?? "/studio"
 
                 return (
-                  <Link
+                  /*
+                   * The card is not a link. Every preview is a real object you
+                   * can grab and turn, and a drag that ends on an anchor
+                   * navigates away — so the surface takes the gesture and the
+                   * label row underneath carries the link.
+                   */
+                  <div
                     key={id}
-                    href={href}
                     className="group overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 transition-colors hover:border-rule-bright"
                   >
-                    <div className="overflow-hidden rounded-[var(--radius-md)] m-1.5">
+                    <div className="m-1.5 overflow-hidden rounded-[var(--radius-md)]">
                       <LazyPreview preset={preset} object={object} height={190} />
                     </div>
-                    <div className="flex items-baseline justify-between px-3 pt-1 pb-3">
-                      <span className="font-mono text-[11px] text-bone/75">{preset.label}</span>
-                      <span className="font-mono text-[10px] text-muted">
-                        {presetName(id)}
-                      </span>
+                    <div className="flex items-baseline justify-between gap-2 px-3 pt-1 pb-3">
+                      <Link
+                        href={href}
+                        className="font-mono text-[11px] text-bone/75 hover:text-bone"
+                      >
+                        {preset.label}
+                        <span className="ml-1.5 text-muted group-hover:text-bone/60">
+                          {presetName(id)}
+                        </span>
+                      </Link>
+                      <Link
+                        href={href}
+                        className="shrink-0 font-mono text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-bone"
+                      >
+                        Open
+                      </Link>
                     </div>
-                  </Link>
+                  </div>
                 )
               })}
             </div>

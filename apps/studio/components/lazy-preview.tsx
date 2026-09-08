@@ -3,40 +3,17 @@
 import { useEffect, useRef, useState } from "react"
 import { LiquidCanvas } from "liquidforge"
 import type { LiquidPreset, ObjectSource, Quality } from "liquidforge"
+import { webglContexts } from "@/lib/context-pool"
 
 /**
  * A gallery card's live surface.
  *
- * Two limits stack here. Each canvas holds a WebGL context and browsers cap
- * those at roughly 16 before they start silently dropping the oldest — a
- * gallery of 45 cards would blank whatever you scrolled past. And each context
- * is running a per-pixel advection loop, so 16 of them at once would crawl even
- * if the browser allowed it.
- *
- * So: mount only what is near the viewport, unmount the rest, and hold a hard
- * ceiling on how many can be live at any moment. Cards that cannot get a slot
- * show their palette instead, which is honest and costs nothing.
+ * Every card is a real 3D object you can grab and turn, not a picture of one —
+ * which is the whole reason to render a gallery this way rather than shipping
+ * screenshots. Cards near the viewport mount, the rest unmount, and
+ * `webglContexts` holds the ceiling so a long scroll cannot outrun the
+ * browser's context limit.
  */
-const MAX_LIVE_CONTEXTS = 10
-let liveContexts = 0
-const waiting = new Set<() => void>()
-
-function acquireSlot(): boolean {
-  if (liveContexts >= MAX_LIVE_CONTEXTS) return false
-  liveContexts++
-  return true
-}
-
-function releaseSlot() {
-  liveContexts = Math.max(0, liveContexts - 1)
-  // Wake one waiter; it will re-check and take the slot if it is still visible.
-  const next = waiting.values().next().value
-  if (next) {
-    waiting.delete(next)
-    next()
-  }
-}
-
 export function LazyPreview({
   preset,
   object,
@@ -62,7 +39,9 @@ export function LazyPreview({
     }
     const observer = new IntersectionObserver(
       (entries) => setVisible(entries[0]?.isIntersecting ?? false),
-      { rootMargin: "160px" },
+      // Tight, because a slot given to a card that is not on screen is a
+      // slot taken from one that is.
+      { rootMargin: "60px" },
     )
     observer.observe(element)
     return () => observer.disconnect()
@@ -70,22 +49,10 @@ export function LazyPreview({
 
   useEffect(() => {
     if (!visible) return
-
-    let held = false
-    const attempt = () => {
-      if (acquireSlot()) {
-        held = true
-        setLive(true)
-      } else {
-        waiting.add(attempt)
-      }
-    }
-    attempt()
-
+    const release = webglContexts.request(() => setLive(true))
     return () => {
-      waiting.delete(attempt)
+      release()
       setLive(false)
-      if (held) releaseSlot()
     }
   }, [visible])
 
@@ -102,6 +69,9 @@ export function LazyPreview({
           object={object}
           preset={preset}
           quality={quality}
+          // Drag to turn it, and a slow idle spin so it reads as an object
+          // rather than as a picture before anyone touches it.
+          motion={{ draggable: true, autoRotate: 0.18, tilt: [0.22, 0] }}
           style={{ minHeight: 0, height: "100%" }}
         />
       ) : (

@@ -356,7 +356,7 @@ export class LiquidEngine {
       this.pointerSeen = true
       this.clickPulse = 1
       if (this.probe.over) this.trail.strike(this.probe.point, this.probe.normal, this.time)
-      if (this.motion.draggable) {
+      if (this.motion.draggable !== false) {
         this.dragging = true
         this.dragFrom.set(event.clientX, event.clientY)
       }

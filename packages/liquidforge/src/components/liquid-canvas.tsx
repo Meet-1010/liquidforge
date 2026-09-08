@@ -294,7 +294,9 @@ export function LiquidCanvas({
     minHeight: 320,
     overflow: "hidden",
     background: pageBackground,
-    touchAction: motion?.draggable ? "none" : undefined,
+    // Dragging is on unless it is turned off, so the browser must not claim
+    // the gesture for a scroll first.
+    touchAction: motion?.draggable === false ? undefined : "none",
     ...style,
   }
 

@@ -45,7 +45,7 @@ export const DEFAULT_OBJECT_SOURCE: ObjectSource = {
 const MOTION_DEFAULTS: MotionOptions = {
   autoRotate: 0,
   tilt: [0, 0],
-  draggable: false,
+  draggable: true,
   respectReducedMotion: true,
 }
 

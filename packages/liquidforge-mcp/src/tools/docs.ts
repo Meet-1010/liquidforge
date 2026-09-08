@@ -6,7 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { COLLECTIONS, PRESETS, PRESET_IDS, presetName } from "liquidforge/presets"
 import { TOPICS, TOPIC_NAMES, type TopicName } from "../knowledge.js"
-import { PEER_DEPENDENCIES, REPO_URL, STUDIO_URL } from "../constants.js"
+import { PEER_DEPENDENCIES, REPO_URL, STUDIO_HOWTO } from "../constants.js"
 import { ResponseFormat, definitionList, fail, reply, table } from "../format.js"
 
 export function registerDocsTools(server: McpServer): void {
@@ -73,7 +73,7 @@ Examples:
           topics: TOPIC_NAMES,
           tools,
           repo: REPO_URL,
-          studio: STUDIO_URL,
+          studio: STUDIO_HOWTO,
         },
         response_format,
       )

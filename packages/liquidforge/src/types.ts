@@ -174,7 +174,18 @@ export interface MotionOptions {
   autoRotate?: number
   /** Resting tilt in radians, `[x, y]`. @default [0, 0] */
   tilt?: [number, number]
-  /** Let the pointer drag-rotate the object. @default false */
+  /**
+   * Hold and drag to turn the object.
+   *
+   * On by default: this is a 3D object, and the first thing anyone does with
+   * one on a page is try to spin it. Turning it off leaves a thing that looks
+   * grabbable and is not, which reads as broken rather than as static.
+   *
+   * Safe with any orientation — the cursor probe transforms the ray through the
+   * mesh's inverse world matrix, so the dent keeps landing under the pointer
+   * however far it has been turned.
+   * @default true
+   */
   draggable?: boolean
   /**
    * Honour `prefers-reduced-motion`. When the visitor has asked for reduced

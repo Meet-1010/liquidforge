@@ -82,7 +82,7 @@ function Studio() {
             />
             <Toggle
               label="Drag to rotate"
-              checked={config.motion.draggable ?? false}
+              checked={config.motion.draggable ?? true}
               onChange={(draggable) =>
                 setConfig({ ...config, motion: { ...config.motion, draggable } })
               }
