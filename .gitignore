@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.local
+.env*.local
+npm-debug.log*
+yarn-error.log*
+.turbo/
+coverage/
+*.tgz
+
+# static export output
+apps/studio/out/

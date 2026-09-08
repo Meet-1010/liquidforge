@@ -1,0 +1,29 @@
+{
+  "name": "@liquidforge/studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Liquidforge Studio — forge an object in the browser, tune the material live, copy the code.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "build:static": "LIQUIDFORGE_STATIC=1 next build"
+  },
+  "dependencies": {
+    "liquidforge": "*",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.172.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.172.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2"
+  }
+}

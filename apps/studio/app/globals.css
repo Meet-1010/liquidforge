@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+/**
+ * Monochrome by design.
+ *
+ * Every hue on the page comes out of the liquid surfaces themselves. A tool
+ * whose whole output is 45 colourways does not need the interface competing
+ * with it, so the chrome is bone on ink and nothing else.
+ */
+@theme {
+  --color-ink: #08080a;
+  --color-ink-2: #0e0e11;
+  --color-ink-3: #151519;
+  --color-bone: #eceaf0;
+  --color-bone-dim: #a3a0ab;
+  --color-muted: #6b6874;
+  --color-rule: #1f1f25;
+  --color-rule-bright: #34343d;
+
+  /**
+   * Radius scale.
+   *
+   * Nesting is what reads as considered: an inner element must be rounded
+   * *less* than the box holding it, by roughly the padding between them, or the
+   * corners look concentric-wrong. A card at `lg` holds a preview at `md`,
+   * which holds a control at `sm`. Anything small and interactive goes pill.
+   */
+  --radius-pill: 999px;
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-bone);
+  color: var(--color-ink);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/**
+ * The signature effect, as one rule.
+ *
+ * No ancestor of an element carrying this may create a stacking context — a
+ * z-index, a transform, a filter, an opacity below 1 — or the blend group is
+ * isolated and the text composites against that ancestor's transparent backdrop
+ * instead of the canvas. It renders flat white with no error and no clue.
+ * <LiquidHero blend> warns about this in development.
+ */
+.blend {
+  mix-blend-mode: difference;
+  color: #fff;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule-bright) transparent;
+}
+*::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-rule-bright);
+  border-radius: var(--radius-pill);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-rule-bright);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bone);
+  cursor: grab;
+  border: none;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  transition: transform 120ms ease;
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bone);
+  cursor: grab;
+  border: none;
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  border: 1px solid var(--color-rule-bright);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

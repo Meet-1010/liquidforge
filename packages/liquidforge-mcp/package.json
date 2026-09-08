@@ -1,0 +1,62 @@
+{
+  "name": "liquidforge-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Liquidforge \u2014 teaches a coding agent the library, recommends a colourway that suits the site it is looking at, and writes the component.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "liquidforge",
+    "liquid",
+    "webgl",
+    "shader",
+    "three",
+    "claude",
+    "cursor",
+    "codex",
+    "agent"
+  ],
+  "license": "MIT",
+  "author": "Meet Chauhan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Meet-1010/liquidforge.git",
+    "directory": "packages/liquidforge-mcp"
+  },
+  "homepage": "https://github.com/Meet-1010/liquidforge/tree/main/packages/liquidforge-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Meet-1010/liquidforge/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "liquidforge-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "pretest": "npm run build",
+    "test": "node scripts/smoke-test.mjs"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "liquidforge": "^0.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
