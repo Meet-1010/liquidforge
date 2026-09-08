@@ -38,10 +38,22 @@ args = ["-y", "liquidforge-mcp"]
 | `liquidforge_inspect_preset` | One colourway's exact numbers |
 | `liquidforge_recommend_preset` | Pick a family and colourway for a described site |
 | `liquidforge_generate_component` | Turn an explicit config into paste-ready TSX |
+| `liquidforge_search_models` | Search five open 3D catalogues, ~46,900 models |
+| `liquidforge_get_model_import` | Resolve a catalogue id to a loadable `.glb` URL |
 
 `liquidforge_recommend_preset` makes two separate judgements. The **family** comes from register — chrome reads restrained, magma reads loud — scored from the description. The **colourway** comes from hue: given a brand colour, the palette closest to it in OKLab wins, because sRGB distance would call a dark navy and a dark brown close.
 
 The one hard constraint is background. Only Pearl is lit for a light page; the other four are built to sit on a dark ground, so a light page with Mercury is not a near miss, it is unreadable.
+
+`liquidforge_search_models` ranks for **silhouette**, not popularity. This
+material reflects an environment and carries almost no interior detail, so a
+recognisable outline survives and a 1.6-million-triangle scan of grass does
+not — heavy models are ranked down, and animation is not offered as a filter
+because every clip is dropped when the meshes are baked into one surface.
+
+The Objaverse index is read from the repository checkout when there is one, and
+otherwise fetched over HTTPS. `LIQUIDFORGE_OBJAVERSE_INDEX` overrides both with
+a path or a URL.
 
 ## Development
 

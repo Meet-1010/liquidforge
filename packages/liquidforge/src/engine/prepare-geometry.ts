@@ -19,6 +19,8 @@ export interface PreparedGeometry {
   /** Half-extents on each axis, for framing the camera. */
   extents: Vector3
   triangles: number
+  /** Triangle count before decimation, when the input was too heavy to process. */
+  decimatedFrom?: number
 }
 
 /**
@@ -61,6 +63,20 @@ export function prepareGeometry(
 
   let positions = geometry.getAttribute("position").array as Float32Array
 
+  // Anything from a public catalogue can be a photogrammetry scan — Poly Haven
+  // ships grass at 1.6 million triangles. `buildNormals` below buckets every
+  // vertex in a hash map, so a mesh that size is not slow, it is a frozen tab.
+  // Clustering it down first is also no loss here: this material reflects an
+  // environment off a displaced surface and has almost no interior detail to
+  // spend, so what carries the effect is the silhouette, which survives.
+  const inputTriangles = positions.length / 9
+  const ceiling = vertexBudget / 3
+  let decimatedFrom: number | undefined
+  if (inputTriangles > ceiling) {
+    positions = decimate(positions, ceiling)
+    decimatedFrom = inputTriangles
+  }
+
   // Uniform 1-to-4 splits, not longest-edge splits: every triangle subdivides
   // the same way, so neighbours always agree on their shared edge. Splitting
   // selectively would leave T-junctions, and a T-junction is exactly where a
@@ -87,7 +103,95 @@ export function prepareGeometry(
 
   if (geometry !== input) geometry.dispose()
 
-  return { geometry: out, radius, extents, triangles: positions.length / 9 }
+  return { geometry: out, radius, extents, triangles: positions.length / 9, decimatedFrom }
+}
+
+/**
+ * Collapse a mesh onto a grid until it fits the budget.
+ *
+ * Vertex clustering (Rossignac-Borrel): snap every vertex to a cell, replace it
+ * with that cell's centroid, and drop any triangle whose corners no longer
+ * differ. Cruder than an edge-collapse decimator and far shorter, and it has
+ * two properties that matter more here than fidelity — it is linear, so a
+ * two-million-triangle scan is handled in one pass, and it emits *exactly*
+ * equal positions for merged vertices, so the welding below has nothing left
+ * to guess at.
+ */
+function decimate(positions: Float32Array, target: number): Float32Array {
+  let current = positions
+  // Roughly one cell per output vertex, and a surface of n cells per axis
+  // carries on the order of n^2 of them.
+  let cellsPerAxis = Math.max(8, Math.ceil(Math.sqrt(target)))
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const next = cluster(current, cellsPerAxis)
+    // A pass that removes nothing will not remove anything next time either.
+    if (next.length === 0 || next.length >= current.length) break
+    current = next
+    if (current.length / 9 <= target) break
+    cellsPerAxis = Math.max(8, Math.round(cellsPerAxis * 0.7))
+  }
+
+  return current
+}
+
+function cluster(positions: Float32Array, cellsPerAxis: number): Float32Array {
+  let minX = Infinity, minY = Infinity, minZ = Infinity
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+  for (let i = 0; i < positions.length; i += 3) {
+    if (positions[i] < minX) minX = positions[i]
+    if (positions[i] > maxX) maxX = positions[i]
+    if (positions[i + 1] < minY) minY = positions[i + 1]
+    if (positions[i + 1] > maxY) maxY = positions[i + 1]
+    if (positions[i + 2] < minZ) minZ = positions[i + 2]
+    if (positions[i + 2] > maxZ) maxZ = positions[i + 2]
+  }
+
+  const extent = Math.max(maxX - minX, maxY - minY, maxZ - minZ) || 1
+  const cell = extent / cellsPerAxis
+  const stride = cellsPerAxis + 2
+
+  const cellOf = (i: number) => {
+    const x = Math.floor((positions[i] - minX) / cell)
+    const y = Math.floor((positions[i + 1] - minY) / cell)
+    const z = Math.floor((positions[i + 2] - minZ) / cell)
+    return (z * stride + y) * stride + x
+  }
+
+  // Numeric keys, not strings: at this size the difference is seconds.
+  const sums = new Map<number, [number, number, number, number]>()
+  for (let i = 0; i < positions.length; i += 3) {
+    const key = cellOf(i)
+    const entry = sums.get(key)
+    if (entry) {
+      entry[0] += positions[i]
+      entry[1] += positions[i + 1]
+      entry[2] += positions[i + 2]
+      entry[3]++
+    } else {
+      sums.set(key, [positions[i], positions[i + 1], positions[i + 2], 1])
+    }
+  }
+
+  const centroids = new Map<number, [number, number, number]>()
+  for (const [key, [x, y, z, count]] of sums) {
+    centroids.set(key, [x / count, y / count, z / count])
+  }
+
+  const out: number[] = []
+  for (let t = 0; t < positions.length; t += 9) {
+    const ka = cellOf(t)
+    const kb = cellOf(t + 3)
+    const kc = cellOf(t + 6)
+    // Two corners in one cell means the triangle collapsed to an edge.
+    if (ka === kb || kb === kc || kc === ka) continue
+    const a = centroids.get(ka)!
+    const b = centroids.get(kb)!
+    const c = centroids.get(kc)!
+    out.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2])
+  }
+
+  return new Float32Array(out)
 }
 
 /**

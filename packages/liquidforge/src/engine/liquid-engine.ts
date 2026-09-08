@@ -47,6 +47,13 @@ export interface LiquidEngineOptions {
   background?: string
   /** Render one still frame and stop. */
   reducedMotion?: boolean
+  /**
+   * The WebGL context went away — the tab was backgrounded for a long time, the
+   * GPU process restarted, or too many contexts are live and the browser
+   * reclaimed the oldest. Nothing on this engine works afterwards; the host
+   * should throw it away and build another.
+   */
+  onContextLost?: (reason: string) => void
 }
 
 /**
@@ -132,6 +139,19 @@ export class LiquidEngine {
       alpha: true,
       powerPreference: "high-performance",
     })
+    // A context can come back already lost when the browser is at its limit —
+    // it does not throw, and the failure only surfaces later as three trying to
+    // read a shader info log off a dead context. Catch it here instead.
+    const gl = this.renderer.getContext()
+    if (!gl || gl.isContextLost()) {
+      throw new Error("liquidforge: WebGL context unavailable — too many live canvases?")
+    }
+
+    this.canvas.addEventListener("webglcontextlost", this.handleContextLost, false)
+    this.detach.push(() =>
+      this.canvas.removeEventListener("webglcontextlost", this.handleContextLost, false),
+    )
+
     this.dpr = Math.min(this.profile.dpr[1], typeof devicePixelRatio === "number" ? devicePixelRatio : 1)
     this.renderer.setPixelRatio(this.dpr)
     this.applyClearColor()
@@ -140,7 +160,31 @@ export class LiquidEngine {
     this.bindPointer()
   }
 
+  /**
+   * Preventing the default keeps the context restorable, but three's renderer
+   * cannot pick up where it left off, so the honest move is to stop and tell
+   * the host to rebuild.
+   */
+  private handleContextLost = (event: Event) => {
+    event.preventDefault()
+    this.stop()
+    this.options.onContextLost?.("WebGL context lost")
+  }
+
   // -- geometry --------------------------------------------------------------
+
+  /**
+   * Drop the current object and paint an empty frame.
+   *
+   * Something has to be renderable between "you picked Model" and "you chose a
+   * file", and it is not an error — leaving the previous object on screen while
+   * the panel says something else is worse than showing nothing.
+   */
+  clearGeometry(): void {
+    this.disposeMesh()
+    this.trail.clear()
+    this.renderer.render(this.scene, this.camera)
+  }
 
   /**
    * Swap in new geometry. Takes ownership: the mesh's prepared copy is disposed

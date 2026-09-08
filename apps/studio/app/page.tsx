@@ -126,6 +126,11 @@ export default function Home() {
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
             Text, an SVG, a raster logo, a parametric shape, or a .glb you already have. All five
             arrive at the same place — one mesh, tessellated and welded, ready to be displaced.
+            Don&apos;t have a model?{" "}
+            <Link href="/assets" className="text-bone underline underline-offset-4">
+              Search 46,900 open ones
+            </Link>{" "}
+            and send it straight to the Studio.
           </p>
           <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {OBJECTS.map((entry) => (

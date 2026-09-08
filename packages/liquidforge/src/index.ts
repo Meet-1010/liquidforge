@@ -43,6 +43,24 @@ export {
   type PresetId,
 } from "./presets"
 
+// Asset catalogues — also available standalone from "liquidforge/catalog"
+export {
+  PROVIDERS,
+  TOTAL_ASSETS,
+  HEAVY_POLYCOUNT,
+  searchAssets,
+  resolveAssetUrl,
+  fetchSketchfabMetadata,
+  configureCatalog,
+  type AssetResult,
+  type CatalogOptions,
+  type ObjaverseIndex,
+  type ProviderId,
+  type ProviderMeta,
+  type SearchOptions,
+  type SearchOutcome,
+} from "./catalog"
+
 // Hooks
 export { useInView } from "./hooks/use-in-view"
 export { useReducedMotion } from "./hooks/use-reduced-motion"

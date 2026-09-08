@@ -1,6 +1,30 @@
-import { BufferAttribute, BufferGeometry, Mesh, Object3D } from "three"
+import { BufferAttribute, BufferGeometry, LoadingManager, Mesh, Object3D } from "three"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import type { ModelObjectSource } from "../types"
+
+/** A 1x1 transparent PNG. Small enough to be free, real enough to decode. */
+const BLANK_PIXEL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+/**
+ * Load the geometry and none of the pictures.
+ *
+ * Only positions survive this module, so every texture a glTF references is
+ * downloaded and thrown away. On a Poly Haven asset that is several megabytes
+ * of 1k maps for nothing, and on anything whose textures sit beside the file
+ * rather than inside it, it is also three 404s in the console that look like a
+ * bug in this library.
+ *
+ * Redirecting image requests to a data URI is the shortest way to opt out:
+ * GLTFLoader still builds its materials, they are simply built around a pixel.
+ */
+function geometryOnlyManager(): LoadingManager {
+  const manager = new LoadingManager()
+  manager.setURLModifier((url) =>
+    /\.(png|jpe?g|webp|avif|bmp|gif|tga)(\?|$)/i.test(url) ? BLANK_PIXEL : url,
+  )
+  return manager
+}
 
 interface LoadedGltf {
   scene: Object3D
@@ -13,11 +37,18 @@ function loadGltf(src: string): Promise<LoadedGltf> {
   if (cached) return cached
 
   const promise = new Promise<LoadedGltf>((resolve, reject) => {
-    new GLTFLoader().load(
+    new GLTFLoader(geometryOnlyManager()).load(
       src,
       (gltf) => resolve({ scene: gltf.scene }),
       undefined,
-      () => reject(new Error(`liquidforge: failed to load model "${src}"`)),
+      (cause) => {
+        const detail = cause instanceof Error ? cause.message : ""
+        reject(
+          new Error(
+            `liquidforge: could not load "${src}".${detail ? ` ${detail}` : ""} Compressed meshes (Draco, Meshopt) and KTX2 textures need their own decoders, which this library does not bundle — re-export the model uncompressed, or upload a plain .glb.`,
+          ),
+        )
+      },
     )
   })
   // Don't cache rejections, or a transient network blip becomes permanent.

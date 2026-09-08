@@ -51,6 +51,11 @@
       "import": "./dist/presets.js",
       "require": "./dist/presets.cjs"
     },
+    "./catalog": {
+      "types": "./dist/catalog.d.ts",
+      "import": "./dist/catalog.js",
+      "require": "./dist/catalog.cjs"
+    },
     "./codegen": {
       "types": "./dist/codegen.d.ts",
       "import": "./dist/codegen.js",

@@ -75,7 +75,7 @@ try {
 
   const listed = await request("tools/list", {})
   const names = (listed.result?.tools ?? []).map((tool) => tool.name)
-  check("tools/list returns all six", names.length === 6, names.join(", "))
+  check("tools/list returns all eight", names.length === 8, names.join(", "))
 
   const started = await request("tools/call", {
     name: "liquidforge_get_started",
@@ -160,6 +160,43 @@ try {
   check("generate_component emits a LiquidHero", code.includes("<LiquidHero"))
   check("generate_component names the preset", code.includes('preset="aurora-2"'))
   check("generate_component passes blend through", code.includes("blend"))
+  // three.js is a static list and Objaverse reads the index off disk, so both
+  // of these run with no network — which is the point of testing with them.
+  const models = await request("tools/call", {
+    name: "liquidforge_search_models",
+    arguments: { query: "dragon", providers: ["threejs"], response_format: "json" },
+  })
+  const found = JSON.parse(models.result.content[0].text).results
+  check("search_models finds the three.js dragon", found.some((m) => m.name === "Dragon"))
+
+  const objaverse = await request("tools/call", {
+    name: "liquidforge_search_models",
+    arguments: { query: "chair", providers: ["objaverse"], limit: 5, response_format: "json" },
+  })
+  const objaverseResults = JSON.parse(objaverse.result.content[0].text)
+  check(
+    "search_models reads the Objaverse index off disk",
+    objaverseResults.results.length > 0 && objaverseResults.failed.length === 0,
+    JSON.stringify(objaverseResults.failed),
+  )
+
+  const importUrl = await request("tools/call", {
+    name: "liquidforge_get_model_import",
+    arguments: { provider: "threejs", id: "DragonAttenuation.glb", response_format: "json" },
+  })
+  const resolved = JSON.parse(importUrl.result.content[0].text)
+  check(
+    "get_model_import resolves a .glb URL",
+    resolved.url.endsWith("DragonAttenuation.glb"),
+    resolved.url,
+  )
+  check('get_model_import emits type: "model"', resolved.component.includes('type: "model"'))
+
+  const sketchfab = await request("tools/call", {
+    name: "liquidforge_get_model_import",
+    arguments: { provider: "sketchfab", id: "abc123" },
+  })
+  check("get_model_import refuses Sketchfab rather than guessing", sketchfab.result?.isError === true)
 } catch (error) {
   failures++
   console.log(`  FAIL  ${error.message}`)

@@ -45,6 +45,8 @@ Examples:
         { name: "liquidforge_inspect_preset", use_when: "You need one colourway's exact numbers" },
         { name: "liquidforge_recommend_preset", use_when: "You know what the site is and want a colourway chosen for it" },
         { name: "liquidforge_generate_component", use_when: "You already know the props and want paste-ready TSX" },
+        { name: "liquidforge_search_models", use_when: "The hero needs a real object rather than a word or a shape" },
+        { name: "liquidforge_get_model_import", use_when: "You picked a catalogue result and need a loadable URL" },
       ]
 
       const markdown = [
@@ -89,6 +91,7 @@ Topics:
   - install — install command, CLI, peer dependencies
   - api — every prop on <LiquidHero> and <LiquidCanvas>, and the headless engine
   - objects — the five object sources and what each is good for
+  - assets — the five open catalogues, and what makes a good object for this material
   - presets — the five families and when to reach for each
   - blend — the mix-blend-mode stacking-context trap. READ THIS before using \`blend\`
   - shader — how the material works and the four things that silently break it

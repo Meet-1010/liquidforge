@@ -47,13 +47,51 @@ Any of these; they all arrive as one mesh, fitted into the same box, so the mate
 | `svg` | `src` or `markup` | contours extruded directly |
 | `image` | `src` | contour-traced to a silhouette, then extruded. Logos and icons — a photograph has no outline to find |
 | `shape` | `sphere` `torus` `torusknot` `capsule` `icosahedron` `rounded-box` | parametric, no assets |
-| `model` | a `.glb` URL | every mesh baked into one surface |
+| `model` | a `.glb` URL | every mesh baked into one surface. Materials, skins and animation clips are dropped |
 
 ```tsx
 <LiquidCanvas object={{ type: "text", value: "SHIP IT", depth: 0.5 }} />
 <LiquidCanvas object={{ type: "shape", shape: "torusknot", detail: 128 }} />
 <LiquidCanvas object={{ type: "model", src: "/models/logo.glb" }} />
 ```
+
+### Don't have a model?
+
+`liquidforge/catalog` searches five open catalogues — about 46,900 models —
+from the browser, with no API key and no account, because all five serve
+CORS-open metadata and files. The Studio's `/assets` page is this with a grid
+around it.
+
+```ts
+import { searchAssets, resolveAssetUrl } from "liquidforge/catalog"
+
+const { results } = await searchAssets({ query: "helmet", providers: ["khronos"] })
+const src = await resolveAssetUrl("khronos", results[0].id)
+```
+
+Objaverse (46,207), Poly Haven (521, all CC0), Khronos (119), three.js (22) and
+Sketchfab (search only — downloading needs an account). Licences come back
+exactly as each catalogue states them; never infer one.
+
+**What makes a good object here is not what makes a good render.** This material
+reflects an environment off a displaced surface and carries almost no interior
+detail, so a shape you can recognise from its outline survives and a cluttered
+scene turns to soup. A photogrammetry scan of grass is 1.6 million triangles of
+specks — it imports, but there is nothing to read.
+
+Practical limits, all handled rather than hit:
+
+- Over ~200k triangles the mesh is clustered down on import. `buildNormals`
+  buckets every vertex, and a 1.6M-triangle scan is not slow, it is a frozen
+  tab.
+- Over ~90k triangles the cursor probe falls back to the bounding sphere
+  instead of raycasting the mesh, because a per-frame raycast at that size
+  costs more than the frame has.
+- Textures are never downloaded. Only positions survive, so image requests are
+  redirected to a blank pixel — which saves megabytes on a Poly Haven asset and
+  removes the 404s from models whose textures sit beside the file.
+- Draco and Meshopt geometry, and KTX2 textures, need decoders this package
+  does not bundle. Re-export uncompressed.
 
 ---
 

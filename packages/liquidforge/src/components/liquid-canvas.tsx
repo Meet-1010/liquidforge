@@ -25,6 +25,27 @@ import type {
   SurfaceOptions,
 } from "../types"
 
+/**
+ * True when the source names something that does not exist yet.
+ *
+ * Picking "Model" in a panel sets `{ type: "model", src: "" }`, which is not a
+ * failure — it is the state between choosing a kind and choosing a file.
+ * Treating it as one is how the Studio's model tab ended up unusable.
+ */
+function isIncomplete(source: ObjectSource): boolean {
+  switch (source.type) {
+    case "model":
+    case "image":
+      return !source.src
+    case "svg":
+      return !source.src && !source.markup
+    case "text":
+      return source.value.trim().length === 0
+    default:
+      return false
+  }
+}
+
 function supportsWebGL(): boolean {
   if (typeof document === "undefined") return true
   try {
@@ -101,7 +122,9 @@ export function LiquidCanvas({
   const engineRef = useRef<LiquidEngine | null>(null)
 
   const [epoch, setEpoch] = useState(0)
+  const [generation, setGeneration] = useState(0)
   const [ready, setReady] = useState(false)
+  const [incomplete, setIncomplete] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [webglOk, setWebglOk] = useState(true)
 
@@ -147,6 +170,12 @@ export function LiquidCanvas({
         transparent,
         background,
         reducedMotion,
+        onContextLost: (reason) => {
+          // One rebuild. A browser at its context limit will keep taking them
+          // away, and retrying forever would spin.
+          if (generation < 1) setGeneration((value) => value + 1)
+          else handleError(new Error(`liquidforge: ${reason}`))
+        },
       })
     } catch (cause) {
       handleError(cause instanceof Error ? cause : new Error(String(cause)))
@@ -161,7 +190,7 @@ export function LiquidCanvas({
       engine.dispose()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quality])
+  }, [quality, generation])
 
   // -- the object ------------------------------------------------------------
   useEffect(() => {
@@ -169,8 +198,17 @@ export function LiquidCanvas({
     if (!engine) return
 
     let cancelled = false
-    setReady(false)
     setError(null)
+
+    if (isIncomplete(object)) {
+      engine.clearGeometry()
+      setReady(false)
+      setIncomplete(true)
+      return
+    }
+
+    setReady(false)
+    setIncomplete(false)
 
     forgeGeometry(object)
       .then((geometry) => {
@@ -260,27 +298,53 @@ export function LiquidCanvas({
     ...style,
   }
 
-  if (!webglOk || error) {
-    const resolvedFallback =
-      typeof errorFallback === "function"
-        ? errorFallback(error ?? new Error("WebGL unavailable"))
-        : errorFallback
+  const resolvedErrorFallback =
+    typeof errorFallback === "function"
+      ? errorFallback(error ?? new Error("WebGL unavailable"))
+      : errorFallback
+
+  // WebGL missing outright is the one case with nothing to mount a surface
+  // into, because there will never be an engine.
+  if (!webglOk) {
     return (
       <div ref={containerRef} className={className} style={containerStyle} data-liquidforge="error">
-        {resolvedFallback ?? <DefaultError message={error?.message} webgl={webglOk} />}
+        {resolvedErrorFallback ?? <DefaultError webgl={false} />}
       </div>
     )
   }
 
+  /*
+   * One tree, always. Loading and error states are overlays rather than
+   * branches, because the engine creates and owns its `<canvas>` and appends it
+   * to the surface div below. Swapping that div out for an error message — the
+   * obvious way to write this — detaches the canvas, and since the engine is
+   * only rebuilt when `quality` changes, nothing ever puts it back. The surface
+   * stayed blank for the rest of the session, and the way in was picking
+   * "Model" in the Studio: that sets an empty `src`, which errored instantly.
+   */
   return (
     <div
       ref={containerRef}
       className={className}
       style={containerStyle}
       data-liquidforge="canvas"
+      data-state={error ? "error" : incomplete ? "waiting" : ready ? "ready" : "loading"}
     >
       <div ref={surfaceRef} style={{ position: "absolute", inset: 0 }} />
-      {!ready && (
+
+      {error && (
+        <div style={overlayStyle} data-liquidforge="error">
+          {resolvedErrorFallback ?? <DefaultError message={error.message} webgl />}
+        </div>
+      )}
+
+      {!error && incomplete && (
+        <div style={overlayStyle} data-liquidforge="waiting">
+          <DefaultWaiting source={object} light={resolved.background === "light"} />
+        </div>
+      )}
+
+      {!error && !incomplete && !ready && (
         <div style={overlayStyle} data-liquidforge="loading">
           {fallback ?? <DefaultLoading light={resolved.background === "light"} />}
         </div>
@@ -309,6 +373,29 @@ function DefaultLoading({ light }: { light: boolean }) {
       }}
     >
       forging
+    </span>
+  )
+}
+
+const PROMPTS: Record<string, string> = {
+  model: "choose a .glb",
+  image: "choose an image",
+  svg: "paste or upload an svg",
+  text: "type something",
+}
+
+function DefaultWaiting({ source, light }: { source: ObjectSource; light: boolean }) {
+  return (
+    <span
+      style={{
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        fontSize: 11,
+        letterSpacing: "0.22em",
+        textTransform: "uppercase",
+        color: light ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.3)",
+      }}
+    >
+      {PROMPTS[source.type] ?? "nothing to render"}
     </span>
   )
 }

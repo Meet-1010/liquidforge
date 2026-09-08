@@ -109,7 +109,59 @@ Before the shader sees any of it, \`prepareGeometry\` subdivides the mesh until
 its triangles are small enough to ripple, then builds two normal sets: a
 crease-aware one for shading, and a fully welded one for the displacement
 direction. That second set is what stops a hard edge tearing open — see the
-\`shader\` topic.`,
+\`shader\` topic.
+
+Don't have a model? \`liquidforge_search_models\` searches five open
+catalogues. The \`assets\` topic covers what makes a good one.`,
+
+  assets: `# Finding an object
+
+\`liquidforge_search_models\` searches five open catalogues — around 46,900
+models — with no API key and no account, because all five serve CORS-open
+metadata and files. \`liquidforge_get_model_import\` turns a result into a URL the
+component can load.
+
+| catalogue | what it is | importable |
+| --- | --- | --- |
+| Objaverse | 46,207 models across 1,156 categories | yes |
+| Poly Haven | 521 assets, every one CC0 | yes |
+| Khronos | 119 official glTF samples | yes |
+| three.js | 22 hand-picked example models | yes |
+| Sketchfab | millions, search only | no — needs an account |
+
+## Picking one
+
+**Silhouette is everything.** The material reflects an environment off a
+displaced surface and carries almost no interior detail, so a shape you can
+recognise from its outline — a bust, a helmet, a bottle, a logo — survives the
+treatment, and a cluttered scene turns to soup. A photogrammetry scan of grass
+is 1.6 million triangles of specks: it imports, but there is nothing there to
+read.
+
+**Polycount matters twice.** Past 200,000 triangles the mesh is clustered down
+on import before anything else can touch it, and past 90,000 the cursor probe
+falls back to the bounding sphere rather than raycasting the mesh. Results carry
+a polycount where the catalogue reports one, and search ranks heavy models down.
+
+**Animation never survives.** Every mesh in a glTF is baked into one static
+surface and the clips are dropped, so a rigged character arrives as a
+character-shaped lump. There is deliberately no animated filter — offering one
+would imply the rig comes through.
+
+**Compression is not supported.** Draco and Meshopt geometry, and KTX2
+textures, need decoders this library does not bundle. Re-export uncompressed.
+
+Textures are never downloaded at all: only positions survive the import, so
+image requests are redirected to a blank pixel.
+
+## Licences
+
+Reported exactly as each catalogue states them. Never infer one — Objaverse
+uids are Sketchfab uids, so every model links back to its own licence page, and
+that link is what to hand the user.
+
+Hotlinking a catalogue CDN is fine for a prototype and a bad idea in
+production. Download the file and serve it yourself.`,
 
   presets: `# Presets
 

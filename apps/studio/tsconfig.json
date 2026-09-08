@@ -19,6 +19,7 @@
       "liquidforge": ["../../packages/liquidforge/src/index.ts"],
       "liquidforge/forge": ["../../packages/liquidforge/src/forge/index.ts"],
       "liquidforge/presets": ["../../packages/liquidforge/src/presets/index.ts"],
+      "liquidforge/catalog": ["../../packages/liquidforge/src/catalog/index.ts"],
       "liquidforge/codegen": ["../../packages/liquidforge/src/codegen/index.ts"]
     }
   },
