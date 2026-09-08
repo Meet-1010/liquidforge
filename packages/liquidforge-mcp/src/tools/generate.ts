@@ -72,7 +72,7 @@ Examples:
     async ({ preset, object, component, blend, quality, palette, import_from, response_format }) => {
       if (!PRESETS[preset]) {
         return fail(
-          `Unknown preset "${preset}". Call liquidforge_list_collections for the 45 ids.`,
+          `Unknown preset "${preset}". Call liquidforge_list_collections for the 90 ids.`,
         )
       }
 

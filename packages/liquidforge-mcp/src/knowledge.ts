@@ -25,7 +25,7 @@ Two things make it different from the many liquid-chrome repos on GitHub:
 1. **It is a package, not a boilerplate.** No fork, no "now replace model.glb
    with your own" — the object is forged in the browser from a word, an SVG, a
    PNG or a parametric shape.
-2. **The material system is the product.** Five families, nine colourways each,
+2. **The material system is the product.** Ten families, nine colourways each,
    shipped as data rather than as a shader you are expected to edit.
 
 Peer dependencies are \`react\` and \`three\` and nothing else. The environment
@@ -167,16 +167,27 @@ production. Download the file and serve it yourself.`,
 
   presets: `# Presets
 
-45 colourways across five families. A preset is data — a palette and about
+90 colourways across ten families. A preset is data — a palette and about
 twenty numbers — so it can be edited, serialised, and inlined into a component.
+
+Each family is a different *technique*, not a different palette. Mercury mirrors
+the environment, Prism refracts it, Velvet refuses to reflect it at all.
 
 | family | look | reach for it when |
 | --- | --- | --- |
-| **Mercury** | liquid chrome, tinted | the default. Anything that should read as expensive and restrained |
+| **Mercury** | liquid chrome, tinted | the default. Anything that should read as restrained |
 | **Aurora** | iridescent oil slick | music, launches, anything that wants colour |
 | **Prism** | glass with dispersion | product and hardware pages; reads as precision |
 | **Magma** | molten, glowing in the troughs | loud. Games, events, energy |
-| **Pearl** | soft matte iridescence | the only family built for a light background |
+| **Pearl** | soft matte iridescence | light pages, and anything that should feel calm |
+| **Obsidian** | lacquer over a deep body | luxury, automotive, audio — expensive and restrained |
+| **Velvet** | cloth, lit along the silhouette | fashion, film, interiors. The only family with no highlight |
+| **Halo** | holographic foil | streetwear, drops, merch. Loud and prismatic |
+| **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
+| **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
+
+Only **Pearl** and **Jade** are lit for a light page. The other eight are built
+to sit on a dark ground.
 
 Ids run \`mercury-1\` … \`mercury-9\`, \`aurora-1\` … and so on. Call
 \`liquidforge_list_collections\` for the palettes and \`liquidforge_inspect_preset\`

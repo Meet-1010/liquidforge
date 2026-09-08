@@ -124,15 +124,24 @@ animate.
 
 ## Presets
 
-Forty-five colourways across five families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
+Ninety colourways across ten families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
+
+Each family is a different *technique*, not a different palette. If a look can be reached by recolouring an existing family, it is a colourway rather than a family.
 
 | family | look | reach for it when |
 | --- | --- | --- |
 | **Mercury** | liquid chrome, tinted | the default. Anything that should read as restrained |
 | **Aurora** | iridescent oil slick | music, launches, anything that wants colour |
-| **Prism** | glass with per-channel dispersion | product and hardware pages |
+| **Prism** | glass with dispersion | product and hardware pages; reads as precision |
 | **Magma** | molten, glowing in the troughs | loud. Games, events, energy |
-| **Pearl** | soft matte iridescence | the only family built for a **light** background |
+| **Pearl** | soft matte iridescence | light pages, and anything that should feel calm |
+| **Obsidian** | lacquer over a deep body | luxury, automotive, audio — expensive and restrained |
+| **Velvet** | cloth, lit along the silhouette | fashion, film, interiors. The only family with no highlight |
+| **Halo** | holographic foil | streetwear, drops, merch. Loud and prismatic |
+| **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
+| **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
+
+Only **Pearl** and **Jade** are built for a light background.
 
 Ids run `mercury-1` … `mercury-9`, `aurora-1` …, and so on. `npx liquidforge presets` lists them all.
 

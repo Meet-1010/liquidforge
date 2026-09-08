@@ -34,7 +34,7 @@ args = ["-y", "liquidforge-mcp"]
 | --- | --- |
 | `liquidforge_get_started` | What the library is, how to install it, which tool to reach for next. Start here |
 | `liquidforge_get_docs` | Documentation by topic — including `blend` and `shader`, the two that matter |
-| `liquidforge_list_collections` | Five families, 45 colourways, with palettes |
+| `liquidforge_list_collections` | Ten families, 90 colourways, with palettes |
 | `liquidforge_inspect_preset` | One colourway's exact numbers |
 | `liquidforge_recommend_preset` | Pick a family and colourway for a described site |
 | `liquidforge_generate_component` | Turn an explicit config into paste-ready TSX |

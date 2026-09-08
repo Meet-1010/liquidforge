@@ -101,7 +101,7 @@ try {
   })
   const parsed = JSON.parse(collections.result.content[0].text)
   const total = parsed.collections.reduce((sum, entry) => sum + entry.colourways.length, 0)
-  check("list_collections returns 45 colourways", total === 45, String(total))
+  check("list_collections returns 90 colourways", total === 90, String(total))
 
   const inspected = await request("tools/call", {
     name: "liquidforge_inspect_preset",
@@ -128,10 +128,25 @@ try {
   })
   const lightResult = JSON.parse(light.result.content[0].text)
   check(
-    "recommend picks Pearl for a light page",
-    lightResult.family === "pearl",
+    "recommend picks a light-page family for a light page",
+    ["pearl", "jade"].includes(lightResult.family),
     lightResult.family,
   )
+
+  // Each new family should be reachable from a description, not just by id.
+  for (const [description, expected] of [
+    ["a luxury automotive brand, restrained and premium", "obsidian"],
+    ["a couture fashion house, intimate and expensive", "velvet"],
+    ["a streetwear sneaker drop, holographic and loud", "halo"],
+    ["an AI observability platform for realtime telemetry", "plasma"],
+  ]) {
+    const picked = await request("tools/call", {
+      name: "liquidforge_recommend_preset",
+      arguments: { site_description: description, background: "dark", response_format: "json" },
+    })
+    const family = JSON.parse(picked.result.content[0].text).family
+    check(`recommend picks ${expected} for "${description.slice(0, 28)}…"`, family === expected, family)
+  }
 
   const loud = await request("tools/call", {
     name: "liquidforge_recommend_preset",

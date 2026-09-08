@@ -92,7 +92,7 @@ Topics:
   - api — every prop on <LiquidHero> and <LiquidCanvas>, and the headless engine
   - objects — the five object sources and what each is good for
   - assets — the five open catalogues, and what makes a good object for this material
-  - presets — the five families and when to reach for each
+  - presets — the ten families and when to reach for each
   - blend — the mix-blend-mode stacking-context trap. READ THIS before using \`blend\`
   - shader — how the material works and the four things that silently break it
   - performance — the quality tiers and what actually costs frames
@@ -133,7 +133,7 @@ Examples:
       title: "List the material collections",
       description: `Every family and colourway, with palettes and the numbers that define them.
 
-45 colourways across 5 families. Pass \`collection\` to get one family's nine in full; omit it for a summary of all five.
+90 colourways across 10 families. Pass \`collection\` to get one family's nine in full; omit it for a summary of all ten.
 
 Args:
   - collection (string, optional): 'mercury' | 'aurora' | 'prism' | 'magma' | 'pearl'

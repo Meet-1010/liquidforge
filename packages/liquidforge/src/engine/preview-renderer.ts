@@ -15,7 +15,7 @@ export interface CaptureRequest {
 /**
  * One WebGL context, shared by every still on the page.
  *
- * A gallery of 45 colourways cannot have 45 live contexts: Chrome does not
+ * A gallery of 90 colourways cannot have 90 live contexts: Chrome does not
  * refuse them past its limit, it hands one over and silently kills an older
  * one, so the page tears itself down as you scroll. But a card showing a flat
  * colour swatch is not a preview of anything.
@@ -25,9 +25,9 @@ export interface CaptureRequest {
  * rationed. Every card shows the real material on the real object; only the
  * card you are pointing at needs a live context of its own.
  *
- * Two things make this cheap enough to do for 45 cards. Geometry is cached by
+ * Two things make this cheap enough to do for ninety cards. Geometry is cached by
  * source, so a gallery whose cards differ only by colourway tessellates once
- * rather than 45 times. And the engine is only re-pointed at new geometry when
+ * rather than ninety times. And the engine is only re-pointed at new geometry when
  * the source actually changes, because that is the expensive half.
  */
 export class PreviewRenderer {

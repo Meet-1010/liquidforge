@@ -284,7 +284,7 @@ function commandInit(args: string[], cwd: string) {
   if (project.framework === "next") {
     log(paint("dim", "     It's a client component already — no extra directive needed."))
   }
-  log(`  2. Try another colourway: 45 of them, ${paint("cyan", "npx liquidforge presets")}.`)
+  log(`  2. Try another colourway: 90 of them, ${paint("cyan", "npx liquidforge presets")}.`)
   log(`  3. Want to own the source? ${paint("cyan", "npx liquidforge add hero")}`)
   log()
 }

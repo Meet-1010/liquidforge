@@ -11,7 +11,7 @@ import type { LiquidPreset, ObjectSource, Quality } from "liquidforge"
  *
  * Until the card is near the viewport it is empty. Once it is, a **still of the
  * real object in the real material** is painted into a plain 2D canvas — every
- * one of the 45 cards drawn by a single shared WebGL context, because 2D
+ * one of the ninety cards drawn by a single shared WebGL context, because 2D
  * contexts are not rationed and WebGL ones very much are. Nothing on this page
  * is a colour swatch standing in for a render.
  *
@@ -20,8 +20,8 @@ import type { LiquidPreset, ObjectSource, Quality } from "liquidforge"
  * context back and leaves the still behind, so at most one or two are ever
  * live no matter how far you scroll.
  *
- * That split is also why 45 live previews would not have worked even with the
- * context problem solved — 45 simultaneous liquid surfaces is several times a
+ * That split is also why ninety live previews would not have worked even with the
+ * context problem solved — ninety simultaneous liquid surfaces is many times a
  * full screen of a very expensive fragment shader, and none of them would hold
  * their frame rate.
  */

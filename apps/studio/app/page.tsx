@@ -159,18 +159,19 @@ export default function Home() {
         <section className="border-b border-rule py-16">
           <p className="label mb-4">04 — Material</p>
           <h2 className="display max-w-2xl text-[clamp(1.8rem,4.5vw,3rem)]">
-            Five families. Forty-five colourways.
+            Ten families. Ninety colourways.
           </h2>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
-            Mercury is chrome, Aurora is an oil slick, Prism is glass, Magma is molten and Pearl
-            is for light pages. Each is a palette and about twenty numbers — data you can edit,
-            not code you have to fork.
+            Chrome, oil slick, glass, molten, matte pearl, lacquer, velvet, holographic foil,
+            translucent stone and plasma filaments. Each family is a different technique rather
+            than a different palette, and each is a palette plus about twenty numbers — data you
+            can edit, not code you have to fork.
           </p>
           <Link
             href="/presets"
             className="mt-6 inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
           >
-            See all 45
+            See all 90
           </Link>
         </section>
 

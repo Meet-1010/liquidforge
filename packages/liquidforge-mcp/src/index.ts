@@ -33,7 +33,7 @@ const HELP = `
   Tools
     liquidforge_get_started           Learn the library — start here
     liquidforge_get_docs              Documentation by topic, including the gotchas
-    liquidforge_list_collections      Five families, 45 colourways, with palettes
+    liquidforge_list_collections      Ten families, 90 colourways, with palettes
     liquidforge_inspect_preset        One colourway's exact numbers
     liquidforge_recommend_preset      Pick a colourway for a described site
     liquidforge_generate_component    Turn an explicit config into paste-ready TSX

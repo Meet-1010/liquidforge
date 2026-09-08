@@ -3,7 +3,7 @@
 import { COLLECTIONS, PRESETS, presetName } from "liquidforge"
 import type { LiquidConfig } from "liquidforge/codegen"
 import type { MaterialFamily, ShadingOptions, SurfaceOptions } from "liquidforge"
-import { Collapsible, Field, PaletteField, Panel, Segmented, Slider } from "./ui"
+import { Collapsible, Field, PaletteField, Panel, Slider } from "./ui"
 
 const FAMILIES: Array<{ value: MaterialFamily; label: string }> = [
   { value: "mercury", label: "Mercury" },
@@ -11,6 +11,11 @@ const FAMILIES: Array<{ value: MaterialFamily; label: string }> = [
   { value: "prism", label: "Prism" },
   { value: "magma", label: "Magma" },
   { value: "pearl", label: "Pearl" },
+  { value: "obsidian", label: "Obsidian" },
+  { value: "velvet", label: "Velvet" },
+  { value: "halo", label: "Halo" },
+  { value: "jade", label: "Jade" },
+  { value: "plasma", label: "Plasma" },
 ]
 
 /**
@@ -51,14 +56,27 @@ export function MaterialPanel({
   return (
     <>
       <Panel title="Material">
-        <Segmented
-          value={config.family}
-          options={FAMILIES}
-          onChange={(family) => {
-            const next = COLLECTIONS.find((entry) => entry.family === family)
-            if (next) selectPreset(`${next.name.toLowerCase()}-1`)
-          }}
-        />
+        {/* A grid rather than a segmented control: ten families do not fit on
+            one row, and wrapping a segmented control looks like a mistake. */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {FAMILIES.map((entry) => (
+            <button
+              key={entry.value}
+              type="button"
+              onClick={() => {
+                const next = COLLECTIONS.find((collection) => collection.family === entry.value)
+                if (next) selectPreset(`${next.name.toLowerCase()}-1`)
+              }}
+              className={`rounded-[var(--radius-sm)] border px-2 py-1.5 font-mono text-[10px] transition-colors ${
+                config.family === entry.value
+                  ? "border-bone bg-bone text-ink"
+                  : "border-rule text-bone/45 hover:border-rule-bright hover:text-bone"
+              }`}
+            >
+              {entry.label}
+            </button>
+          ))}
+        </div>
 
         {collection && (
           <>
@@ -198,10 +216,10 @@ export function MaterialPanel({
           format={(value) => String(Math.round(value))}
         />
 
-        {config.family === "prism" && (
+        {(config.family === "prism" || config.family === "jade") && (
           <>
             <Slider
-              label="Transmission"
+              label={config.family === "jade" ? "Translucency" : "Transmission"}
               min={0}
               max={1}
               step={0.01}
@@ -219,9 +237,9 @@ export function MaterialPanel({
           </>
         )}
 
-        {(config.family === "aurora" || config.family === "pearl") && (
+        {(config.family === "aurora" || config.family === "pearl" || config.family === "halo") && (
           <Slider
-            label="Thin film"
+            label={config.family === "halo" ? "Interference bands" : "Thin film"}
             min={0}
             max={0.6}
             step={0.01}
@@ -230,7 +248,7 @@ export function MaterialPanel({
           />
         )}
 
-        {config.family === "magma" && (
+        {(config.family === "magma" || config.family === "plasma") && (
           <Slider
             label="Emissive"
             min={0}

@@ -34,12 +34,15 @@ export interface Recommendation {
 
 const SIGNALS: Record<MaterialFamily, { words: string[]; register: string }> = {
   mercury: {
+    // Deliberately not "luxury" or "premium": those now belong to Obsidian's
+    // register, and leaving them here made every expensive-sounding brief a tie
+    // that fell to Mercury by accident of ordering.
     words: [
       "saas", "developer", "infrastructure", "enterprise", "fintech", "bank", "security",
-      "platform", "api", "minimal", "clean", "premium", "luxury", "restrained", "serious",
-      "professional", "b2b", "agency", "portfolio", "studio", "chrome", "metal", "silver",
+      "platform", "api", "minimal", "serious", "professional", "b2b", "agency", "portfolio",
+      "chrome", "metal", "silver", "mirror", "polished",
     ],
-    register: "restrained and expensive",
+    register: "restrained and clean",
   },
   aurora: {
     words: [
@@ -52,8 +55,8 @@ const SIGNALS: Record<MaterialFamily, { words: string[]; register: string }> = {
   prism: {
     words: [
       "hardware", "product", "device", "optics", "precision", "clarity", "transparent",
-      "glass", "crystal", "data", "analytics", "science", "research", "medical", "clean",
-      "engineering", "design",
+      "glass", "crystal", "science", "research", "medical", "clean", "engineering",
+      "refraction", "lens",
     ],
     register: "precise and transparent",
   },
@@ -66,11 +69,62 @@ const SIGNALS: Record<MaterialFamily, { words: string[]; register: string }> = {
   },
   pearl: {
     words: [
-      "wellness", "beauty", "skincare", "calm", "soft", "gentle", "health", "care", "nature",
-      "organic", "light", "pastel", "quiet", "editorial", "print", "boutique", "wedding",
+      "wellness", "beauty", "skincare", "calm", "soft", "gentle", "health", "care",
+      "pastel", "quiet", "boutique", "wedding", "cosmetics", "spa",
     ],
     register: "soft and quiet",
   },
+  obsidian: {
+    words: [
+      "luxury", "premium", "restrained", "automotive", "car", "watch", "jewellery", "jewelry",
+      "audio", "hifi", "piano", "lacquer", "flagship", "concierge", "private", "bespoke",
+      "law", "consulting", "architecture", "gloss", "deep",
+    ],
+    register: "deep and lacquered",
+  },
+  velvet: {
+    words: [
+      "fashion", "couture", "theatre", "theater", "cinema", "film", "interiors", "furniture",
+      "hotel", "restaurant", "wine", "perfume", "textile", "fabric", "gallery", "museum",
+      "opera", "intimate",
+    ],
+    register: "soft-lit and expensive without shining",
+  },
+  halo: {
+    words: [
+      "holographic", "foil", "iridescent", "streetwear", "sneaker", "merch", "drop", "y2k",
+      "rave", "club", "ticket", "pass", "collectible", "trading", "sticker", "vinyl",
+    ],
+    register: "loud and prismatic",
+  },
+  jade: {
+    words: [
+      "tea", "ceramic", "craft", "artisan", "botanical", "herbal", "stone", "meditation",
+      "clinic", "pharmacy", "supplement", "translucent", "porcelain", "nature", "organic",
+      "jade", "marble",
+    ],
+    register: "translucent and calm",
+  },
+  plasma: {
+    words: [
+      "ai", "ml", "data", "network", "graph", "compute", "gpu", "quantum", "signal",
+      "telemetry", "observability", "realtime", "streaming", "energy", "grid", "neon",
+      "cyber", "synth",
+    ],
+    register: "electric and technical",
+  },
+}
+
+/**
+ * Families lit for a light page. Everything else is built to sit on a dark
+ * ground, and a light page with Mercury is not a near miss — it is unreadable.
+ */
+const LIGHT_FAMILIES: MaterialFamily[] = ["pearl", "jade"]
+
+/** How many families claim each word, for the weighting in `recommend`. */
+const CLAIMS = new Map<string, number>()
+for (const signal of Object.values(SIGNALS)) {
+  for (const word of signal.words) CLAIMS.set(word, (CLAIMS.get(word) ?? 0) + 1)
 }
 
 // -- colour ------------------------------------------------------------------
@@ -134,18 +188,18 @@ export function recommend(input: RecommendInput): Recommendation {
   for (const [family, signal] of Object.entries(SIGNALS) as Array<[MaterialFamily, typeof SIGNALS.mercury]>) {
     let score = 0
     for (const word of signal.words) {
-      if (text.includes(word)) score += 1
+      // A word two families both claim says half as much about either. Without
+      // this, a brief full of generic praise scores every family equally and
+      // the winner is whichever happens to be declared first.
+      if (text.includes(word)) score += 1 / (CLAIMS.get(word) ?? 1)
     }
     scores.set(family, score)
   }
 
-  // The one hard constraint. Pearl is the only family lit for a light page, and
-  // the other four sit on a dark ground by design — a light page with Mercury
-  // is not a near miss, it is unreadable.
-  if (input.background === "light") {
-    scores.set("pearl", (scores.get("pearl") ?? 0) + 4)
-  } else if (input.background === "dark") {
-    scores.set("pearl", (scores.get("pearl") ?? 0) - 2)
+  // The one hard constraint, and it outweighs everything the description says.
+  for (const family of LIGHT_FAMILIES) {
+    const score = scores.get(family) ?? 0
+    scores.set(family, input.background === "light" ? score + 4 : input.background === "dark" ? score - 2 : score)
   }
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1])
@@ -181,7 +235,9 @@ export function recommend(input: RecommendInput): Recommendation {
       : input.description
         ? ", the safest default when nothing in the description pulls harder"
         : "",
-    input.background === "light" ? " — and it is the only family built for a light page" : "",
+    input.background === "light" && LIGHT_FAMILIES.includes(family)
+      ? " — and it is one of the two families built for a light page"
+      : "",
     target
       ? `. ${name} is the colourway whose palette sits closest to ${input.brandColor}`
       : `. ${name} is the collection's most neutral colourway`,

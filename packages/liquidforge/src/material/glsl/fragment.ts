@@ -7,14 +7,24 @@ export const FAMILY_INDEX: Record<MaterialFamily, number> = {
   prism: 2,
   magma: 3,
   pearl: 4,
+  obsidian: 5,
+  velvet: 6,
+  halo: 7,
+  jade: 8,
+  plasma: 9,
 }
 
 /**
  * The look.
  *
- * One shader, five families, selected by `#define` so a preset compiles down to
+ * One shader, ten families, selected by `#define` so a preset compiles down to
  * exactly the branch it uses and nothing else. They share the expensive parts:
  * the advected hue field, the analytic studio environment, and the colour ramp.
+ *
+ * Each family is a different *technique*, not a different palette — a palette
+ * is what a colourway is for. Mercury mirrors the environment, Prism refracts
+ * it, Velvet refuses to reflect it at all. If a proposed family can be reached
+ * by recolouring an existing one, it is a colourway.
  *
  * ## The environment is computed, not sampled
  *
@@ -244,7 +254,7 @@ void main(){
   col += vec3(1.0) * pow(clamp(dot(R, A), 0.0, 1.0), uSpecPower) * 0.2;
   col = mix(col, uEnvHorizon, fres * uFresnel * 0.4);
 
-#else
+#elif LF_FAMILY == 4
   // ---- Pearl: soft matte iridescence --------------------------------------
   // Wrap lighting: light bleeds past the terminator the way it does through
   // something faintly translucent, which is what keeps this off a plastic look.
@@ -256,6 +266,77 @@ void main(){
   col += lf_env(R, max(uRoughness, 0.45)) * 0.12 * uMetalness;
   col = mix(col, uEnvHorizon, fres * uFresnel * 0.5);
   col = mix(col, vec3(1.0), 0.06);
+
+#elif LF_FAMILY == 5
+  // ---- Obsidian: a coloured body under a hard clear coat -------------------
+  // Two layers, which is the whole difference from Mercury: a deep body that
+  // takes light diffusely, and a thin coat above it that mirrors the studio.
+  // Piano lacquer and car paint both read this way and neither is a mirror.
+  vec3 body = lf_palette(hue) * (0.08 + 0.40 * clamp(ndl, 0.0, 1.0));
+  float coatRough = uRoughness * 0.35;
+  vec3 coat = lf_env(R, coatRough) + lf_key(R, A, coatRough);
+  // Schlick for a dielectric coat: nearly transparent head-on, a mirror at the
+  // grazing angle. That ramp is what makes it look lacquered rather than shiny.
+  float coatF = mix(0.04, 1.0, fres) * mix(0.5, 1.0, uFresnel);
+  col = body + coat * coatF;
+  col += vec3(1.0) * pow(clamp(dot(R, A), 0.0, 1.0), uSpecPower * 2.0) * 0.9;
+
+#elif LF_FAMILY == 6
+  // ---- Velvet: sheen, and no specular at all -------------------------------
+  // Retroreflective: brightest where the surface turns *away*, because the nap
+  // catches light along the silhouette. Adding a highlight here would undo it —
+  // the absence of one is what stops this reading as plastic.
+  float sheen = pow(1.0 - ndv, mix(1.0, 4.0, uRoughness));
+  vec3 nap = lf_palette(hue);
+  // The body is dim but not black: cloth still has a colour where it faces you,
+  // and at 0.05 the first pass at this read as a hole rather than as velvet.
+  col = nap * (0.12 + 0.34 * clamp(ndl, 0.0, 1.0));
+  col += nap * sheen * (1.15 + uFresnel);
+  col += lf_palette(hue + 0.12) * pow(sheen, 3.0) * 0.5;
+
+#elif LF_FAMILY == 7
+  // ---- Halo: holographic foil ----------------------------------------------
+  // Aurora's interference is one slow sweep across the surface. Here the film
+  // is thin enough to fold the spectrum over several times, so the bands are
+  // tight and they slide as the object turns — a holographic sticker, not oil.
+  float bands = 1.0 + uThinFilm * 22.0;
+  float film = fract(hue * bands + fres * 2.5 + uTime * 0.02);
+  vec3 sheenColour = lf_palette(film);
+  vec3 foil = lf_env(R, uRoughness) + lf_key(R, A, uRoughness);
+  col = mix(foil * sheenColour * 1.4, sheenColour, 0.45);
+  col += vec3(1.0) * pow(clamp(dot(R, A), 0.0, 1.0), uSpecPower) * 0.7;
+  col = mix(col, uEnvHorizon, fres * uFresnel * 0.35);
+
+#elif LF_FAMILY == 8
+  // ---- Jade: light coming through, not off ---------------------------------
+  // Backlight scatter: the glow sits where the surface faces away from the eye
+  // and toward the light, strongest where it is thin. That inversion is what
+  // separates something translucent from something merely pale.
+  // Wrap first, so the stone has a body to glow inside. Keying the whole family
+  // off the backlight alone left a dark ball with a lit rim — technically the
+  // right term, and nothing like jade.
+  float wrap = clamp((ndl + 0.7) / 1.7, 0.0, 1.0);
+  float thin = 1.0 - abs(dot(N, V));
+  vec3 stone = lf_palette(hue);
+  col = stone * (0.30 + 0.55 * wrap);
+  // Light that went in and came back out: strongest where the stone is thin,
+  // and shifted in hue because the short wavelengths do not survive the trip.
+  float through = pow(thin, 1.6) * (0.45 + 0.55 * wrap);
+  col += lf_palette(hue + 0.2) * through * (0.6 + uTransmission * 1.6);
+  col += vec3(1.0) * pow(clamp(dot(reflect(-A, N), V), 0.0, 1.0), uSpecPower) * 0.3;
+  col = mix(col, uEnvHorizon, fres * uFresnel * 0.25);
+
+#else
+  // ---- Plasma: filaments in a dark body ------------------------------------
+  // Magma emits from depth; this emits from the advected field, so the cursor
+  // does not warm the surface, it drags the light around in it. A triangle wave
+  // through the hue turns a smooth gradient into thin lines.
+  float wave = abs(fract(hue * 6.0) - 0.5) * 2.0;
+  float filament = pow(1.0 - wave, 9.0);
+  col = lf_ramp(0.0) * 0.18;
+  col += lf_ramp(clamp(0.35 + filament * 0.65, 0.0, 1.0)) * filament * uEmissive;
+  col += lf_env(R, max(uRoughness, 0.5)) * 0.12 * uMetalness;
+  col = mix(col, uEnvHorizon, fres * uFresnel * 0.3);
 #endif
 
   // The well under the cursor sits in its own shadow, whatever the family.

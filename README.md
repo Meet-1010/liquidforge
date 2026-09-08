@@ -26,7 +26,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **CLI** | `npx liquidforge init` to scaffold, `npx liquidforge add` to eject the source |
 | **MCP server** | `npx liquidforge-mcp` — teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
-| **`/presets`** | The collection gallery — 45 colourways, each a running scene |
+| **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
 | **`/community`** | Live gallery of creations |
 

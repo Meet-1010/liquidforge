@@ -77,7 +77,17 @@ export type ObjectSource =
 
 // -- Material ----------------------------------------------------------------
 
-export type MaterialFamily = "mercury" | "aurora" | "prism" | "magma" | "pearl"
+export type MaterialFamily =
+  | "mercury"
+  | "aurora"
+  | "prism"
+  | "magma"
+  | "pearl"
+  | "obsidian"
+  | "velvet"
+  | "halo"
+  | "jade"
+  | "plasma"
 
 /** How the surface moves. Every field is in object-space units on a 2-unit object. */
 export interface SurfaceOptions {
@@ -111,9 +121,12 @@ export interface ShadingOptions {
   transmission?: number
   /** Glass only: index of refraction. Also drives chromatic dispersion. */
   ior?: number
-  /** Iridescent only: thin-film thickness. Drives the oil-slick hue sweep. */
+  /**
+   * Thin-film thickness. Drives the oil-slick hue sweep on Aurora and Pearl,
+   * and the number of interference bands on Halo.
+   */
   thinFilm?: number
-  /** Molten only: how brightly the troughs glow. */
+  /** How brightly the surface emits: Magma's troughs, Plasma's filaments. */
   emissive?: number
 }
 
