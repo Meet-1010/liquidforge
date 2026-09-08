@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { LiquidCanvas, LiquidLoading, sharedPreviewRenderer } from "liquidforge"
+import { LiquidCanvas, LiquidLoading, backgroundColor, sharedPreviewRenderer } from "liquidforge"
 import type { LiquidPreset, ObjectSource, Quality } from "liquidforge"
 
 /**
@@ -83,12 +83,16 @@ export function LazyPreview({
   }, [near, captured, height, preset.id, JSON.stringify(object)])
 
   const light = preset.background === "light"
+  // Ask the library rather than hardcoding two tones: colourways now sit on a
+  // studio grey as well as on near-black, and a card painted the wrong one puts
+  // a visible rectangle around the still.
+  const ground = backgroundColor(preset) ?? "#050506"
 
   return (
     <div
       ref={containerRef}
       className={className}
-      style={{ position: "relative", height, background: light ? "#f2f0ec" : "#050506" }}
+      style={{ position: "relative", height, background: ground }}
       onPointerEnter={() => setLive(true)}
       onPointerLeave={() => setLive(false)}
       // Keyboard users get the live version too; without this the card is

@@ -146,7 +146,16 @@ export interface LiquidPreset {
   palette: string[]
   surface: SurfaceOptions
   shading: ShadingOptions
-  background: "dark" | "light" | "transparent"
+  /**
+   * The ground this colourway expects to sit on.
+   *
+   * `mid` exists because a dark material on a dark page is not subtle, it is
+   * invisible — a black lacquer or a deep velvet has almost nothing to separate
+   * it from `dark`'s near-black, and both simply disappeared. A studio grey
+   * gives them an edge to end at, which is the same reason a photographer does
+   * not shoot a black car against black.
+   */
+  background: "dark" | "mid" | "light" | "transparent"
 }
 
 /** A preset with every field optional — what props and the Studio hand back in. */

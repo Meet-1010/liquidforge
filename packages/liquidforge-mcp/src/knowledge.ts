@@ -186,8 +186,10 @@ the environment, Prism refracts it, Velvet refuses to reflect it at all.
 | **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
 
-Only **Pearl** and **Jade** are lit for a light page. The other eight are built
-to sit on a dark ground.
+Every colourway declares the ground it expects: \`dark\`, \`mid\`, \`light\` or
+\`transparent\`. **Pearl** and **Jade** are lit for a light page. **Obsidian**
+and **Velvet** want \`mid\`, a studio grey — those two are the darkest materials
+here and on a near-black page they simply disappear.
 
 Ids run \`mercury-1\` … \`mercury-9\`, \`aurora-1\` … and so on. Call
 \`liquidforge_list_collections\` for the palettes and \`liquidforge_inspect_preset\`

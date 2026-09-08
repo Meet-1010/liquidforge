@@ -35,6 +35,17 @@ export function studioColors(preset: LiquidPreset): StudioColors {
     }
   }
 
+  // A lifted studio, for the families that sit on `mid`. Those are the dark
+  // materials, and a dark material against a dark environment has nothing to
+  // reflect either — the coat on a lacquer needs something in it to be a coat.
+  if (preset.background === "mid") {
+    return {
+      top: BLACK.clone().lerp(first, 0.42).addScalar(0.09),
+      horizon: WHITE.clone().lerp(palette[1] ?? first, 0.12),
+      bottom: BLACK.clone().lerp(last, 0.14).addScalar(0.02),
+    }
+  }
+
   // These are linear values, not swatches: a mid-grey here displays far
   // brighter than it reads written down, which is most of the reason an early
   // pass at this looked like grey plastic rather than chrome.
@@ -49,5 +60,8 @@ export function studioColors(preset: LiquidPreset): StudioColors {
 export function backgroundColor(preset: LiquidPreset): string | null {
   if (preset.background === "transparent") return null
   if (preset.background === "light") return "#f2f0ec"
+  // Studio grey. Dark enough to stay a dark page, light enough that a black
+  // lacquer has an edge.
+  if (preset.background === "mid") return "#272b35"
   return "#050506"
 }

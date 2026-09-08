@@ -28,6 +28,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
+| **Surprise me** | The Studio's model tab rolls one at random out of 46,871, with its licence |
 | **`/community`** | Live gallery of creations |
 
 ---

@@ -3,6 +3,8 @@
 import { useRef, useState } from "react"
 import { SHAPE_KINDS } from "liquidforge"
 import type { ObjectSource, ShapeKind } from "liquidforge"
+import { fetchSketchfabMetadata, randomAsset, TOTAL_ASSETS } from "@/lib/catalog"
+import type { AssetResult } from "@/lib/catalog"
 import { Button, Field, Panel, Segmented, Slider, TextInput } from "./ui"
 
 type Kind = ObjectSource["type"]
@@ -38,6 +40,46 @@ export function ObjectPanel({
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<string | null>(null)
+  const [rolling, setRolling] = useState(false)
+  const [picked, setPicked] = useState<AssetResult | null>(null)
+  const [rollError, setRollError] = useState<string | null>(null)
+
+  /**
+   * One model at random out of every importable thing in the catalogues.
+   *
+   * Objaverse is a scraped dataset, so a fair share of it is junk, broken, or
+   * compressed in a way this library does not decode. Rather than hand back a
+   * failure, this rerolls a few times — a surprise button that surprises you
+   * with an error is not one.
+   */
+  const surprise = async () => {
+    setRolling(true)
+    setRollError(null)
+    try {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const asset = await randomAsset()
+          const src = await asset.resolveModelUrl()
+          setPicked(asset)
+          onChange({ type: "model", src })
+          // Objaverse knows only a category up front; the real name, author and
+          // licence come from a second request, and the licence is the half
+          // that matters.
+          if (asset.enrich) {
+            void fetchSketchfabMetadata(asset.id).then(
+              (meta) => meta && setPicked((current) => (current?.id === asset.id ? { ...current, ...meta } : current)),
+            )
+          }
+          return
+        } catch {
+          // Try another one.
+        }
+      }
+      setRollError("Five in a row failed to resolve. Try again.")
+    } finally {
+      setRolling(false)
+    }
+  }
 
   const kind = object.type
 
@@ -205,9 +247,39 @@ export function ObjectPanel({
             onChange={(src) => onChange({ ...object, src })}
             placeholder="/models/yours.glb"
           />
-          <Button onClick={() => pickFile(".glb,.gltf,model/gltf-binary", (src) => onChange({ ...object, src }))}>
-            Upload a .glb
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => pickFile(".glb,.gltf,model/gltf-binary", (src) => onChange({ ...object, src }))}>
+              Upload a .glb
+            </Button>
+            <Button variant="primary" onClick={surprise} disabled={rolling}>
+              {rolling ? "Rolling…" : "Surprise me"}
+            </Button>
+          </div>
+          <p className="font-mono text-[10px] text-bone/30">
+            One at random out of {TOTAL_ASSETS.toLocaleString()}. Objaverse is a scraped dataset,
+            so expect the occasional lump — roll again.
+          </p>
+
+          {picked && (
+            <div className="rounded-[var(--radius-sm)] border border-rule bg-ink p-2.5">
+              <p className="truncate font-mono text-[11px] text-bone/80">{picked.name}</p>
+              <p className="truncate font-mono text-[10px] text-muted">
+                {picked.author ?? picked.provider}
+              </p>
+              {/* Shown verbatim and always: a random CC-BY model still has to
+                  carry its attribution, and a link is the only honest one. */}
+              <p className="truncate font-mono text-[10px] text-bone/35">{picked.license}</p>
+              <a
+                href={picked.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block font-mono text-[10px] text-muted underline underline-offset-2 hover:text-bone"
+              >
+                Source
+              </a>
+            </div>
+          )}
+          {rollError && <p className="font-mono text-[10px] text-bone/45">{rollError}</p>}
           <p className="font-mono text-[10px] leading-relaxed text-bone/30">
             Every mesh is baked into one surface and materials are dropped. Rigged and
             morph-target models animate, up to about 60k vertices — past that they are posed.

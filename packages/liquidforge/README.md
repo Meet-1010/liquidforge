@@ -63,11 +63,22 @@ CORS-open metadata and files. The Studio's `/assets` page is this with a grid
 around it.
 
 ```ts
-import { searchAssets, resolveAssetUrl } from "liquidforge/catalog"
+import { searchAssets, randomAsset, resolveAssetUrl } from "liquidforge/catalog"
 
 const { results } = await searchAssets({ query: "helmet", providers: ["khronos"] })
 const src = await resolveAssetUrl("khronos", results[0].id)
+
+// Or one at random out of every importable model in all four catalogues.
+const surprise = await randomAsset()
+const surpriseSrc = await surprise.resolveModelUrl()
 ```
+
+`randomAsset` reaches into the packed Objaverse index rather than shuffling a
+search page, so all 46,207 entries are actually reachable — a search returns a
+handful per category, and shuffling that would mean "random among the first
+slice" for ever. The draw is 25% from the curated sets and 75% weighted by
+catalogue size, because the hand-picked models are the ones with the silhouettes
+this material wants and pure size weighting would never show them.
 
 Objaverse (46,207), Poly Haven (521, all CC0), Khronos (119), three.js (22) and
 Sketchfab (search only — downloading needs an account). Licences come back
@@ -141,7 +152,11 @@ Each family is a different *technique*, not a different palette. If a look can b
 | **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
 
-Only **Pearl** and **Jade** are built for a light background.
+Each colourway declares the ground it expects: `dark`, `mid`, `light` or
+`transparent`. **Pearl** and **Jade** are lit for a light page. **Obsidian** and
+**Velvet** ask for `mid`, a studio grey — a black lacquer or a deep velvet
+against a near-black page is not subtle, it is invisible, which is the same
+reason nobody photographs a black car against black.
 
 Ids run `mercury-1` … `mercury-9`, `aurora-1` …, and so on. `npx liquidforge presets` lists them all.
 

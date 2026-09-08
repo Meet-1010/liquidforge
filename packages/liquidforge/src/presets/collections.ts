@@ -1,4 +1,4 @@
-import type { MaterialFamily, ShadingOptions, SurfaceOptions } from "../types"
+import type { LiquidPreset, MaterialFamily, ShadingOptions, SurfaceOptions } from "../types"
 
 /**
  * The colourways, as data.
@@ -27,7 +27,7 @@ export interface Collection {
   family: MaterialFamily
   /** One line for the gallery header and the MCP server's catalogue. */
   blurb: string
-  background: "dark" | "light" | "transparent"
+  background: LiquidPreset["background"]
   surface: SurfaceOptions
   shading: ShadingOptions
   colourways: Colourway[]
@@ -234,7 +234,9 @@ const OBSIDIAN: Collection = {
   name: "Obsidian",
   family: "obsidian",
   blurb: "Lacquer. A deep coloured body under a hard clear coat.",
-  background: "dark",
+  // Studio grey: these bodies are near-black, and on `dark` there was nothing
+  // to tell the object from the page.
+  background: "mid",
   surface: {
     noise: 0.025,
     dimple: 0.1,
@@ -271,7 +273,8 @@ const VELVET: Collection = {
   name: "Velvet",
   family: "velvet",
   blurb: "Cloth. Lit along the silhouette, with no highlight anywhere.",
-  background: "dark",
+  // Velvet is the darkest family here, and the sheen only lights its rim.
+  background: "mid",
   surface: {
     noise: 0.04,
     dimple: 0.13,

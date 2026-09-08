@@ -620,5 +620,97 @@ export async function searchAssets({
   return { results: ranked.slice(0, limit), total: ranked.length, failed }
 }
 
+/**
+ * One model at random, out of every importable thing in the catalogues.
+ *
+ * Not `searchAssets` with an empty query and a shuffle: that caps Objaverse at
+ * a handful per category, so the same few thousand entries would come back for
+ * ever and "random" would mean "random among the first slice". This reaches
+ * into the packed index and picks a category and then an entry inside it, so
+ * all 46,207 are actually reachable.
+ *
+ * Weighted by catalogue size, with a floor under the curated sets. Objaverse is
+ * two orders of magnitude larger than the rest, so pure size weighting would
+ * mean never seeing the hand-picked models — and those are the ones with the
+ * silhouettes that suit this material.
+ */
+export interface RandomOptions {
+  /** Where to draw from. Sketchfab is excluded; it cannot be imported. */
+  providers?: ProviderId[]
+  /** Chance of drawing from the curated sets rather than by size. @default 0.25 */
+  curatedBias?: number
+  /** Injectable for tests and for reproducible picks. */
+  random?: () => number
+}
+
+/** Catalogue sizes, so the bulk draw is proportional rather than per-provider. */
+const CATALOGUE_SIZE: Partial<Record<ProviderId, number>> = {
+  objaverse: 46207,
+  polyhaven: 521,
+  khronos: 119,
+  threejs: 22,
+}
+
+function pickWeighted(providers: ProviderId[], random: () => number): ProviderId {
+  const total = providers.reduce((sum, id) => sum + (CATALOGUE_SIZE[id] ?? 1), 0)
+  let roll = random() * total
+  for (const id of providers) {
+    roll -= CATALOGUE_SIZE[id] ?? 1
+    if (roll <= 0) return id
+  }
+  return providers[providers.length - 1] ?? "objaverse"
+}
+
+export async function randomAsset(options: RandomOptions = {}): Promise<AssetResult> {
+  const { curatedBias = 0.25, random = Math.random } = options
+  const allowed = (options.providers ?? ["objaverse", "polyhaven", "threejs", "khronos"]).filter(
+    (provider) => provider !== "sketchfab",
+  )
+  if (allowed.length === 0) throw new Error("randomAsset: no importable providers to draw from")
+
+  const curated = allowed.filter((p) => p === "threejs" || p === "khronos")
+  const bulk = allowed.filter((p) => p === "objaverse" || p === "polyhaven")
+
+  // The two pools have to be disjoint. Drawing the second from *all* providers
+  // let the curated sets win from both branches: 62% of rolls, against 19% for
+  // the 46,207 models the button is nominally offering.
+  const useCurated = curated.length > 0 && (bulk.length === 0 || random() < curatedBias)
+  const provider = useCurated
+    ? (curated[Math.floor(random() * curated.length)] ?? "threejs")
+    : pickWeighted(bulk, random)
+
+  if (provider === "objaverse") {
+    const index = await loadObjaverseIndex()
+    const categories = Object.keys(index.categories)
+    if (categories.length === 0) throw new Error("randomAsset: the Objaverse index is empty")
+    const category = categories[Math.floor(random() * categories.length)]
+    const entries = index.categories[category].split(",")
+    const entry = entries[Math.floor(random() * entries.length)]
+    const uid = entry.slice(0, 32)
+    const shard = entry.slice(32)
+    return {
+      id: uid,
+      provider: "objaverse",
+      name: titleCase(category),
+      license: "CC-BY (check source)",
+      tags: [category],
+      sourceUrl: `https://sketchfab.com/models/${uid}`,
+      importable: true,
+      enrich: true,
+      resolveModelUrl: async () => `${OBJAVERSE_GLB}/000-${shard}/${uid}.glb`,
+    }
+  }
+
+  const batch =
+    provider === "polyhaven"
+      ? await loadPolyHaven()
+      : provider === "khronos"
+        ? await loadKhronos()
+        : await loadThreeJs()
+
+  if (batch.length === 0) throw new Error(`randomAsset: ${provider} returned nothing`)
+  return batch[Math.floor(random() * batch.length)]
+}
+
 /** Total catalogue size, for the landing copy. */
 export const TOTAL_ASSETS = 46207 + 521 + 119 + 24
