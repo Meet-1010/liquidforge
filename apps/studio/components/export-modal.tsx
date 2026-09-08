@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { downloadBlob, exportModel, forgeGeometry, resolvePreset } from "liquidforge"
 import { generateCode, shareUrl, type LiquidConfig } from "liquidforge/codegen"
-import { Button, CopyButton, Segmented } from "./ui"
+import { Button, CopyButton, Segmented, Toggle } from "./ui"
 
 type Tab = "hero" | "canvas" | "preset"
 
@@ -23,6 +23,15 @@ export function ExportModal({
   onClose: () => void
 }) {
   const [tab, setTab] = useState<Tab>("hero")
+  /**
+   * Whether the snippet paints its own ground.
+   *
+   * Off is the "drop it into the page I already have" answer, and it is asked
+   * for far more often than the default implies — a hero handed to someone
+   * whose layout already has a background should composite over it, not fight
+   * it with a second one.
+   */
+  const [withBackground, setWithBackground] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -45,8 +54,8 @@ export function ExportModal({
       })
       return JSON.stringify({ ...preset, id: `${preset.id}-custom` }, null, 2)
     }
-    return generateCode(config, { component: tab })
-  }, [config, tab])
+    return generateCode(config, { component: tab, background: withBackground })
+  }, [config, tab, withBackground])
 
   const link = typeof window === "undefined" ? null : shareUrl(config, `${window.location.origin}/studio`)
 
@@ -83,7 +92,7 @@ export function ExportModal({
           </Button>
         </header>
 
-        <div className="border-b border-rule px-4 py-3">
+        <div className="space-y-3 border-b border-rule px-4 py-3">
           <Segmented
             value={tab}
             onChange={setTab}
@@ -93,6 +102,20 @@ export function ExportModal({
               { value: "preset", label: "Preset JSON" },
             ]}
           />
+          {tab !== "preset" && (
+            <>
+              <Toggle
+                label="Paint the background"
+                checked={withBackground}
+                onChange={setWithBackground}
+              />
+              <p className="px-2 font-mono text-[10px] leading-relaxed text-bone/30">
+                {withBackground
+                  ? "A finished section — it paints its own ground."
+                  : "Just the surface, composited over whatever your page already has."}
+              </p>
+            </>
+          )}
         </div>
 
         <pre className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-bone/75">

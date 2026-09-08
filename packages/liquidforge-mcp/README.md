@@ -4,28 +4,52 @@ MCP server for [Liquidforge](https://github.com/Meet-1010/liquidforge) — liqui
 
 It teaches a coding agent the library, recommends a colourway for the site the agent is looking at, and hands over the handful of failures that produce no error and no clue when you write this by hand.
 
-```bash
-npx liquidforge-mcp
-```
-
 ## Add it to a client
 
+**This package is not on npm yet**, so `npx liquidforge-mcp` will not resolve.
+Run it from a checkout until it is published:
+
 ```bash
-claude mcp add liquidforge -- npx -y liquidforge-mcp
+git clone https://github.com/Meet-1010/liquidforge
+cd liquidforge
+npm install
+npm run build:all
+```
+
+Then point your client at the built entry point, by absolute path:
+
+```bash
+claude mcp add liquidforge -- node /absolute/path/to/liquidforge/packages/liquidforge-mcp/dist/index.js
 ```
 
 Cursor — `.cursor/mcp.json`:
 
 ```json
-{ "mcpServers": { "liquidforge": { "command": "npx", "args": ["-y", "liquidforge-mcp"] } } }
+{
+  "mcpServers": {
+    "liquidforge": {
+      "command": "node",
+      "args": ["/absolute/path/to/liquidforge/packages/liquidforge-mcp/dist/index.js"]
+    }
+  }
+}
 ```
 
 Codex — `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.liquidforge]
-command = "npx"
-args = ["-y", "liquidforge-mcp"]
+command = "node"
+args = ["/absolute/path/to/liquidforge/packages/liquidforge-mcp/dist/index.js"]
+```
+
+Once it is published, all three become `npx -y liquidforge-mcp` with no args.
+
+Check it works before wiring it up — this starts the server, calls every tool
+once, and prints a pass/fail line each:
+
+```bash
+npm test --workspace=liquidforge-mcp
 ```
 
 ## Tools

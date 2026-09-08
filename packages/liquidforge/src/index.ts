@@ -30,7 +30,8 @@ export {
   MAX_PALETTE,
   type LiquidMaterialHandle,
 } from "./material/liquid-material"
-export { studioColors, backgroundColor, type StudioColors } from "./material/environment"
+export { studioColors, type StudioColors } from "./material/environment"
+export { BACKGROUND_TONES, backgroundColor } from "./background"
 export { vertexGlsl } from "./material/glsl/vertex"
 export { fragmentGlsl, FAMILY_INDEX } from "./material/glsl/fragment"
 

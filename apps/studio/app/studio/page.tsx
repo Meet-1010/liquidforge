@@ -2,14 +2,14 @@
 
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { LiquidCanvas, resolvePreset } from "liquidforge"
+import { BACKGROUND_TONES, LiquidCanvas, resolvePreset } from "liquidforge"
 import { configFromPreset, decodeState, type LiquidConfig } from "liquidforge/codegen"
 import type { Quality } from "liquidforge"
 import { ExportModal } from "@/components/export-modal"
 import { MaterialPanel } from "@/components/material-panel"
 import { ObjectPanel } from "@/components/object-panel"
 import { SiteNav } from "@/components/site-nav"
-import { Button, Collapsible, Panel, Segmented, Slider, Toggle } from "@/components/ui"
+import { Button, Collapsible, ColorField, Panel, Segmented, Slider, Toggle } from "@/components/ui"
 
 export default function StudioPage() {
   return (
@@ -89,11 +89,34 @@ function Studio() {
                 setConfig({ ...config, motion: { ...config.motion, draggable } })
               }
             />
-            <Toggle
-              label="Transparent background"
-              checked={config.transparent}
-              onChange={(transparent) => setConfig({ ...config, transparent })}
+            {/* The ground is part of the look, not a fixed property of the
+                family: a lacquer that reads on studio grey may be exactly what
+                you want on your own near-white page. */}
+            <Segmented
+              label="Background"
+              value={config.transparent ? "transparent" : config.background}
+              options={[
+                { value: "dark" as const, label: "Dark" },
+                { value: "mid" as const, label: "Mid" },
+                { value: "light" as const, label: "Light" },
+                { value: "transparent" as const, label: "None" },
+              ]}
+              onChange={(background) =>
+                setConfig({
+                  ...config,
+                  background: background === "transparent" ? config.background : background,
+                  transparent: background === "transparent",
+                  backgroundColor: undefined,
+                })
+              }
             />
+            {!config.transparent && (
+              <ColorField
+                label="Custom ground"
+                value={config.backgroundColor ?? BACKGROUND_TONES[config.background] ?? "#050506"}
+                onChange={(backgroundColor) => setConfig({ ...config, backgroundColor })}
+              />
+            )}
             <Segmented
               label="Layout"
               value={config.layout}
@@ -127,6 +150,7 @@ function Studio() {
             // a page that stops scrolling under the pointer reads as broken.
             controls={{ zoom: true, zoomRange: [0.3, 4], resetToken }}
             transparent={config.transparent}
+            background={config.backgroundColor}
             style={{ height: "100%", minHeight: 0 }}
           />
 

@@ -187,9 +187,13 @@ the environment, Prism refracts it, Velvet refuses to reflect it at all.
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
 
 Every colourway declares the ground it expects: \`dark\`, \`mid\`, \`light\` or
-\`transparent\`. **Pearl** and **Jade** are lit for a light page. **Obsidian**
-and **Velvet** want \`mid\`, a studio grey — those two are the darkest materials
-here and on a near-black page they simply disappear.
+\`transparent\`. **Pearl** and **Jade** are lit for a light page. **Obsidian**,
+**Velvet** and **Plasma** want \`mid\`, a studio grey — those three are the
+darkest materials here, and on a near-black page they simply disappear.
+
+The ground is not fixed to the family. \`background\` on the component takes any
+colour, and \`transparent\` composites over whatever the host page already has —
+which is usually what you want when dropping a hero into a designed layout.
 
 Ids run \`mercury-1\` … \`mercury-9\`, \`aurora-1\` … and so on. Call
 \`liquidforge_list_collections\` for the palettes and \`liquidforge_inspect_preset\`

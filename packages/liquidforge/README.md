@@ -153,10 +153,22 @@ Each family is a different *technique*, not a different palette. If a look can b
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
 
 Each colourway declares the ground it expects: `dark`, `mid`, `light` or
-`transparent`. **Pearl** and **Jade** are lit for a light page. **Obsidian** and
-**Velvet** ask for `mid`, a studio grey — a black lacquer or a deep velvet
-against a near-black page is not subtle, it is invisible, which is the same
-reason nobody photographs a black car against black.
+`transparent`. **Pearl** and **Jade** are lit for a light page. **Obsidian**, **Velvet** and
+**Plasma** ask for `mid`, a studio grey — a black lacquer, a deep velvet or a
+body lit only by its own filaments against a near-black page is not subtle, it
+is invisible, which is the same reason nobody photographs a black car against
+black.
+
+None of that is fixed. `background` takes any colour, and `transparent`
+composites over whatever your page already has:
+
+```tsx
+<LiquidHero object={{ type: "text", value: "SHIP IT" }} preset="obsidian-1" transparent />
+```
+
+The Studio's export has a switch for exactly this: **with** a background it is a
+finished section for an empty route, **without** it is a surface to drop into a
+layout you have already designed.
 
 Ids run `mercury-1` … `mercury-9`, `aurora-1` …, and so on. `npx liquidforge presets` lists them all.
 

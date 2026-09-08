@@ -24,7 +24,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | --- | --- |
 | **Library** | React components, the GLSL material, five object generators, asset search, glTF export |
 | **CLI** | `npx liquidforge init` to scaffold, `npx liquidforge add` to eject the source |
-| **MCP server** | `npx liquidforge-mcp` — teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model |
+| **MCP server** | Teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model. Not on npm yet — run it from this checkout, see [its README](packages/liquidforge-mcp/README.md) |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |

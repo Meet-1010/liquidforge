@@ -7,6 +7,7 @@
  */
 
 import { PRESETS, DEFAULT_PRESET_ID } from "../presets"
+import { BACKGROUND_TONES } from "../background"
 import type {
   LiquidPreset,
   MaterialFamily,
@@ -26,7 +27,10 @@ export interface LiquidConfig {
   palette: string[]
   surface: SurfaceOptions
   shading: ShadingOptions
+  /** Which of the four grounds the colourway sits on. */
   background: LiquidPreset["background"]
+  /** An explicit ground colour, overriding the tone. Empty means "use the tone". */
+  backgroundColor?: string
   quality: Quality
   motion: MotionOptions
   layout: "overlay" | "split"
@@ -69,6 +73,7 @@ export function configFromPreset(
     surface: { ...preset.surface },
     shading: { ...preset.shading },
     background: preset.background,
+    backgroundColor: undefined,
     quality: "auto",
     motion: { ...MOTION_DEFAULTS },
     layout: "overlay",
@@ -128,6 +133,17 @@ export interface CodeOptions {
   component?: "hero" | "canvas"
   /** Package import vs. an ejected local path. */
   importFrom?: string
+  /**
+   * Paint the colourway's ground, or composite over whatever the host page
+   * already has.
+   *
+   * On, the snippet is a finished section you can drop into an empty route.
+   * Off, it is a surface to put inside a layout you have already designed —
+   * which is what you want far more often than the default suggests, and is
+   * why it is a switch rather than something to work out from `transparent`.
+   * @default true
+   */
+  background?: boolean
 }
 
 /**
@@ -138,7 +154,7 @@ export interface CodeOptions {
  * reader changed.
  */
 export function generateCode(config: LiquidConfig, options: CodeOptions = {}): string {
-  const { component = "hero", importFrom = "liquidforge" } = options
+  const { component = "hero", importFrom = "liquidforge", background: includeBackground = true } = options
   const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
   const name = component === "hero" ? "LiquidHero" : "LiquidCanvas"
 
@@ -159,7 +175,24 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
   if (Object.keys(shadingDiff).length > 0) props.push(`shading={${literal(shadingDiff, 3)}}`)
 
   if (config.quality !== "auto") props.push(`quality="${config.quality}"`)
-  if (config.transparent) props.push("transparent")
+
+  /*
+   * The ground, in one of three ways.
+   *
+   * There is no prop for the *tone* — `background` on the component takes a
+   * colour — so a colourway moved onto a different ground has to export the
+   * resolved hex, or the snippet would silently render on the tone the preset
+   * ships with.
+   */
+  if (!includeBackground || config.transparent) {
+    props.push("transparent")
+  } else if (config.backgroundColor) {
+    props.push(`background="${config.backgroundColor}"`)
+  } else if (config.background !== base.background) {
+    const tone = BACKGROUND_TONES[config.background]
+    if (tone) props.push(`background="${tone}"`)
+    else props.push("transparent")
+  }
 
   const motionDiff = diff(config.motion, MOTION_DEFAULTS)
   if (Object.keys(motionDiff).length > 0) props.push(`motion={${literal(motionDiff, 3)}}`)
@@ -187,7 +220,8 @@ ${propBlock}
 `
   }
 
-  const headlineColour = config.blend ? "" : `, color: "${config.background === "light" ? "#111" : "#fff"}"`
+  const onLight = config.background === "light" && includeBackground && !config.transparent
+  const headlineColour = config.blend ? "" : `, color: "${onLight ? "#111" : "#fff"}"`
   const blendNote = config.blend
     ? `      {/* mix-blend-mode: difference. No ancestor of this section may set a
           z-index, transform, filter or opacity below 1 — any of those isolates

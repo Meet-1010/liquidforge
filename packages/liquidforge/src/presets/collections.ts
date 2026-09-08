@@ -381,7 +381,9 @@ const PLASMA: Collection = {
   name: "Plasma",
   family: "plasma",
   blurb: "Filaments in a dark body. The cursor drags the light rather than heating it.",
-  background: "dark",
+  // The body is near-black by design, so on `dark` you saw the filaments and no
+  // object — the studio grey gives the thing they are burning through a shape.
+  background: "mid",
   surface: {
     noise: 0.045,
     dimple: 0.14,

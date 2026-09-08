@@ -45,9 +45,10 @@ const HELP = `
                                       Defaults to the copy in the repository.
 
   Add it to a client
-    Claude Code   claude mcp add liquidforge -- npx -y liquidforge-mcp
-    Cursor        .cursor/mcp.json  -> { "mcpServers": { "liquidforge": { "command": "npx", "args": ["-y", "liquidforge-mcp"] } } }
-    Codex         ~/.codex/config.toml -> [mcp_servers.liquidforge] command = "npx", args = ["-y", "liquidforge-mcp"]
+    Not on npm yet, so point the client at this file by absolute path:
+    Claude Code   claude mcp add liquidforge -- node <repo>/packages/liquidforge-mcp/dist/index.js
+    Cursor        .cursor/mcp.json  -> { "mcpServers": { "liquidforge": { "command": "node", "args": ["<repo>/packages/liquidforge-mcp/dist/index.js"] } } }
+    Codex         ~/.codex/config.toml -> [mcp_servers.liquidforge] command = "node", args = ["<repo>/packages/liquidforge-mcp/dist/index.js"]
 
   ${REPO_URL}
 `
