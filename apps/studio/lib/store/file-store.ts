@@ -55,7 +55,7 @@ export class FileStore implements CommunityStore {
         ...post,
         id: `${slug(post.title)}-${Date.now().toString(36)}`,
         createdAt: new Date().toISOString(),
-        status: "pending",
+        status: "published",
       }
       return [[created, ...posts], created]
     })

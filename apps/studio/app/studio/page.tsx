@@ -1,9 +1,11 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { BACKGROUND_TONES, LiquidCanvas, resolvePreset } from "liquidforge"
-import { configFromPreset, decodeState, type LiquidConfig } from "liquidforge/codegen"
+import { BACKGROUND_TONES, LiquidCanvas, downloadBlob, mutatePreset, resolvePreset } from "liquidforge"
+import type { LiquidEngine } from "liquidforge"
+import { PRESETS } from "liquidforge"
+import { configFromPreset, decodeState, encodeState, type LiquidConfig } from "liquidforge/codegen"
 import type { Quality } from "liquidforge"
 import { ExportModal } from "@/components/export-modal"
 import { MaterialPanel } from "@/components/material-panel"
@@ -23,6 +25,67 @@ function Studio() {
   const params = useSearchParams()
   const [config, setConfig] = useState<LiquidConfig>(() => configFromPreset())
   const [exporting, setExporting] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const engineRef = useRef<LiquidEngine | null>(null)
+
+  /*
+   * Undo, which the Studio has needed since the first slider.
+   *
+   * The whole interaction is dragging things, and until now there was no way
+   * back from a drag that went wrong except rebuilding the colourway by hand.
+   * Every edit already flows through one `LiquidConfig`, so the history is a
+   * stack of those and nothing more.
+   */
+  const history = useRef<LiquidConfig[]>([])
+  const future = useRef<LiquidConfig[]>([])
+  const [depth, setDepth] = useState({ back: 0, forward: 0 })
+
+  const commit = useCallback((next: LiquidConfig | ((current: LiquidConfig) => LiquidConfig)) => {
+    setConfig((current) => {
+      const resolved = typeof next === "function" ? next(current) : next
+      // Dragging a slider fires this on every pixel; collapsing identical
+      // states keeps one drag from filling the stack with itself.
+      if (JSON.stringify(resolved) === JSON.stringify(current)) return current
+      history.current = [...history.current, current].slice(-60)
+      future.current = []
+      setDepth({ back: history.current.length, forward: 0 })
+      return resolved
+    })
+  }, [])
+
+  const undo = useCallback(() => {
+    const previous = history.current.pop()
+    if (!previous) return
+    setConfig((current) => {
+      future.current = [current, ...future.current].slice(0, 60)
+      return previous
+    })
+    setDepth({ back: history.current.length, forward: future.current.length + 1 })
+  }, [])
+
+  const redo = useCallback(() => {
+    const next = future.current.shift()
+    if (!next) return
+    setConfig((current) => {
+      history.current = [...history.current, current]
+      return next
+    })
+    setDepth({ back: history.current.length + 1, forward: future.current.length })
+  }, [])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const meta = event.metaKey || event.ctrlKey
+      if (!meta || event.key.toLowerCase() !== "z") return
+      const target = event.target as HTMLElement | null
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
+      event.preventDefault()
+      if (event.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [undo, redo])
   // Bumped to snap the camera back; double clicking the canvas does the same.
   const [resetToken, setResetToken] = useState(0)
 
@@ -51,10 +114,18 @@ function Studio() {
         <aside className="w-full shrink-0 overflow-y-auto border-rule lg:w-[340px] lg:border-r">
           <ObjectPanel
             object={config.object}
-            onChange={(object) => setConfig({ ...config, object })}
+            onChange={(object) => commit({ ...config, object })}
+            onBrand={({ object, presetId, palette }) => {
+              const picked = PRESETS[presetId]
+              commit({
+                ...configFromPreset(presetId, object),
+                // The recommender chose the family; the logo chose the colours.
+                palette: palette.length >= 2 ? palette : picked.palette,
+              })
+            }}
           />
 
-          <MaterialPanel config={config} onChange={setConfig} />
+          <MaterialPanel config={config} onChange={commit} />
 
           <Collapsible title="Scene" hint="motion, quality, layout">
             <Segmented
@@ -66,7 +137,7 @@ function Studio() {
                 { value: "balanced" as Quality, label: "Mid" },
                 { value: "low" as Quality, label: "Low" },
               ]}
-              onChange={(quality) => setConfig({ ...config, quality })}
+              onChange={(quality) => commit({ ...config, quality })}
             />
             <p className="font-mono text-[10px] leading-relaxed text-bone/30">
               Auto measures frame times and walks the pixel ratio to suit the machine. The fixed
@@ -79,14 +150,14 @@ function Studio() {
               step={0.02}
               value={config.motion.autoRotate ?? 0}
               onChange={(autoRotate) =>
-                setConfig({ ...config, motion: { ...config.motion, autoRotate } })
+                commit({ ...config, motion: { ...config.motion, autoRotate } })
               }
             />
             <Toggle
               label="Drag to rotate"
               checked={config.motion.draggable ?? true}
               onChange={(draggable) =>
-                setConfig({ ...config, motion: { ...config.motion, draggable } })
+                commit({ ...config, motion: { ...config.motion, draggable } })
               }
             />
             {/* The ground is part of the look, not a fixed property of the
@@ -102,7 +173,7 @@ function Studio() {
                 { value: "transparent" as const, label: "None" },
               ]}
               onChange={(background) =>
-                setConfig({
+                commit({
                   ...config,
                   background: background === "transparent" ? config.background : background,
                   transparent: background === "transparent",
@@ -114,7 +185,7 @@ function Studio() {
               <ColorField
                 label="Custom ground"
                 value={config.backgroundColor ?? BACKGROUND_TONES[config.background] ?? "#050506"}
-                onChange={(backgroundColor) => setConfig({ ...config, backgroundColor })}
+                onChange={(backgroundColor) => commit({ ...config, backgroundColor })}
               />
             )}
             <Segmented
@@ -124,18 +195,44 @@ function Studio() {
                 { value: "overlay" as const, label: "Overlay" },
                 { value: "split" as const, label: "Split" },
               ]}
-              onChange={(layout) => setConfig({ ...config, layout })}
+              onChange={(layout) => commit({ ...config, layout })}
             />
             <Toggle
               label="Blend the headline"
               checked={config.blend}
-              onChange={(blend) => setConfig({ ...config, blend })}
+              onChange={(blend) => commit({ ...config, blend })}
             />
           </Collapsible>
 
           <Panel title="Export">
-            <Button variant="primary" onClick={() => setExporting(true)}>
-              Copy the component
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" onClick={() => setExporting(true)}>
+                Copy the component
+              </Button>
+              <a
+                href={`/post?c=${encodeState(config)}`}
+                className="inline-flex items-center rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-3.5 py-2 font-mono text-[11px] text-bone/75 transition-colors hover:border-rule-bright hover:text-bone"
+              >
+                Post it
+              </a>
+            </div>
+            {/* The loop is the asset people actually put on a timeline: the
+                still cannot carry the one thing that makes this worth using. */}
+            <Button
+              disabled={recording}
+              onClick={async () => {
+                const engine = engineRef.current
+                if (!engine) return
+                setRecording(true)
+                try {
+                  const blob = await engine.recordLoop({ seconds: 4 })
+                  downloadBlob(blob, `liquidforge-${config.preset}.webm`)
+                } finally {
+                  setRecording(false)
+                }
+              }}
+            >
+              {recording ? "Recording 4s…" : "Record a loop"}
             </Button>
           </Panel>
         </aside>
@@ -151,13 +248,51 @@ function Studio() {
             controls={{ zoom: true, zoomRange: [0.3, 4], resetToken }}
             transparent={config.transparent}
             background={config.backgroundColor}
+            onEngine={(engine) => {
+              engineRef.current = engine
+            }}
             style={{ height: "100%", minHeight: 0 }}
           />
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-3">
             <p className="font-mono text-[10px] text-bone/25">
-              drag to turn · scroll to zoom · double click to reset
+              drag to turn · scroll to zoom · ⌘Z to undo
             </p>
+            <div className="pointer-events-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={depth.back === 0}
+                className="rounded-[var(--radius-pill)] border border-rule bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-bone/60 backdrop-blur-sm transition-colors hover:border-rule-bright hover:text-bone disabled:opacity-30"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={depth.forward === 0}
+                className="rounded-[var(--radius-pill)] border border-rule bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-bone/60 backdrop-blur-sm transition-colors hover:border-rule-bright hover:text-bone disabled:opacity-30"
+              >
+                Redo
+              </button>
+              {/* Mutate, not replace: a shuffle that throws away what you had
+                  is a shuffle nobody presses twice. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = mutatePreset(preset, { amount: 0.4 })
+                  commit({
+                    ...config,
+                    palette: next.palette,
+                    surface: next.surface,
+                    shading: next.shading,
+                  })
+                }}
+                className="rounded-[var(--radius-pill)] border border-rule bg-ink/70 px-3 py-1.5 font-mono text-[10px] text-bone/60 backdrop-blur-sm transition-colors hover:border-rule-bright hover:text-bone"
+              >
+                Shuffle
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setResetToken((token) => token + 1)}

@@ -70,6 +70,16 @@ export {
   type SearchOutcome,
 } from "./catalog"
 
+export { mutatePreset, randomPreset, type MutateOptions } from "./codegen/mutate"
+
+export {
+  recommend,
+  extractPalette,
+  type RecommendInput,
+  type Recommendation,
+  type PaletteOptions,
+} from "./recommend"
+
 // Hooks
 export { useInView } from "./hooks/use-in-view"
 export { useReducedMotion } from "./hooks/use-reduced-motion"
@@ -95,6 +105,7 @@ export {
 // Types
 export type {
   ControlOptions,
+  DiagnosticOptions,
   ImageObjectSource,
   LiquidPreset,
   LiquidPresetOverrides,

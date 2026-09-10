@@ -304,3 +304,5 @@ export {
   type ShowcaseLayout,
   type ShowcaseMeta,
 } from "./showcase"
+
+export { mutatePreset, randomPreset, type MutateOptions } from "./mutate"

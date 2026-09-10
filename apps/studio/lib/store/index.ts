@@ -56,5 +56,7 @@ export async function getStore(): Promise<CommunityStore> {
  */
 export function hashKey(address: string): string {
   const salt = process.env.SUBMISSION_SALT ?? "liquidforge-dev-salt"
-  return createHash("sha256").update(`${salt}:${address}`).digest("hex").slice(0, 32)
+  // Sixteen hex characters is 64 bits: far more than enough to bucket requests
+  // for an hour, and half the bytes of the row it sits in.
+  return createHash("sha256").update(`${salt}:${address}`).digest("hex").slice(0, 16)
 }

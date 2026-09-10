@@ -10,8 +10,8 @@ import {
   type LiquidConfig,
   type ShowcaseLayout,
 } from "liquidforge/codegen"
-import { canSubmit, communityEntry, postToCommunity, submitUrl } from "@/lib/community"
-import { Button, CopyButton, Field, Segmented, TextInput, Toggle } from "./ui"
+import { submitUrl } from "@/lib/community"
+import { Button, CopyButton, Field, Segmented, Toggle } from "./ui"
 
 type Tab = "code" | "preset" | "share"
 
@@ -32,11 +32,6 @@ export function ExportModal({
 }) {
   const [tab, setTab] = useState<Tab>("code")
   const [layout, setLayout] = useState<ShowcaseLayout>("hero")
-  const [title, setTitle] = useState("")
-  const [author, setAuthor] = useState("")
-  const [link, setLink] = useState("")
-  const [posting, setPosting] = useState(false)
-  const [posted, setPosted] = useState<{ ok: boolean; message: string } | null>(null)
   /**
    * Whether the snippet paints its own ground.
    *
@@ -74,7 +69,6 @@ export function ExportModal({
   const origin = typeof window === "undefined" ? "" : window.location.origin
   const share = origin ? shareUrl(config, `${origin}/studio`) : null
   const meta = SHOWCASE_LAYOUTS.find((entry) => entry.id === layout)
-  const postable = canSubmit(config)
 
   const download = async () => {
     setExporting(true)
@@ -165,34 +159,11 @@ export function ExportModal({
         {tab === "share" ? (
           <div className="flex-1 space-y-3 overflow-auto p-4">
             <p className="font-mono text-[11px] leading-relaxed text-bone-dim">
-              This posts straight to the gallery — no fork, no pull request, no waiting on
-              anyone to copy JSON.
+              Posting has its own page, with a proper preview of what you are about to put up.
             </p>
             <p className="font-mono text-[10px] leading-relaxed text-bone/35">
-              It does not appear the instant you press it. Posts land as pending and go up once
-              they have been looked at, because a gallery that publishes unreviewed strangers is
-              a gallery that eventually hosts something someone has to apologise for.
+              It goes live straight away — no fork, no pull request, no queue.
             </p>
-
-            <TextInput label="Title" value={title} onChange={setTitle} placeholder="Oil knot" />
-            <TextInput label="Your name" value={author} onChange={setAuthor} placeholder="Jane Doe" />
-            <TextInput
-              label="Link (optional)"
-              value={link}
-              onChange={setLink}
-              placeholder="https://your-site.com"
-            />
-
-            {!postable && (
-              <p className="font-mono text-[10px] leading-relaxed text-bone/45">
-                This object came from a file on your machine, so it cannot travel in an entry.
-                Host the .glb somewhere and point the URL field at it, or use a forged object.
-              </p>
-            )}
-
-            <pre className="overflow-auto rounded-[var(--radius-sm)] border border-rule bg-ink p-3 font-mono text-[10px] leading-relaxed text-bone/60">
-              {JSON.stringify(communityEntry(config, { title, author, url: link }), null, 2)}
-            </pre>
           </div>
         ) : (
           <pre className="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed text-bone/75">
@@ -203,37 +174,20 @@ export function ExportModal({
         <footer className="flex flex-wrap items-center gap-2 border-t border-rule px-4 py-3">
           {tab === "share" ? (
             <>
-              <Button
-                variant="primary"
-                disabled={!postable || !title.trim() || posting || posted?.ok}
-                onClick={async () => {
-                  setPosting(true)
-                  setPosted(await postToCommunity(config, { title, author, url: link }))
-                  setPosting(false)
-                }}
-              >
-                {posting ? "Posting…" : posted?.ok ? "Posted" : "Post to community"}
-              </Button>
-              {/* The pull-request route stays, for anyone who would rather do
-                  it that way and for a deployment with no database behind it. */}
               <a
-                href={submitUrl(config, { title, author, url: link }, origin)}
+                href={`/post?c=${encodeState(config)}`}
+                className="inline-flex items-center rounded-[var(--radius-pill)] bg-bone px-3.5 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
+              >
+                Open the composer
+              </a>
+              <a
+                href={submitUrl(config, { title: "", author: "", url: "" }, origin)}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-3.5 py-2 font-mono text-[11px] text-bone/75 transition-colors hover:border-rule-bright hover:text-bone"
               >
                 Open a PR instead
               </a>
-              {posted && (
-                <span
-                  className={`font-mono text-[10px] ${posted.ok ? "text-bone/60" : "text-bone/45"}`}
-                >
-                  {posted.message}
-                </span>
-              )}
-              {!posted && !title.trim() && (
-                <span className="font-mono text-[10px] text-bone/30">Give it a title first</span>
-              )}
             </>
           ) : (
             <>

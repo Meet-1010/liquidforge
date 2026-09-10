@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { SHAPE_KINDS } from "liquidforge"
 import type { ObjectSource, ShapeKind } from "liquidforge"
+import { extractPalette, recommend } from "liquidforge/recommend"
 import { fetchSketchfabMetadata, randomAsset, TOTAL_ASSETS } from "@/lib/catalog"
 import type { AssetResult } from "@/lib/catalog"
 import { Button, Field, Panel, Segmented, Slider, TextInput } from "./ui"
@@ -34,9 +35,12 @@ const FONTS = [
 export function ObjectPanel({
   object,
   onChange,
+  onBrand,
 }: {
   object: ObjectSource
   onChange: (object: ObjectSource) => void
+  /** A logo, turned into an object and a colourway in one step. */
+  onBrand?: (result: { object: ObjectSource; presetId: string; palette: string[] }) => void
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<string | null>(null)
@@ -95,6 +99,37 @@ export function ObjectPanel({
         return onChange({ type: "image", src: "", depth: 0.45, threshold: 0.5 })
       case "model":
         return onChange({ type: "model", src: "" })
+    }
+  }
+
+  /**
+   * Logo in, brand out.
+   *
+   * Three things that already existed, joined by one button: trace the logo to
+   * a silhouette, pull its palette, and ask the recommender which family suits
+   * a brand that colour. Separately they are three screens of work nobody
+   * finishes; together they are the only step between "I have a logo" and
+   * "that looks like ours".
+   */
+  const [branding, setBranding] = useState(false)
+
+  const brandFrom = async (src: string) => {
+    if (!onBrand) return
+    setBranding(true)
+    try {
+      const palette = await extractPalette(src, { count: 4 })
+      const suggestion = recommend({ palette, background: "dark" })
+      onBrand({
+        object: { type: "image", src, depth: 0.45, threshold: 0.5 },
+        presetId: suggestion.preset.id,
+        palette,
+      })
+    } catch {
+      // Fall back to the plain silhouette; a failed palette read should not
+      // cost someone the import.
+      onChange({ type: "image", src, depth: 0.45, threshold: 0.5 })
+    } finally {
+      setBranding(false)
     }
   }
 
@@ -213,9 +248,24 @@ export function ObjectPanel({
 
       {object.type === "image" && (
         <>
-          <Button onClick={() => pickFile("image/*", (src) => onChange({ ...object, src }))}>
-            {object.src ? "Replace image" : "Upload a PNG or JPG"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => pickFile("image/*", (src) => onChange({ ...object, src }))}>
+              {object.src ? "Replace image" : "Upload a PNG or JPG"}
+            </Button>
+            {onBrand && (
+              <Button
+                variant="primary"
+                disabled={branding}
+                onClick={() => pickFile("image/*", (src) => void brandFrom(src))}
+              >
+                {branding ? "Reading…" : "Match my brand"}
+              </Button>
+            )}
+          </div>
+          <p className="font-mono text-[10px] leading-relaxed text-bone/30">
+            Match my brand traces the logo, pulls its colours, and picks the family that suits a
+            brand those colours belong to.
+          </p>
           <p className="font-mono text-[10px] leading-relaxed text-bone/30">
             The silhouette is traced and extruded. A logo on a transparent background is the
             best case; a photograph has no outline to find.

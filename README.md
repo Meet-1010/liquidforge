@@ -27,6 +27,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **MCP server** | Teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model. Not on npm yet — run it from this checkout, see [its README](packages/liquidforge-mcp/README.md) |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
+| **`/how`** | Four switches that break the effect on purpose, so you can see what each one was buying |
 | **`/showcase`** | Five complete demo sites you can open and use, plus a layout explorer for the eight placements |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
 | **Surprise me** | The Studio's model tab rolls one at random out of 46,871, with its licence |
@@ -64,10 +65,16 @@ SUBMISSION_SALT=…               # salts the hashed submitter key
 MODERATION_TOKEN=…              # required before the moderation route answers
 ```
 
-Nothing is public until it is approved. `GET /api/community/moderate` lists what
-is pending and `PATCH` with `{ id, status }` publishes or rejects it, both
-behind `MODERATION_TOKEN` — and with no token set the route refuses everything,
-because the failure mode for a missing secret has to be closed rather than open.
+Posts go up straight away, the way they do everywhere people actually post.
+Holding them for review is safer and it is also the reason nobody bothers, so
+moderation is a takedown tool instead of a gate: `GET /api/community/moderate`
+lists what is up and `PATCH` with `{ id, status }` hides it, both behind
+`MODERATION_TOKEN` — and with no token set the route refuses everything, because
+the failure mode for a missing secret has to be closed rather than open.
+
+A row is about 250 bytes: no thumbnails are stored, because `/api/og` draws the
+colourway on demand and a colourway edited later then has a correct preview
+without a migration.
 
 Submissions are validated field by field rather than passed through, capped in
 length, restricted to presets that exist, and rate limited to three an hour per

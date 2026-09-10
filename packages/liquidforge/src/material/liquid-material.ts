@@ -58,6 +58,9 @@ export function createLiquidMaterial(preset: LiquidPreset, trail: number): Liqui
       uTime: { value: 0 },
       uRadius: { value: 1 },
 
+      uRebuildNormals: { value: 1 },
+      uWeldSeams: { value: 1 },
+
       uNoise: { value: preset.surface.noise },
       uDimple: { value: preset.surface.dimple },
       uRippleAmp: { value: preset.surface.rippleAmp },

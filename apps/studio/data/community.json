@@ -1,12 +1,16 @@
 {
-  "note": "Made something? The Studio's export has a Post it tab that fills this entry in and opens an issue with it. One entry per creation: a title, your name and a link, plus the object and preset it uses. Every field maps onto <LiquidHero /> props, so an entry is exactly what you would paste into a page.",
+  "note": "Made something? Post it from the Studio and it goes up straight away \u2014 no fork, no pull request. Every entry is a title, a name and a link plus the object and colourway it uses, which is exactly what you would paste into a page.",
   "entries": [
     {
       "id": "ship-it",
       "title": "SHIP IT",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "text", "value": "SHIP IT", "depth": 0.5 },
+      "object": {
+        "type": "text",
+        "value": "SHIP IT",
+        "depth": 0.5
+      },
       "preset": "mercury-3"
     },
     {
@@ -14,7 +18,11 @@
       "title": "Oil knot",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "shape", "shape": "torusknot", "detail": 128 },
+      "object": {
+        "type": "shape",
+        "shape": "torusknot",
+        "detail": 128
+      },
       "preset": "aurora-4"
     },
     {
@@ -22,7 +30,10 @@
       "title": "Cut glass",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "shape", "shape": "icosahedron" },
+      "object": {
+        "type": "shape",
+        "shape": "icosahedron"
+      },
       "preset": "prism-9"
     },
     {
@@ -30,7 +41,11 @@
       "title": "Still warm",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "shape", "shape": "rounded-box", "detail": 128 },
+      "object": {
+        "type": "shape",
+        "shape": "rounded-box",
+        "detail": 128
+      },
       "preset": "magma-1"
     },
     {
@@ -38,7 +53,11 @@
       "title": "Soft serve",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "shape", "shape": "capsule", "detail": 128 },
+      "object": {
+        "type": "shape",
+        "shape": "capsule",
+        "detail": 128
+      },
       "preset": "pearl-4"
     },
     {
@@ -46,7 +65,11 @@
       "title": "Nocturne",
       "author": "Meet Chauhan",
       "url": "https://github.com/Meet-1010/liquidforge",
-      "object": { "type": "text", "value": "&", "depth": 0.6 },
+      "object": {
+        "type": "text",
+        "value": "&",
+        "depth": 0.6
+      },
       "preset": "aurora-9"
     }
   ]

@@ -35,6 +35,11 @@ ${fieldGlsl(trail)}
 
 attribute vec3 flowNormal;
 
+// Diagnostics. 1 is the correct behaviour; 0 is the specific failure the
+// explainer page exists to show.
+uniform float uRebuildNormals;
+uniform float uWeldSeams;
+
 varying vec3 vNormal;
 varying vec3 vView;
 varying vec3 vObjPos;
@@ -42,8 +47,8 @@ varying vec3 vFlow;
 varying float vHeight;
 
 void main(){
-  vec3 dir = normalize(flowNormal);
   vec3 n = normalize(normal);
+  vec3 dir = normalize(mix(n, normalize(flowNormal), uWeldSeams));
 
   // One drift evaluation, shared by all three samples. At the amplitudes the
   // presets use it adds no relief of its own, so this is 2 noise lookups
@@ -61,7 +66,7 @@ void main(){
   float ha = nz + lf_height(position + t1 * e, dir);
   float hb = nz + lf_height(position + t2 * e, dir);
 
-  vec3 nrm = normalize(n - (t1 * (ha - h) + t2 * (hb - h)) / e);
+  vec3 nrm = normalize(n - (t1 * (ha - h) + t2 * (hb - h)) / e * uRebuildNormals);
 
   vObjPos = p;
   vFlow = nrm;

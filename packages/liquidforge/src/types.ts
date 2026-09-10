@@ -242,10 +242,73 @@ export interface MotionOptions {
   /** Playback speed multiplier. @default 1 */
   animationSpeed?: number
   /**
+   * Let the page's scroll disturb the surface.
+   *
+   * The cursor is one signal and it is the only one most people give a hero.
+   * Scroll is free — it is already happening — and it means the object reacts
+   * to someone reading past it rather than only to someone playing with it.
+   * The number is how hard; 0 is off.
+   * @default 0
+   */
+  scrollRipple?: number
+  /**
+   * Drive the ripples from an audio element.
+   *
+   * Album art that moves with the track behind it, which is the argument the
+   * VESSEL demo makes and could not previously deliver. Requires the element to
+   * be same-origin or CORS-enabled, because an analyser needs to read samples.
+   * @default undefined
+   */
+  audio?: HTMLMediaElement | null
+  /**
    * Honour `prefers-reduced-motion`. When the visitor has asked for reduced
    * motion the drift, ripples and advection freeze and the object renders as a
    * still material. Non-negotiable by default for an effect this kinetic.
    * @default true
    */
   respectReducedMotion?: boolean
+}
+
+/**
+ * Switches that break the effect on purpose.
+ *
+ * Each one turns off a thing this library does that almost nothing else does,
+ * so you can see what it was buying. They exist for the explainer page and for
+ * anyone who does not believe the comments in the shader — every one of these,
+ * off, produces a specific and recognisable kind of wrong.
+ */
+export interface DiagnosticOptions {
+  /**
+   * Rebuild the shading normal from the displaced surface.
+   *
+   * Off, the lighting believes the surface is undisturbed: the geometry still
+   * moves and the relief is completely invisible. This is the single thing that
+   * makes displacement read as a material rather than as a wobble.
+   * @default true
+   */
+  rebuildNormals?: boolean
+  /**
+   * Displace along the welded direction rather than each vertex's own normal.
+   *
+   * Off, a hard edge tears open, because one position carrying two normals
+   * pulls apart when each half follows its own.
+   * @default true
+   */
+  weldSeams?: boolean
+  /**
+   * Find the cursor by ray cast rather than by flat screen projection.
+   *
+   * Off, the dent is correct at dead centre and drifts further out the closer
+   * the pointer gets to the rim.
+   * @default true
+   */
+  rayCast?: boolean
+  /**
+   * Keep a trail of points the cursor has passed through.
+   *
+   * Off, one decaying value stands in for the whole wake and every ripple stops
+   * the instant the pointer does.
+   * @default true
+   */
+  trail?: boolean
 }

@@ -16,7 +16,7 @@ import { SurfaceProbe, type ProbeMode } from "./pointer"
 import { Trail } from "./trail"
 import { resolveQuality } from "./quality"
 import type { LiquidRig } from "../forge/rig"
-import type { ControlOptions, LiquidPreset, MotionOptions, Quality } from "../types"
+import type { ControlOptions, DiagnosticOptions, LiquidPreset, MotionOptions, Quality } from "../types"
 
 /**
  * Above this, a per-frame raycast costs more than the frame has to spare, so
@@ -43,6 +43,8 @@ export interface LiquidEngineOptions {
   quality?: Quality
   motion?: MotionOptions
   controls?: ControlOptions
+  /** Switches that break the effect on purpose — see `DiagnosticOptions`. */
+  diagnostic?: DiagnosticOptions
   /** Composite over the page instead of painting the preset's background. */
   transparent?: boolean
   /** Override the preset's background colour. */
@@ -91,6 +93,7 @@ export class LiquidEngine {
   private quality: Quality
   private motion: MotionOptions
   private controls: ControlOptions
+  private diagnostic: DiagnosticOptions
   private profile = resolveQuality("auto")
 
   private trail: Trail
@@ -139,6 +142,7 @@ export class LiquidEngine {
     this.quality = options.quality ?? "auto"
     this.motion = options.motion ?? {}
     this.controls = options.controls ?? {}
+    this.diagnostic = options.diagnostic ?? {}
     this.reduced = options.reducedMotion ?? false
     this.transparent = options.transparent ?? false
     this.background = options.background
@@ -177,7 +181,10 @@ export class LiquidEngine {
     this.applyClearColor()
 
     this.camera.position.set(0, 0, 4.4)
-    if (options.interactive !== false) this.bindPointer()
+    if (options.interactive !== false) {
+      this.bindPointer()
+      this.bindScroll()
+    }
   }
 
   /**
@@ -242,6 +249,7 @@ export class LiquidEngine {
     }
 
     this.bind(this.handle, prepared.radius)
+    this.applyDiagnostic()
     this.trail.clear()
     this.frameCamera()
     this.renderOnce()
@@ -309,6 +317,7 @@ export class LiquidEngine {
       this.mesh.material = next.material
       this.handle.dispose()
       this.handle = next
+      this.applyDiagnostic()
     } else {
       applyPreset(this.handle.material, preset)
     }
@@ -323,6 +332,19 @@ export class LiquidEngine {
 
   setControls(controls: ControlOptions): void {
     this.controls = controls
+  }
+
+  setDiagnostic(diagnostic: DiagnosticOptions): void {
+    this.diagnostic = diagnostic
+    this.applyDiagnostic()
+    this.renderOnce()
+  }
+
+  private applyDiagnostic(): void {
+    const u = this.handle?.material.uniforms
+    if (!u) return
+    u.uRebuildNormals.value = this.diagnostic.rebuildNormals === false ? 0 : 1
+    u.uWeldSeams.value = this.diagnostic.weldSeams === false ? 0 : 1
   }
 
   /** Multiplier on the auto-framed camera distance. 1 is the framed default. */
@@ -497,6 +519,82 @@ export class LiquidEngine {
     })
   }
 
+  /**
+   * Scroll as an input.
+   *
+   * A trail entry is a point, a normal and an amplitude — it does not care
+   * where those came from, so anything that produces a position and a strength
+   * can drive the surface. Scroll is the cheapest of those because it is
+   * already happening on every page this will ever sit on.
+   */
+  private bindScroll(): void {
+    if (typeof window === "undefined") return
+    let last = window.scrollY
+
+    const onScroll = () => {
+      const strength = this.motion.scrollRipple ?? 0
+      if (!strength || !this.running) return
+      const delta = Math.abs(window.scrollY - last)
+      last = window.scrollY
+      if (delta < 4) return
+      // Emitted at the last known surface point, so the wake follows wherever
+      // the reader's pointer happened to leave it.
+      this.trail.emit(
+        this.probe.point,
+        this.probe.normal,
+        Math.min(1.6, (delta / 90) * strength),
+        this.time,
+      )
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true })
+    this.detach.push(() => window.removeEventListener("scroll", onScroll))
+  }
+
+  /**
+   * Audio as an input.
+   *
+   * One analyser over the low band, sampled per frame. Built lazily because
+   * creating an `AudioContext` before a user gesture is blocked in every
+   * browser, and connecting one to an element the page has not been given
+   * permission to read throws.
+   */
+  private audioAnalyser: AnalyserNode | null = null
+  private audioSource: MediaElementAudioSourceNode | null = null
+  private audioBins: Uint8Array<ArrayBuffer> | null = null
+  private audioElement: HTMLMediaElement | null = null
+
+  private updateAudio(): number {
+    const element = this.motion.audio ?? null
+    if (!element) return 0
+
+    if (element !== this.audioElement) {
+      this.audioElement = element
+      try {
+        const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        const context = new Ctor()
+        this.audioSource = context.createMediaElementSource(element)
+        this.audioAnalyser = context.createAnalyser()
+        this.audioAnalyser.fftSize = 128
+        this.audioSource.connect(this.audioAnalyser)
+        // Straight through, or the page goes silent the moment it is analysed.
+        this.audioAnalyser.connect(context.destination)
+        this.audioBins = new Uint8Array(new ArrayBuffer(this.audioAnalyser.frequencyBinCount))
+      } catch {
+        this.audioAnalyser = null
+      }
+    }
+
+    if (!this.audioAnalyser || !this.audioBins) return 0
+    this.audioAnalyser.getByteFrequencyData(this.audioBins)
+    // The bottom eighth of the spectrum: kick and bass, which is what anyone
+    // watching expects the surface to move with.
+    let sum = 0
+    const bands = Math.max(1, Math.floor(this.audioBins.length / 8))
+    for (let i = 0; i < bands; i++) sum += this.audioBins[i]
+    return sum / bands / 255
+  }
+
   // -- loop ------------------------------------------------------------------
 
   start(): void {
@@ -545,7 +643,11 @@ export class LiquidEngine {
     // At 0.14 this lagged about 100ms behind the real pointer, which reads as
     // the liquid not quite knowing where the cursor is. 0.34 takes the jitter
     // off with no perceptible lag (§5.4).
-    this.smoothed.lerp(this.pointer, 0.34)
+    // A recording drives the pointer itself, so the loop is the same every
+    // time and closes on itself.
+    const scripted = this.scriptedPointer()
+    this.smoothed.lerp(scripted ?? this.pointer, scripted ? 0.5 : 0.34)
+    if (scripted) this.pointerSeen = true
     ;(u.uPointer.value as Vector2).copy(this.smoothed)
 
     // Orientation is applied before the probe, because the probe transforms the
@@ -559,7 +661,14 @@ export class LiquidEngine {
     )
     mesh.updateMatrixWorld(true)
 
-    const hit = this.probe.probe(this.smoothed, this.camera, mesh, this.probeMode)
+    // The flat projection is what this used to do and what almost every version
+    // of this effect still does: map the pointer straight onto the object's
+    // disc. Correct at dead centre, and further out the further you go.
+    const mode = this.diagnostic.rayCast === false ? "flat" : this.probeMode
+    const hit =
+      mode === "flat"
+        ? this.probe.flat(this.smoothed, mesh)
+        : this.probe.probe(this.smoothed, this.camera, mesh, this.probeMode)
     const over = hit.over && this.pointerSeen
     ;(u.uPtr.value as Vector3).copy(hit.point)
     ;(u.uPtrN.value as Vector3).copy(hit.normal)
@@ -568,11 +677,25 @@ export class LiquidEngine {
     this.press += ((over ? 1 : 0) - this.press) * 0.14
     u.uPress.value = Math.min(1, this.press + this.clickPulse * 0.45)
 
-    this.trail.update(hit.point, hit.normal, {
-      time: this.time,
-      over,
-      spacing: this.preset.surface.trailSpacing * this.radius,
-    })
+    // Audio rides on top of the pointer: it adds energy where the surface
+    // already is rather than replacing the interaction.
+    const level = this.updateAudio()
+    if (level > 0.12) {
+      this.trail.emit(hit.point, hit.normal, Math.min(2.2, level * 2.4), this.time)
+    }
+
+    if (this.diagnostic.trail === false) {
+      // One source at the cursor and nothing else — the version where every
+      // ripple freezes the moment the pointer stops.
+      this.trail.clear()
+      if (over) this.trail.emit(hit.point, hit.normal, 1, this.time)
+    } else {
+      this.trail.update(hit.point, hit.normal, {
+        time: this.time,
+        over,
+        spacing: this.preset.surface.trailSpacing * this.radius,
+      })
+    }
 
     // The fragment stage advects an object-space field and then needs it in view
     // space; three only declares `normalMatrix` for the vertex shader.
@@ -647,6 +770,68 @@ export class LiquidEngine {
   }
 
   // -- teardown --------------------------------------------------------------
+
+  /**
+   * Record a loop of the surface being disturbed.
+   *
+   * The thing that makes this material worth using is that it moves, and a
+   * still cannot carry that — so the one asset people would actually post was
+   * the one asset the library could not produce.
+   *
+   * The cursor path is scripted rather than recorded live, and it starts and
+   * ends in the same place, so the loop closes invisibly. `MediaRecorder` on
+   * the canvas stream does the rest.
+   */
+  async recordLoop(options: { seconds?: number; fps?: number; mimeType?: string } = {}): Promise<Blob> {
+    const { seconds = 4, fps = 30 } = options
+    const mimeType =
+      options.mimeType ??
+      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) =>
+        typeof MediaRecorder !== "undefined" ? MediaRecorder.isTypeSupported(type) : false,
+      )
+
+    if (typeof MediaRecorder === "undefined") {
+      throw new Error("liquidforge: this browser cannot record a canvas")
+    }
+
+    const wasRunning = this.running
+    if (!wasRunning) this.start()
+
+    const stream = this.canvas.captureStream(fps)
+    const chunks: BlobPart[] = []
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data)
+    }
+
+    const finished = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || "video/webm" }))
+    })
+
+    const startedAt = performance.now()
+    this.scripted = { startedAt, durationMs: seconds * 1000 }
+    recorder.start()
+
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+
+    recorder.stop()
+    this.scripted = null
+    const blob = await finished
+    if (!wasRunning) this.stop()
+    return blob
+  }
+
+  /** A closed figure-of-eight, so the first frame and the last are the same. */
+  private scripted: { startedAt: number; durationMs: number } | null = null
+
+  private scriptedPointer(): Vector2 | null {
+    if (!this.scripted) return null
+    const t = ((performance.now() - this.scripted.startedAt) / this.scripted.durationMs) % 1
+    const angle = t * Math.PI * 2
+    return this.scratchPointer.set(Math.sin(angle) * 0.55, Math.sin(angle * 2) * 0.34)
+  }
+
+  private readonly scratchPointer = new Vector2()
 
   /** Animation clips in the current object, empty for anything static. */
   get animations(): string[] {

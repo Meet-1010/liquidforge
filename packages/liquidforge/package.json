@@ -56,6 +56,11 @@
       "import": "./dist/catalog.js",
       "require": "./dist/catalog.cjs"
     },
+    "./recommend": {
+      "types": "./dist/recommend.d.ts",
+      "import": "./dist/recommend.js",
+      "require": "./dist/recommend.cjs"
+    },
     "./codegen": {
       "types": "./dist/codegen.d.ts",
       "import": "./dist/codegen.js",
@@ -67,7 +72,8 @@
     "dist",
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "registry"
   ],
   "scripts": {
     "build": "tsup",

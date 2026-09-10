@@ -18,6 +18,7 @@ import { useInView } from "../hooks/use-in-view"
 import { useReducedMotion } from "../hooks/use-reduced-motion"
 import type {
   ControlOptions,
+  DiagnosticOptions,
   LiquidPreset,
   MaterialFamily,
   MotionOptions,
@@ -79,6 +80,8 @@ export interface LiquidCanvasProps {
    * Off by default: a hero that eats the page's scroll reads as broken.
    */
   controls?: ControlOptions
+  /** Switches that break the effect on purpose. See `DiagnosticOptions`. */
+  diagnostic?: DiagnosticOptions
   /** Composite over the page instead of painting a background. @default false */
   transparent?: boolean
   /** Override the preset's background colour. */
@@ -91,6 +94,14 @@ export interface LiquidCanvasProps {
   errorFallback?: ReactNode | ((error: Error) => ReactNode)
   /** Fires when the object is on screen. `animations` is empty for static ones. */
   onReady?: (result: { animations: string[] }) => void
+  /**
+   * Hands out the engine as it comes and goes.
+   *
+   * For the few things that are verbs rather than props — recording a loop,
+   * resetting the view, asking what animation clips a model turned out to have.
+   * Called with `null` when the engine is torn down.
+   */
+  onEngine?: (engine: LiquidEngine | null) => void
   onError?: (error: Error) => void
   className?: string
   style?: CSSProperties
@@ -116,12 +127,14 @@ export function LiquidCanvas({
   quality = "auto",
   motion,
   controls,
+  diagnostic,
   transparent = false,
   background,
   pauseOffscreen = true,
   fallback,
   errorFallback,
   onReady,
+  onEngine,
   onError,
   className,
   style,
@@ -179,6 +192,7 @@ export function LiquidCanvas({
         quality,
         motion,
         controls,
+        diagnostic,
         transparent,
         background,
         reducedMotion,
@@ -195,10 +209,12 @@ export function LiquidCanvas({
     }
 
     engineRef.current = engine
+    onEngine?.(engine)
     setEpoch((value) => value + 1)
 
     return () => {
       engineRef.current = null
+      onEngine?.(null)
       engine.dispose()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -276,6 +292,11 @@ export function LiquidCanvas({
     engineRef.current?.setControls(controls ?? {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(controls ?? {}), epoch])
+
+  useEffect(() => {
+    engineRef.current?.setDiagnostic(diagnostic ?? {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(diagnostic ?? {}), epoch])
 
   useEffect(() => {
     if (controls?.resetToken === undefined) return

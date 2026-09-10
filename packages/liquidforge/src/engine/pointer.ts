@@ -38,6 +38,26 @@ export class SurfaceProbe {
   readonly normal = new Vector3(0, 0, 1)
   over = false
 
+  /**
+   * The flat projection, kept only to be shown failing.
+   *
+   * Maps the pointer's NDC straight onto the object's disc with no camera in
+   * the calculation at all. Measured on the reference implementation at 154px
+   * off-centre it gave 0.781 where the true perspective answer is 0.67 — about
+   * 22px of error, worse toward the rim.
+   */
+  flat(pointer: Vector2, mesh: Mesh): SurfaceHit {
+    const radius = mesh.geometry.boundingSphere?.radius ?? 1
+    const x = pointer.x
+    const y = pointer.y
+    const r2 = x * x + y * y
+    const z = r2 < 1 ? Math.sqrt(1 - r2) : 0
+    this.point.set(x, y, z).normalize().multiplyScalar(radius)
+    this.normal.copy(this.point).normalize()
+    this.over = r2 < 1
+    return this
+  }
+
   probe(pointer: Vector2, camera: Camera, mesh: Mesh, mode: ProbeMode): SurfaceHit {
     this.raycaster.setFromCamera(pointer, camera)
 

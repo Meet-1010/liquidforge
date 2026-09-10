@@ -9,10 +9,19 @@ export interface Post {
   object: ObjectSource
   preset: string
   createdAt: string
-  /** Nothing is public until a human says so. */
-  status: "pending" | "published" | "rejected"
-  /** Hashed, never the address itself — see `hashKey`. */
+  /**
+   * Posts go up immediately and come down if they have to.
+   *
+   * The other way round — nothing visible until someone approves it — is safer
+   * and it is also why nobody posts: you publish into a void and check back
+   * tomorrow. Every site people actually post to works this way, and the
+   * moderation route exists to take something down rather than to let it up.
+   */
+  status: "published" | "hidden"
+  /** Hashed and truncated, never the address itself — see `hashKey`. */
   submitterKey: string
+  /** The post this was remixed from, when it was. */
+  parentId?: string
 }
 
 export interface NewPost {
@@ -22,6 +31,7 @@ export interface NewPost {
   object: ObjectSource
   preset: string
   submitterKey: string
+  parentId?: string
 }
 
 /**

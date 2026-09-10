@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "liquid-hero",
+  "type": "registry:block",
+  "title": "Liquid hero",
+  "description": "A liquid chrome, glass or molten hero section that reacts to the cursor. Ten material families, ninety colourways, and the object forged in the browser from text, an SVG, an image or a shape.",
+  "dependencies": ["liquidforge", "three"],
+  "files": [
+    {
+      "path": "components/liquid-hero-section.tsx",
+      "type": "registry:component",
+      "content": "\"use client\"\n\nimport { LiquidHero } from \"liquidforge\"\n\nexport function LiquidHeroSection() {\n  return (\n    <LiquidHero\n      object={{ type: \"text\", value: \"SHIP IT\" }}\n      preset=\"mercury-3\"\n      height=\"100vh\"\n      blend\n    >\n      {/* `blend` inverts this against the liquid behind it. No ancestor of this\n          section may set a z-index, transform, filter or opacity below 1 — any\n          of those isolates the blend group and flattens the text to white. */}\n      <h1 style={{ fontSize: \"clamp(2.5rem, 9vw, 7rem)\", margin: 0, letterSpacing: \"-0.03em\" }}>\n        Your headline goes here\n      </h1>\n    </LiquidHero>\n  )\n}\n"
+    }
+  ]
+}

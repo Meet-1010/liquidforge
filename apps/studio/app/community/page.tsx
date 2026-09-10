@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { PRESETS, presetName } from "liquidforge"
 import { configFromPreset, shareUrl } from "liquidforge/codegen"
@@ -16,6 +17,8 @@ interface Entry {
   url: string
   object: ObjectSource
   preset: string
+  /** Set when this grew out of another post. */
+  parentId?: string
 }
 
 /**
@@ -35,9 +38,23 @@ interface Entry {
  * is worth saying plainly rather than implying the gallery is live.
  */
 export default function CommunityPage() {
+  return (
+    <Suspense fallback={null}>
+      <Gallery />
+    </Suspense>
+  )
+}
+
+function Gallery() {
+  const params = useSearchParams()
+  const justPosted = params.get("new")
   const seed = community.entries as Entry[]
   const [entries, setEntries] = useState<Entry[]>(seed)
   const [live, setLive] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  /** How many posts name each one as their parent. */
+  const remixCounts = entriesRemixCounts(entries)
 
   /*
    * Published posts from the API, with the checked-in JSON as the seed.
@@ -76,12 +93,18 @@ export default function CommunityPage() {
               Showing posts from the gallery database as well as the ones in the repository.
             </p>
           )}
+          {justPosted && (
+            <p className="mt-4 rounded-[var(--radius-sm)] border border-rule bg-ink-2 px-3 py-2 font-mono text-[11px] text-bone/70">
+              Posted. It is at the top.
+            </p>
+          )}
+
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <Link
               href="/studio"
               className="inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
             >
-              Make one, then post it from the export
+              Make one and post it
             </Link>
             <a
               href="https://github.com/Meet-1010/liquidforge/blob/main/apps/studio/data/community.json"
@@ -103,7 +126,9 @@ export default function CommunityPage() {
             return (
               <article
                 key={entry.id}
-                className="overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2"
+                className={`overflow-hidden rounded-[var(--radius-lg)] border bg-ink-2 ${
+                  entry.id === justPosted ? "border-bone" : "border-rule"
+                }`}
               >
                 <div className="m-1.5 overflow-hidden rounded-[var(--radius-md)]">
                   <LazyPreview preset={preset} object={entry.object} height={200} />
@@ -126,6 +151,34 @@ export default function CommunityPage() {
                     {preset.label} · {presetName(entry.preset)}
                   </a>
                 </div>
+
+                {/* Remix carries the parent through, so a post knows what it
+                    grew out of and the original can show what came of it. */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-rule px-3 py-2">
+                  <Link
+                    href={`${href}&from=${entry.id}`}
+                    className="rounded-[var(--radius-pill)] border border-rule px-2.5 py-1 font-mono text-[10px] text-bone/60 transition-colors hover:border-rule-bright hover:text-bone"
+                  >
+                    Remix
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = `<iframe src="${location.origin}/embed/${entry.id}" width="100%" height="420" style="border:0;border-radius:16px" loading="lazy"></iframe>`
+                      void navigator.clipboard?.writeText(code).catch(() => {})
+                      setCopied(entry.id)
+                      setTimeout(() => setCopied(null), 1600)
+                    }}
+                    className="rounded-[var(--radius-pill)] border border-rule px-2.5 py-1 font-mono text-[10px] text-bone/60 transition-colors hover:border-rule-bright hover:text-bone"
+                  >
+                    {copied === entry.id ? "Copied" : "Embed"}
+                  </button>
+                  {remixCounts[entry.id] > 0 && (
+                    <span className="font-mono text-[10px] text-muted">
+                      {remixCounts[entry.id]} remix{remixCounts[entry.id] > 1 ? "es" : ""}
+                    </span>
+                  )}
+                </div>
               </article>
             )
           })}
@@ -133,4 +186,13 @@ export default function CommunityPage() {
       </main>
     </>
   )
+}
+
+/** Counts of posts naming each id as their parent. */
+function entriesRemixCounts(entries: Entry[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const entry of entries) {
+    if (entry.parentId) counts[entry.parentId] = (counts[entry.parentId] ?? 0) + 1
+  }
+  return counts
 }

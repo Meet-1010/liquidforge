@@ -7,6 +7,7 @@ export default defineConfig([
       forge: "src/forge/index.ts",
       presets: "src/presets/index.ts",
       catalog: "src/catalog/index.ts",
+      recommend: "src/recommend/index.ts",
       codegen: "src/codegen/index.ts",
     },
     format: ["esm", "cjs"],

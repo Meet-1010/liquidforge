@@ -40,7 +40,8 @@ export function communityEntry(config: LiquidConfig, submission: Submission) {
 export async function postToCommunity(
   config: LiquidConfig,
   submission: Submission,
-): Promise<{ ok: boolean; message: string }> {
+  parentId?: string,
+): Promise<{ ok: boolean; message: string; id?: string }> {
   const entry = communityEntry(config, submission)
   try {
     const response = await fetch("/api/community", {
@@ -52,11 +53,16 @@ export async function postToCommunity(
         url: entry.url,
         object: entry.object,
         preset: entry.preset,
+        parentId,
       }),
     })
-    const data = (await response.json().catch(() => ({}))) as { message?: string; error?: string }
+    const data = (await response.json().catch(() => ({}))) as {
+      message?: string
+      error?: string
+      id?: string
+    }
     if (!response.ok) return { ok: false, message: data.error ?? `Rejected (${response.status})` }
-    return { ok: true, message: data.message ?? "Submitted." }
+    return { ok: true, message: data.message ?? "Posted.", id: data.id }
   } catch {
     return { ok: false, message: "Could not reach the gallery. Is the site running?" }
   }

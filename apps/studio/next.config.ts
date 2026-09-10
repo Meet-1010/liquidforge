@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
       "liquidforge/forge": path.join(librarySrc, "forge/index.ts"),
       "liquidforge/presets": path.join(librarySrc, "presets/index.ts"),
       "liquidforge/catalog": path.join(librarySrc, "catalog/index.ts"),
+      "liquidforge/recommend": path.join(librarySrc, "recommend/index.ts"),
       "liquidforge/codegen": path.join(librarySrc, "codegen/index.ts"),
     },
   },
@@ -42,6 +43,7 @@ const nextConfig: NextConfig = {
       "liquidforge/forge$": path.join(librarySrc, "forge/index.ts"),
       "liquidforge/presets$": path.join(librarySrc, "presets/index.ts"),
       "liquidforge/catalog$": path.join(librarySrc, "catalog/index.ts"),
+      "liquidforge/recommend$": path.join(librarySrc, "recommend/index.ts"),
       "liquidforge/codegen$": path.join(librarySrc, "codegen/index.ts"),
     }
     return config

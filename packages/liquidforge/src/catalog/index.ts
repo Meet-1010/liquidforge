@@ -660,6 +660,14 @@ export async function searchAssets({
       const bName = b.name.toLowerCase().includes(terms[0]) ? 1 : 0
       if (aName !== bName) return bName - aName
     }
+    // A picture beats no picture, always. The curated sets rank well and the
+    // three.js models carry no screenshot, so without this the first screen of
+    // an empty search was a column of grey placeholder letters — which reads as
+    // a broken page rather than as a catalogue.
+    const aShown = a.thumbnail || a.enrich ? 0 : 1
+    const bShown = b.thumbnail || b.enrich ? 0 : 1
+    if (aShown !== bShown) return aShown - bShown
+
     if (terms.length === 0) {
       const curated = (provider: ProviderId) =>
         provider === "threejs" || provider === "khronos" ? 0 : 1

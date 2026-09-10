@@ -19,8 +19,9 @@ import type { CommunityStore, NewPost, Post } from "./types"
  *   object        jsonb not null,
  *   preset        text not null,
  *   created_at    timestamptz not null default now(),
- *   status        text not null default 'pending',
- *   submitter_key text not null
+ *   status        text not null default 'published',
+ *   submitter_key text not null,
+ *   parent_id     text references community_posts(id) on delete set null
  * );
  * create index if not exists community_posts_status_idx
  *   on community_posts (status, created_at desc);
@@ -43,6 +44,7 @@ interface Row {
   created_at: string | Date
   status: Post["status"]
   submitter_key: string
+  parent_id: string | null
 }
 
 const toPost = (row: Row): Post => ({
@@ -55,6 +57,7 @@ const toPost = (row: Row): Post => ({
   createdAt: new Date(row.created_at).toISOString(),
   status: row.status,
   submitterKey: row.submitter_key,
+  ...(row.parent_id ? { parentId: row.parent_id } : {}),
 })
 
 export class PostgresStore implements CommunityStore {
@@ -86,9 +89,10 @@ export class PostgresStore implements CommunityStore {
       .slice(0, 40) || "untitled"}-${Date.now().toString(36)}`
 
     const rows = await this.sql<Row>`
-      insert into community_posts (id, title, author, url, object, preset, status, submitter_key)
+      insert into community_posts (id, title, author, url, object, preset, status, submitter_key, parent_id)
       values (${id}, ${post.title}, ${post.author}, ${post.url},
-              ${JSON.stringify(post.object)}::jsonb, ${post.preset}, 'pending', ${post.submitterKey})
+              ${JSON.stringify(post.object)}::jsonb, ${post.preset}, 'published',
+              ${post.submitterKey}, ${post.parentId ?? null})
       returning *
     `
     return toPost(rows[0])

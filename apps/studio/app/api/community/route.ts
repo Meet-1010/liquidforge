@@ -5,10 +5,13 @@ import { validateSubmission } from "@/lib/store/validate"
 /**
  * The community gallery's API.
  *
- * `GET` returns published posts; `POST` accepts a new one, which starts life
- * pending. Nothing a stranger sends becomes visible without a person approving
- * it — a gallery that publishes on submit is a gallery that hosts whatever
- * someone puts in the title field, and no amount of validation fixes that.
+ * `GET` returns published posts; `POST` publishes one straight away.
+ *
+ * Posting is meant to feel like posting anywhere else: press the button, see
+ * your thing. Holding submissions for review is safer and it is also the reason
+ * nobody bothers — you publish into a void and check back tomorrow. The defence
+ * is validation on the way in, a rate limit, and a moderation route that takes
+ * something down rather than one that lets it up.
  */
 
 export const dynamic = "force-dynamic"
@@ -69,13 +72,13 @@ export async function POST(request: Request) {
       )
     }
 
-    const post = await store.create({ ...result.value, submitterKey })
+    const parentId = typeof (body as { parentId?: unknown }).parentId === "string"
+      ? ((body as { parentId: string }).parentId || undefined)
+      : undefined
+
+    const post = await store.create({ ...result.value, submitterKey, parentId })
     return NextResponse.json(
-      {
-        id: post.id,
-        status: post.status,
-        message: "Submitted. It appears in the gallery once it has been looked at.",
-      },
+      { id: post.id, status: post.status, message: "Posted." },
       { status: 201 },
     )
   } catch (error) {

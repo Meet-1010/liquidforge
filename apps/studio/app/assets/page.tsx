@@ -28,23 +28,12 @@ const ALL: ProviderId[] = ["objaverse", "polyhaven", "threejs", "khronos", "sket
 const PAGE = 48
 
 /**
- * The bento rhythm.
+ * Placeholder heights for results with no picture.
  *
- * A uniform grid of 46,000 thumbnails is a spreadsheet. Varying the tile sizes
- * on a fixed repeating pattern — rather than at random — gives the page a shape
- * you can scan without it changing under you as more results load, which is
- * exactly what a random pattern would do on every page append.
+ * Chosen from the id so a given model always gets the same one — a random
+ * height would reflow the column every time React re-rendered.
  */
-const BENTO = [
-  "sm:col-span-2 sm:row-span-2",
-  "",
-  "",
-  "sm:row-span-2",
-  "",
-  "sm:col-span-2",
-  "",
-  "",
-]
+const PLACEHOLDER_HEIGHTS = [150, 190, 165, 220, 175]
 
 export default function AssetsPage() {
   const router = useRouter()
@@ -208,13 +197,22 @@ export default function AssetsPage() {
           </p>
         )}
 
-        <div className="grid auto-rows-[168px] grid-cols-2 gap-3 [grid-auto-flow:dense] sm:grid-cols-3 lg:grid-cols-4">
+        {/*
+          Masonry by CSS columns, not a grid.
+          
+          A grid has to know a tile's height before it places it, so every
+          thumbnail was being forced into a row-multiple and cropped — a tall
+          model and a wide one came out the same shape and neither was the shape
+          it actually is. Columns let each tile keep the aspect ratio of its own
+          picture, which is the whole point of a board like this.
+        */}
+        <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5">
           {results.map((asset, index) => (
             <AssetCard
               key={`${asset.provider}-${asset.id}-${index}`}
               asset={asset}
               onSend={sendToStudio}
-              span={BENTO[index % BENTO.length]}
+              placeholderHeight={PLACEHOLDER_HEIGHTS[index % PLACEHOLDER_HEIGHTS.length]}
             />
           ))}
         </div>
@@ -242,12 +240,11 @@ export default function AssetsPage() {
 function AssetCard({
   asset,
   onSend,
-  span,
+  placeholderHeight,
 }: {
   asset: AssetResult
   onSend: (asset: AssetResult, url: string) => void
-  /** Which bento cell shape this tile takes. */
-  span: string
+  placeholderHeight: number
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [meta, setMeta] = useState<Partial<AssetResult> | null>(null)
@@ -287,21 +284,27 @@ function AssetCard({
   return (
     <div
       ref={ref}
-      className={`group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 ${span}`}
+      className="group relative mb-3 block break-inside-avoid overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2"
     >
-      <div className="relative m-1.5 flex-1 overflow-hidden rounded-[var(--radius-md)] bg-ink">
+      <div className="relative m-1.5 overflow-hidden rounded-[var(--radius-md)] bg-ink">
         {merged.thumbnail ? (
+          /* No fixed height and no object-cover: the tile takes the picture's
+             own proportions, which is what stops a board of 46,000 models
+             looking like a spreadsheet. */
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={merged.thumbnail}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className="block w-full transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           /* Not every Objaverse uid still exists on Sketchfab, so some will
              never have a picture. A tinted initial beats a broken frame. */
-          <div className="grid h-full place-items-center bg-ink-3">
+          <div
+            className="grid place-items-center bg-ink-3"
+            style={{ height: placeholderHeight }}
+          >
             <span className="font-mono text-[22px] text-bone/12">
               {merged.name.slice(0, 1).toUpperCase()}
             </span>
