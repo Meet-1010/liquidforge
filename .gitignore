@@ -16,3 +16,8 @@ coverage/
 
 # the file-backed community store, for local development
 apps/studio/.data/
+.neon
+
+# Neon CLI agent tooling, regenerable with `neon skills -y`
+.claude/skills/
+skills-lock.json
