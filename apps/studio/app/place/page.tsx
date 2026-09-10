@@ -2,6 +2,7 @@
 
 import { LiquidSpot } from "liquidforge"
 import { LiquidEditor } from "liquidforge/editor"
+import { SiteNav } from "@/components/site-nav"
 import placements from "@/liquidforge.placements.json"
 import type { PlacementFile } from "liquidforge/placement"
 
@@ -22,6 +23,11 @@ import type { PlacementFile } from "liquidforge/placement"
 export default function PlacePage() {
   return (
     <>
+      {/* The nav sits at z-30 and the object at 0, so the object passes behind
+          it rather than over it — which is also the arrangement any real site
+          would want. */}
+      <SiteNav />
+
       <LiquidSpot
         id="drift"
         placement={(placements as PlacementFile).drift}
