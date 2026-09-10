@@ -43,6 +43,17 @@ export async function getStore(): Promise<CommunityStore> {
     )
   }
 
+  /*
+   * Serverless hosts have a read-only filesystem, so the file-store fallback
+   * cannot work there — and finding that out when the first person tries to
+   * post is too late. Say it at boot, where it lands in the deploy log.
+   */
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    console.error(
+      "liquidforge: DATABASE_URL is not set. This host's filesystem is read-only, so posting to the community gallery will fail until it is.",
+    )
+  }
+
   store = defaultFileStore()
   return store
 }

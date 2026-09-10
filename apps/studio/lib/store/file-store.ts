@@ -11,6 +11,28 @@ import type { CommunityStore, NewPost, Post } from "./types"
  * feature — submit, moderate, publish, paginate — can be built and tested
  * without anyone needing a database account first.
  */
+/**
+ * Why the file store could not write, in terms of the actual decision.
+ *
+ * A serverless function's filesystem is read-only apart from /tmp, and /tmp
+ * does not survive between invocations — so falling back to it would turn a
+ * loud failure into posts that vanish an hour later, which is worse. The only
+ * real answer on that kind of host is a database.
+ */
+function cannotWrite(path: string, cause: unknown): string {
+  const detail = cause instanceof Error ? cause.message : String(cause)
+  const serverless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) || path.startsWith("/var/task")
+
+  if (serverless) {
+    return (
+      "The gallery has no database, so it fell back to writing a file — and this host's filesystem is read-only. " +
+      "Set DATABASE_URL to a Postgres connection string and redeploy. " +
+      `(${detail})`
+    )
+  }
+  return `Could not write the gallery file at ${path}. Set DATABASE_URL to use Postgres instead. (${detail})`
+}
+
 export class FileStore implements CommunityStore {
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -29,8 +51,15 @@ export class FileStore implements CommunityStore {
     const run = async (): Promise<T> => {
       const posts = await this.read()
       const [next, result] = await fn(posts)
-      await mkdir(dirname(this.path), { recursive: true })
-      await writeFile(this.path, JSON.stringify(next, null, 2))
+      try {
+        await mkdir(dirname(this.path), { recursive: true })
+        await writeFile(this.path, JSON.stringify(next, null, 2))
+      } catch (error) {
+        // The raw failure here is `ENOENT ... mkdir '/var/task/.../.data'`,
+        // which names a directory and not the reason, and sends whoever reads
+        // it looking for a missing folder. The reason is always the same one.
+        throw new Error(cannotWrite(this.path, error))
+      }
       return result
     }
     const chained = this.queue.then(run, run)
