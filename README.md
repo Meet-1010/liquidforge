@@ -28,6 +28,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
 | **`/how`** | Four switches that break the effect on purpose, so you can see what each one was buying |
+| **Loop export** | The Studio records a seamless 4-second loop at up to 4K — the drawing buffer is resized for the take, so the export is not limited to how big the preview happens to be |
 | **`/showcase`** | Five complete demo sites you can open and use, plus a layout explorer for the eight placements |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
 | **Surprise me** | The Studio's model tab rolls one at random out of 46,871, with its licence |
@@ -52,6 +53,20 @@ npm run build:all   # package + MCP server
 npm run typecheck   # typecheck every workspace
 npm run mcp         # build and run the MCP server over stdio
 ```
+
+### Cursors on the landing page
+
+Everyone on `/` shares one surface: their cursors are drawn on it, and their
+movement ripples it. Server-sent events with an in-memory hub — `POST` your
+position, listen on a stream for everybody else's — which needs no websocket
+server, no upgrade handshake and no extra service.
+
+Positions are normalised to the element, not the viewport, so two people on
+different screens point at the same part of the object rather than the same
+pixel. State is deliberately in memory and lossy: a cursor is worth nothing a
+second after it was sent. On more than one instance people would only see the
+cursors sharing their instance — a real limit, and swapping the hub for a Redis
+channel is a change to one file.
 
 ### The community gallery
 

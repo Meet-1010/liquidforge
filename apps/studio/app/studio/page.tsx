@@ -26,6 +26,7 @@ function Studio() {
   const [config, setConfig] = useState<LiquidConfig>(() => configFromPreset())
   const [exporting, setExporting] = useState(false)
   const [recording, setRecording] = useState(false)
+  const [recordSize, setRecordSize] = useState<"1080" | "1440" | "2160">("2160")
   const engineRef = useRef<LiquidEngine | null>(null)
 
   /*
@@ -218,6 +219,16 @@ function Studio() {
             </div>
             {/* The loop is the asset people actually put on a timeline: the
                 still cannot carry the one thing that makes this worth using. */}
+            <Segmented
+              label="Loop resolution"
+              value={recordSize}
+              options={[
+                { value: "1080" as const, label: "1080p" },
+                { value: "1440" as const, label: "1440p" },
+                { value: "2160" as const, label: "4K" },
+              ]}
+              onChange={setRecordSize}
+            />
             <Button
               disabled={recording}
               onClick={async () => {
@@ -225,15 +236,26 @@ function Studio() {
                 if (!engine) return
                 setRecording(true)
                 try {
-                  const blob = await engine.recordLoop({ seconds: 4 })
-                  downloadBlob(blob, `liquidforge-${config.preset}.webm`)
+                  // Recorded at this size regardless of how big the preview is
+                  // on screen — the drawing buffer is resized for the take.
+                  const height = Number(recordSize)
+                  const blob = await engine.recordLoop({
+                    seconds: 4,
+                    width: Math.round((height * 16) / 9),
+                    height,
+                  })
+                  downloadBlob(blob, `liquidforge-${config.preset}-${recordSize}p.webm`)
                 } finally {
                   setRecording(false)
                 }
               }}
             >
-              {recording ? "Recording 4s…" : "Record a loop"}
+              {recording ? "Recording 4s…" : `Record a ${recordSize === "2160" ? "4K" : recordSize + "p"} loop`}
             </Button>
+            <p className="font-mono text-[10px] leading-relaxed text-bone/30">
+              Four seconds, looping seamlessly, at about 0.12 bits per pixel. 4K is heavy — if it
+              drops frames on this machine, take it down a step.
+            </p>
           </Panel>
         </aside>
 

@@ -82,6 +82,20 @@ function spread(points: Map<number, { x: number; y: number }>): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
+export interface RecordOptions {
+  /** Length of the loop. @default 4 */
+  seconds?: number
+  /** @default 30 */
+  fps?: number
+  /** Recorded frame width, independent of how large the canvas is on screen. @default 3840 */
+  width?: number
+  /** @default 2160 */
+  height?: number
+  /** Bits per second. Defaults to roughly 0.12 bits per pixel per frame. */
+  bitrate?: number
+  mimeType?: string
+}
+
 export class LiquidEngine {
   readonly scene = new Scene()
   readonly camera = new PerspectiveCamera(38, 1, 0.1, 100)
@@ -98,6 +112,14 @@ export class LiquidEngine {
 
   private trail: Trail
   private probe = new SurfaceProbe()
+  /**
+   * A second probe for ripples that did not come from this browser's pointer.
+   *
+   * Sharing one would leave `probe.over` and `probe.point` describing a
+   * stranger's cursor at the moment a local click asked where the local pointer
+   * was.
+   */
+  private remoteProbe = new SurfaceProbe()
   private probeMode: ProbeMode = "sphere"
 
   private readonly pointer = new Vector2(0, 0)
@@ -715,7 +737,9 @@ export class LiquidEngine {
    * a slow one (§5.8.1).
    */
   private adaptResolution(deltaMs: number): void {
-    if (!this.profile.adaptive) return
+    // A recording owns the resolution; letting this walk it down mid-take is
+    // how a 4K export comes out at 1600px.
+    if (!this.profile.adaptive || this.recording) return
     if (deltaMs > 0 && deltaMs < 200) {
       this.frameAccum += deltaMs
       this.frameCount++
@@ -782,24 +806,55 @@ export class LiquidEngine {
    * ends in the same place, so the loop closes invisibly. `MediaRecorder` on
    * the canvas stream does the rest.
    */
-  async recordLoop(options: { seconds?: number; fps?: number; mimeType?: string } = {}): Promise<Blob> {
-    const { seconds = 4, fps = 30 } = options
-    const mimeType =
-      options.mimeType ??
-      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) =>
-        typeof MediaRecorder !== "undefined" ? MediaRecorder.isTypeSupported(type) : false,
-      )
+  async recordLoop(options: RecordOptions = {}): Promise<Blob> {
+    const {
+      seconds = 4,
+      fps = 30,
+      width = 3840,
+      height = 2160,
+      // Roughly 0.12 bits per pixel per frame. At 4K that is about 30 Mbps —
+      // an order of magnitude above the browser default, which is tuned for
+      // video calls and turns a chrome gradient into blocks.
+      bitrate = Math.round(width * height * fps * 0.12),
+    } = options
 
     if (typeof MediaRecorder === "undefined") {
       throw new Error("liquidforge: this browser cannot record a canvas")
     }
 
+    const mimeType =
+      options.mimeType ??
+      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) =>
+        MediaRecorder.isTypeSupported(type),
+      )
+
     const wasRunning = this.running
     if (!wasRunning) this.start()
 
+    /*
+     * Record at the requested size, not at the size the canvas happens to be
+     * on screen.
+     *
+     * `captureStream` takes the *drawing buffer*, so a 900px preview recorded a
+     * 900px video however large the export was supposed to be. Resizing the
+     * buffer without touching the CSS size gives a 4K frame that still displays
+     * at preview scale, and the adaptive pixel ratio has to be held off or it
+     * spends the recording walking the resolution back down to hit 60fps.
+     */
+    const previous = this.renderer.getSize(new Vector2())
+    const previousDpr = this.dpr
+    this.recording = true
+    this.renderer.setPixelRatio(1)
+    this.renderer.setSize(width, height, false)
+    this.camera.aspect = width / height
+    this.frameCamera()
+
     const stream = this.canvas.captureStream(fps)
     const chunks: BlobPart[] = []
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+    const recorder = new MediaRecorder(stream, {
+      ...(mimeType ? { mimeType } : {}),
+      videoBitsPerSecond: bitrate,
+    })
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data)
     }
@@ -808,8 +863,7 @@ export class LiquidEngine {
       recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType || "video/webm" }))
     })
 
-    const startedAt = performance.now()
-    this.scripted = { startedAt, durationMs: seconds * 1000 }
+    this.scripted = { startedAt: performance.now(), durationMs: seconds * 1000 }
     recorder.start()
 
     await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
@@ -817,12 +871,21 @@ export class LiquidEngine {
     recorder.stop()
     this.scripted = null
     const blob = await finished
+
+    // Back to what it was, whatever happened.
+    this.recording = false
+    this.renderer.setPixelRatio(previousDpr)
+    this.renderer.setSize(previous.x, previous.y, false)
+    this.camera.aspect = previous.x / previous.y || 1
+    this.frameCamera()
     if (!wasRunning) this.stop()
+
     return blob
   }
 
   /** A closed figure-of-eight, so the first frame and the last are the same. */
   private scripted: { startedAt: number; durationMs: number } | null = null
+  private recording = false
 
   private scriptedPointer(): Vector2 | null {
     if (!this.scripted) return null
@@ -832,6 +895,32 @@ export class LiquidEngine {
   }
 
   private readonly scratchPointer = new Vector2()
+
+  /**
+   * Disturb the surface from somewhere other than this browser's pointer.
+   *
+   * `x` and `y` are normalised device coordinates, the same space the local
+   * pointer uses, so a position sent by someone on a different screen lands on
+   * the same part of the object rather than the same pixel.
+   *
+   * This is what makes a shared surface shared: without it the other cursors
+   * are drawings on top of the canvas, and the liquid only ever answers to one
+   * person.
+   */
+  rippleAt(x: number, y: number, amplitude = 1): void {
+    const mesh = this.mesh
+    if (!mesh || !this.running) return
+    const hit = this.remoteProbe.probe(
+      this.remotePointer.set(x, y),
+      this.camera,
+      mesh,
+      this.probeMode,
+    )
+    if (!hit.over) return
+    this.trail.emit(hit.point, hit.normal, Math.min(2.4, Math.max(0, amplitude)), this.time)
+  }
+
+  private readonly remotePointer = new Vector2()
 
   /** Animation clips in the current object, empty for anything static. */
   get animations(): string[] {

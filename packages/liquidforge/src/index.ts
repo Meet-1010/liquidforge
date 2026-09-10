@@ -12,7 +12,7 @@ export { findBlendIsolator, warnIfBlendIsolated } from "./components/blend-check
 export { LiquidLoading, type LoadingProps } from "./components/loading"
 
 // Engine — for anyone who wants the surface without React
-export { LiquidEngine, type LiquidEngineOptions } from "./engine/liquid-engine"
+export { LiquidEngine, type LiquidEngineOptions, type RecordOptions } from "./engine/liquid-engine"
 export { prepareGeometry, type PrepareOptions, type PreparedGeometry } from "./engine/prepare-geometry"
 export { SurfaceProbe, type ProbeMode, type SurfaceHit } from "./engine/pointer"
 export {

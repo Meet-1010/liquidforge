@@ -1,9 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { LiquidCanvas, LiquidHero, PRESETS } from "liquidforge"
-import type { ObjectSource } from "liquidforge"
+import type { LiquidEngine, ObjectSource } from "liquidforge"
+import { Cursors, PresenceBadge } from "@/components/cursors"
+import { usePresence, useRemoteRipples } from "@/lib/presence/use-presence"
 import { SiteNav } from "@/components/site-nav"
 import { CopyButton } from "@/components/ui"
 
@@ -22,6 +24,20 @@ const OBJECTS: Array<{ label: string; note: string; object: ObjectSource; preset
 
 export default function Home() {
   const [hero, setHero] = useState("mercury-1")
+  const heroRef = useRef<HTMLDivElement>(null)
+
+  /*
+   * Everyone currently on the page, on the same surface.
+   *
+   * Positions are normalised to this element, so two people on different
+   * screens are pointing at the same part of the object rather than the same
+   * pixel — which is the only version of this that means anything when the
+   * thing being pointed at is a single object rather than a document.
+   */
+  const { others } = usePresence("home", heroRef)
+  const [engine, setEngine] = useState<LiquidEngine | null>(null)
+  // The cursors do not just sit on top of the surface, they hit it.
+  useRemoteRipples(others, engine)
 
   return (
     <>
@@ -31,18 +47,29 @@ export default function Home() {
       {/* An abstract object, not the wordmark forged twice. The headline is
           already type; putting more type behind it leaves the blend fighting
           itself, and a knot gives the horizon line far more to wrap around. */}
-      <LiquidHero
-        object={{ type: "shape", shape: "torusknot", detail: 200 }}
-        preset={PRESETS[hero]}
-        motion={{ autoRotate: 0.1, tilt: [0.3, 0] }}
-        height="100svh"
-        blend
-      >
-        <h1 className="display m-0 text-[clamp(3rem,13vw,10rem)]">liquidforge</h1>
-        <p className="mt-4 font-mono text-[12px] tracking-[0.24em] uppercase">
-          Liquid hero sections, one component
-        </p>
-      </LiquidHero>
+      <div ref={heroRef} className="relative">
+        <LiquidHero
+          object={{ type: "shape", shape: "torusknot", detail: 200 }}
+          preset={PRESETS[hero]}
+          motion={{ autoRotate: 0.1, tilt: [0.3, 0] }}
+          height="100svh"
+          onEngine={setEngine}
+          blend
+        >
+          <h1 className="display m-0 text-[clamp(3rem,13vw,10rem)]">liquidforge</h1>
+          <p className="mt-4 font-mono text-[12px] tracking-[0.24em] uppercase">
+            Liquid hero sections, one component
+          </p>
+        </LiquidHero>
+
+        {/* After the hero, not before it: positioned siblings paint in DOM
+            order, so cursors declared first would sit underneath the surface
+            they are supposed to be moving across. */}
+        <Cursors cursors={others} host={heroRef} />
+        <div className="pointer-events-none absolute top-4 right-4">
+          <PresenceBadge count={others.length} />
+        </div>
+      </div>
 
       <div className="pointer-events-none relative -mt-20 flex justify-center pb-8">
         <div className="pointer-events-auto flex gap-1.5 rounded-[var(--radius-pill)] border border-rule bg-ink/70 p-1.5 backdrop-blur-sm">
