@@ -66,6 +66,21 @@
       "import": "./dist/codegen.js",
       "require": "./dist/codegen.cjs"
     },
+    "./placement": {
+      "types": "./dist/placement.d.ts",
+      "import": "./dist/placement.js",
+      "require": "./dist/placement.cjs"
+    },
+    "./editor": {
+      "types": "./dist/editor.d.ts",
+      "import": "./dist/editor.js",
+      "require": "./dist/editor.cjs"
+    },
+    "./dev": {
+      "types": "./dist/dev.d.ts",
+      "import": "./dist/dev.js",
+      "require": "./dist/dev.cjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -76,10 +91,11 @@
     "registry"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "node test/path.test.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

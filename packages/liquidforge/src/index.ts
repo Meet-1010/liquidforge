@@ -10,6 +10,23 @@ export { LiquidHero, type LiquidHeroProps } from "./components/liquid-hero"
 export { LiquidCanvas, type LiquidCanvasProps } from "./components/liquid-canvas"
 export { findBlendIsolator, warnIfBlendIsolated } from "./components/blend-check"
 export { LiquidLoading, type LoadingProps } from "./components/loading"
+export { LiquidSpot, type LiquidSpotProps } from "./components/liquid-spot"
+
+// Placement — the runtime half of the in-place editor. The editor itself lives
+// at "liquidforge/editor" so it never reaches a production bundle.
+export {
+  DEFAULT_PLACEMENT,
+  PLACEMENTS_ENDPOINT,
+  samplePath,
+  pointAt,
+  pathToSvg,
+  type Placement,
+  type PlacementFile,
+  type PlacementPath,
+  type PlacementPoint,
+  type ResolvedPoint,
+  type SampledPath,
+} from "./placement"
 
 // Engine — for anyone who wants the surface without React
 export { LiquidEngine, type LiquidEngineOptions, type RecordOptions } from "./engine/liquid-engine"

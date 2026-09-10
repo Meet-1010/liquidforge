@@ -334,7 +334,10 @@ export function LiquidCanvas({
     else engine.stop()
   }, [inView, ready, reducedMotion, epoch])
 
-  const pageBackground = transparent ? "transparent" : (background ?? backgroundColor(resolved) ?? "#050506")
+  const pageBackground =
+    transparent || background === "transparent"
+      ? "transparent"
+      : (background ?? backgroundColor(resolved) ?? "#050506")
 
   const containerStyle: CSSProperties = {
     position: "relative",

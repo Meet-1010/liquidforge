@@ -409,7 +409,14 @@ export class LiquidEngine {
   }
 
   private applyClearColor(): void {
-    if (this.transparent) {
+    /*
+     * `transparent` is the flag and `background` is a colour, but
+     * `background="transparent"` is the obvious thing to write and reads as if
+     * it should work. Left alone, three parses that string as an unknown colour
+     * and clears opaque black — an object on a white card, with no error. So the
+     * spelling is accepted rather than punished.
+     */
+    if (this.transparent || this.background === "transparent") {
       this.renderer.setClearColor(new Color(0, 0, 0), 0)
       return
     }
