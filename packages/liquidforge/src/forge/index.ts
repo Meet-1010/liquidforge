@@ -1,7 +1,7 @@
 import { Box3, BufferGeometry, Vector3 } from "three"
 import type { ObjectSource } from "../types"
 import { forgeImage } from "./image"
-import { forgeModel } from "./model"
+import { forgeModel, type ProgressHandler } from "./model"
 import { forgeShape } from "./shapes"
 import { forgeSvg } from "./svg"
 import { forgeText } from "./text"
@@ -10,7 +10,7 @@ export { forgeText, DEFAULT_TEXT_FONT } from "./text"
 export { forgeSvg } from "./svg"
 export { forgeImage } from "./image"
 export { forgeShape, SHAPE_KINDS } from "./shapes"
-export { forgeModel } from "./model"
+export { forgeModel, type LoadProgress, type ProgressHandler } from "./model"
 export { LiquidRig, RIG_VERTEX_LIMIT, type RigSource } from "./rig"
 export { exportModel, downloadModel, downloadBlob, type ExportOptions } from "./export"
 export {
@@ -32,12 +32,15 @@ export const DEFAULT_OBJECT: ObjectSource = { type: "shape", shape: "sphere", de
  * Shapes are synchronous; everything else needs canvas or network work, so the
  * entry point is async for a single call signature.
  */
-export async function forgeGeometry(source: ObjectSource): Promise<BufferGeometry> {
-  const geometry = await build(source)
+export async function forgeGeometry(
+  source: ObjectSource,
+  onProgress?: ProgressHandler,
+): Promise<BufferGeometry> {
+  const geometry = await build(source, onProgress)
   return fitGeometry(geometry)
 }
 
-async function build(source: ObjectSource): Promise<BufferGeometry> {
+async function build(source: ObjectSource, onProgress?: ProgressHandler): Promise<BufferGeometry> {
   switch (source.type) {
     case "text":
       return forgeText(source)
@@ -48,7 +51,7 @@ async function build(source: ObjectSource): Promise<BufferGeometry> {
     case "shape":
       return forgeShape(source)
     case "model":
-      return forgeModel(source)
+      return forgeModel(source, onProgress)
     default: {
       const exhaustive: never = source
       throw new Error(`liquidforge: unknown object source ${JSON.stringify(exhaustive)}`)

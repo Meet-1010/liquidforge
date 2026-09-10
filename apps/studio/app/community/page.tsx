@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { PRESETS, presetName } from "liquidforge"
 import { configFromPreset, shareUrl } from "liquidforge/codegen"
@@ -34,7 +35,33 @@ interface Entry {
  * is worth saying plainly rather than implying the gallery is live.
  */
 export default function CommunityPage() {
-  const entries = community.entries as Entry[]
+  const seed = community.entries as Entry[]
+  const [entries, setEntries] = useState<Entry[]>(seed)
+  const [live, setLive] = useState(false)
+
+  /*
+   * Published posts from the API, with the checked-in JSON as the seed.
+   *
+   * The seed is not a fallback for a broken API so much as the gallery's
+   * starting content: a fresh clone has an empty database and should still
+   * show something. Anything published through the backend is appended to it.
+   */
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/community?limit=60")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { posts?: Entry[] } | null) => {
+        if (cancelled || !data?.posts?.length) return
+        const seen = new Set(seed.map((entry) => entry.id))
+        setEntries([...data.posts.filter((post) => !seen.has(post.id)), ...seed])
+        setLive(true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
@@ -44,6 +71,11 @@ export default function CommunityPage() {
           <p className="label mb-3">01 — Community</p>
           <h1 className="display text-[clamp(2.2rem,6vw,3.6rem)]">Made with liquidforge.</h1>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">{community.note}</p>
+          {live && (
+            <p className="mt-2 font-mono text-[11px] text-bone/35">
+              Showing posts from the gallery database as well as the ones in the repository.
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <Link
               href="/studio"

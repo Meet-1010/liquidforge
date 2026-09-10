@@ -179,15 +179,63 @@ function titleCase(value: string) {
  * The uid doubles as the Sketchfab uid, which is what makes it possible to link
  * every model to its own licence page instead of asserting one.
  */
-function objaverseResults(index: ObjaverseIndex, terms: string[], perCategory: number) {
+/**
+ * Categories whose name matches every search term.
+ *
+ * Objaverse is searched by category rather than by model, because the index
+ * holds nothing else — a uid and a shard, joined per category. The real names
+ * only exist on Sketchfab, and asking it for 46,207 of them to run a search
+ * would be absurd.
+ */
+function objaverseCategories(index: ObjaverseIndex, terms: string[]): string[] {
+  const names = Object.keys(index.categories)
+  if (terms.length === 0) return names
+  return names.filter((category) => {
+    const label = category.replace(/_/g, " ").toLowerCase()
+    return terms.every((term) => label.includes(term))
+  })
+}
+
+/** How many models match, without building a single result object. */
+function objaverseCount(index: ObjaverseIndex, terms: string[]): number {
+  let total = 0
+  for (const category of objaverseCategories(index, terms)) {
+    total += index.categories[category].split(",").length
+  }
+  return total
+}
+
+/**
+ * One window into the matching set.
+ *
+ * The whole point is that `offset` walks the *entire* index rather than a
+ * handful per category. The first version capped each category at six, which
+ * meant an empty search could only ever reach about 7,000 of the 46,207 and no
+ * amount of scrolling would find the rest — the models past that cap were not
+ * ranked lower, they did not exist as far as the page was concerned.
+ *
+ * Nothing is materialised outside the window, so paging to the end of 46,207 is
+ * as cheap as paging to the start.
+ */
+function objaverseWindow(
+  index: ObjaverseIndex,
+  terms: string[],
+  offset: number,
+  limit: number,
+): AssetResult[] {
   const results: AssetResult[] = []
+  let seen = 0
 
-  for (const [category, packed] of Object.entries(index.categories)) {
-    const label = category.replace(/_/g, " ")
-    if (terms.length > 0 && !terms.every((term) => label.includes(term))) continue
+  for (const category of objaverseCategories(index, terms)) {
+    const entries = index.categories[category].split(",")
+    if (seen + entries.length <= offset) {
+      seen += entries.length
+      continue
+    }
 
-    const entries = packed.split(",")
-    for (const entry of entries.slice(0, perCategory)) {
+    const from = Math.max(0, offset - seen)
+    for (let i = from; i < entries.length && results.length < limit; i++) {
+      const entry = entries[i]
       const uid = entry.slice(0, 32)
       const shard = entry.slice(32)
       results.push({
@@ -202,6 +250,9 @@ function objaverseResults(index: ObjaverseIndex, terms: string[], perCategory: n
         resolveModelUrl: async () => `${OBJAVERSE_GLB}/000-${shard}/${uid}.glb`,
       })
     }
+
+    seen += entries.length
+    if (results.length >= limit) break
   }
 
   return results
@@ -534,11 +585,14 @@ export const HEAVY_POLYCOUNT = 200_000
 export interface SearchOptions {
   query: string
   providers: ProviderId[]
+  /** How many to skip. Pages through the whole catalogue, not a first slice. */
+  offset?: number
   limit?: number
 }
 
 export interface SearchOutcome {
   results: AssetResult[]
+  /** Everything that matched, not just this page. */
   total: number
   /** Providers that failed, so the UI can say which rather than showing nothing. */
   failed: Array<{ provider: ProviderId; message: string }>
@@ -547,20 +601,25 @@ export interface SearchOutcome {
 export async function searchAssets({
   query,
   providers,
+  offset = 0,
   limit = 60,
 }: SearchOptions): Promise<SearchOutcome> {
   const failed: SearchOutcome["failed"] = []
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
 
+  /*
+   * Objaverse is handled apart from the rest, because it is two orders of
+   * magnitude larger and its results cannot be ranked without building them.
+   * The four small catalogues are loaded whole, filtered and ranked; Objaverse
+   * is then appended as a window, so paging walks the small ones first and
+   * continues into the large one without ever holding 46,207 objects.
+   */
+  const wantsObjaverse = providers.includes("objaverse")
+  const small = providers.filter((provider) => provider !== "objaverse")
+
   const run = async (provider: ProviderId): Promise<AssetResult[]> => {
     try {
       switch (provider) {
-        case "objaverse": {
-          const index = await loadObjaverseIndex()
-          // Cap per category so one huge bucket cannot crowd out every other
-          // match for a broad query.
-          return objaverseResults(index, terms, terms.length > 0 ? 40 : 6)
-        }
         case "polyhaven":
           return await loadPolyHaven()
         case "khronos":
@@ -569,6 +628,8 @@ export async function searchAssets({
           return await loadThreeJs()
         case "sketchfab":
           return await searchSketchfab(query)
+        default:
+          return []
       }
     } catch (error) {
       failed.push({
@@ -579,12 +640,10 @@ export async function searchAssets({
     }
   }
 
-  const batches = await Promise.all(providers.map(run))
-  const all = batches.flat()
-
-  const matched = all.filter((asset) => {
-    // Objaverse and Sketchfab already filtered server- or index-side.
-    if (terms.length > 0 && asset.provider !== "objaverse" && asset.provider !== "sketchfab") {
+  const batches = await Promise.all(small.map(run))
+  const matched = batches.flat().filter((asset) => {
+    // Sketchfab already filtered server-side.
+    if (terms.length > 0 && asset.provider !== "sketchfab") {
       const haystack = `${asset.name} ${asset.tags.join(" ")} ${asset.author ?? ""}`.toLowerCase()
       if (!terms.every((term) => haystack.includes(term))) return false
     }
@@ -593,10 +652,6 @@ export async function searchAssets({
 
   const ranked = [...matched].sort((a, b) => {
     if (a.importable !== b.importable) return a.importable ? -1 : 1
-    // A million-triangle photogrammetry scan outranks everything on download
-    // count and is close to the worst thing you can pick: the mesh has to be
-    // clustered down before it can be processed at all, and what is left is a
-    // field of specks. Popularity is the wrong signal for this material.
     const aHeavy = (a.polycount ?? 0) > HEAVY_POLYCOUNT ? 1 : 0
     const bHeavy = (b.polycount ?? 0) > HEAVY_POLYCOUNT ? 1 : 0
     if (aHeavy !== bHeavy) return aHeavy - bHeavy
@@ -605,9 +660,6 @@ export async function searchAssets({
       const bName = b.name.toLowerCase().includes(terms[0]) ? 1 : 0
       if (aName !== bName) return bName - aName
     }
-    // With no query this is a shop window, so lead with the curated sets:
-    // three.js and Khronos are a few dozen clean, recognisable shapes, which is
-    // a far better first impression than whatever Poly Haven downloads most.
     if (terms.length === 0) {
       const curated = (provider: ProviderId) =>
         provider === "threejs" || provider === "khronos" ? 0 : 1
@@ -617,7 +669,29 @@ export async function searchAssets({
     return (b.downloads ?? 0) - (a.downloads ?? 0)
   })
 
-  return { results: ranked.slice(0, limit), total: ranked.length, failed }
+  let index: ObjaverseIndex | null = null
+  if (wantsObjaverse) {
+    try {
+      index = await loadObjaverseIndex()
+    } catch (error) {
+      failed.push({
+        provider: "objaverse",
+        message: error instanceof Error ? error.message : "Request failed",
+      })
+    }
+  }
+
+  const bulkCount = index ? objaverseCount(index, terms) : 0
+  const total = ranked.length + bulkCount
+
+  const results = ranked.slice(offset, offset + limit)
+  if (results.length < limit && index) {
+    const bulkOffset = Math.max(0, offset - ranked.length)
+    results.push(...objaverseWindow(index, terms, bulkOffset, limit - results.length))
+  }
+
+  return { results, total, failed }
+
 }
 
 /**

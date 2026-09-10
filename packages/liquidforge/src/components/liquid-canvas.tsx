@@ -135,6 +135,8 @@ export function LiquidCanvas({
   const [ready, setReady] = useState(false)
   const [incomplete, setIncomplete] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  /** Megabytes in, so a slow download looks like a slow download. */
+  const [progress, setProgress] = useState<string | null>(null)
   const [webglOk, setWebglOk] = useState(true)
 
   const inView = useInView(containerRef, pauseOffscreen)
@@ -219,8 +221,13 @@ export function LiquidCanvas({
 
     setReady(false)
     setIncomplete(false)
+    setProgress(null)
 
-    forgeGeometry(object)
+    forgeGeometry(object, ({ loaded, total }) => {
+      if (cancelled) return
+      const mb = (bytes: number) => (bytes / 1_048_576).toFixed(1)
+      setProgress(total > 0 ? `${mb(loaded)} / ${mb(total)} MB` : `${mb(loaded)} MB`)
+    })
       .then((geometry) => {
         if (cancelled || engineRef.current !== engine) {
           geometry.dispose()
@@ -240,6 +247,7 @@ export function LiquidCanvas({
           engine.resize(rect.width, rect.height)
         }
 
+        setProgress(null)
         setReady(true)
         onReady?.({ animations: engine.animations })
       })
@@ -368,7 +376,12 @@ export function LiquidCanvas({
 
       {!error && !incomplete && !ready && (
         <div style={overlayStyle} data-liquidforge="loading">
-          {fallback ?? <LiquidLoading light={resolved.background === "light"} />}
+          {fallback ?? (
+            <LiquidLoading
+              light={resolved.background === "light"}
+              label={progress ?? "forging"}
+            />
+          )}
         </div>
       )}
     </div>

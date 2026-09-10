@@ -14,5 +14,5 @@ yarn-error.log*
 coverage/
 *.tgz
 
-# static export output
-apps/studio/out/
+# the file-backed community store, for local development
+apps/studio/.data/

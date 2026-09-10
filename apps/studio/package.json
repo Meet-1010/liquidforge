@@ -2,13 +2,12 @@
   "name": "@liquidforge/studio",
   "version": "0.1.0",
   "private": true,
-  "description": "Liquidforge Studio — forge an object in the browser, tune the material live, copy the code.",
+  "description": "Liquidforge Studio \u2014 forge an object in the browser, tune the material live, copy the code.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
-    "build:static": "LIQUIDFORGE_STATIC=1 next build"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "liquidforge": "*",

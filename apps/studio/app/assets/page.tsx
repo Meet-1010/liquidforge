@@ -24,38 +24,102 @@ import { Button } from "@/components/ui"
 
 const ALL: ProviderId[] = ["objaverse", "polyhaven", "threejs", "khronos", "sketchfab"]
 
+/** Big enough that scrolling feels continuous, small enough to stay responsive. */
+const PAGE = 48
+
+/**
+ * The bento rhythm.
+ *
+ * A uniform grid of 46,000 thumbnails is a spreadsheet. Varying the tile sizes
+ * on a fixed repeating pattern — rather than at random — gives the page a shape
+ * you can scan without it changing under you as more results load, which is
+ * exactly what a random pattern would do on every page append.
+ */
+const BENTO = [
+  "sm:col-span-2 sm:row-span-2",
+  "",
+  "",
+  "sm:row-span-2",
+  "",
+  "sm:col-span-2",
+  "",
+  "",
+]
+
 export default function AssetsPage() {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [providers, setProviders] = useState<ProviderId[]>(ALL)
-  const [outcome, setOutcome] = useState<SearchOutcome | null>(null)
+  const [results, setResults] = useState<AssetResult[]>([])
+  const [outcome, setOutcome] = useState<Pick<SearchOutcome, "total" | "failed"> | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exhausted, setExhausted] = useState(false)
+  const sentinel = useRef<HTMLDivElement>(null)
+  const pending = useRef(false)
 
+  /**
+   * One page at a time, appended.
+   *
+   * `reset` starts a new search; without it this is the next page of the
+   * current one. The whole catalogue is reachable this way — the offset walks
+   * all 46,207 rather than a first slice, which is what the previous version
+   * capped at and could never scroll past.
+   */
   const run = useCallback(
-    async (nextQuery: string, nextProviders: ProviderId[]) => {
+    async (nextQuery: string, nextProviders: ProviderId[], reset: boolean) => {
+      if (pending.current) return
+      pending.current = true
       setLoading(true)
       try {
-        setOutcome(await searchAssets({ query: nextQuery, providers: nextProviders }))
+        const offset = reset ? 0 : results.length
+        const page = await searchAssets({
+          query: nextQuery,
+          providers: nextProviders,
+          offset,
+          limit: PAGE,
+        })
+        setOutcome({ total: page.total, failed: page.failed })
+        setResults((current) => (reset ? page.results : [...current, ...page.results]))
+        setExhausted(page.results.length < PAGE)
       } catch {
-        setOutcome({ results: [], total: 0, failed: [] })
+        setOutcome({ total: 0, failed: [] })
+        if (reset) setResults([])
+        setExhausted(true)
       } finally {
         setLoading(false)
+        pending.current = false
       }
     },
-    [],
+    [results.length],
   )
 
   // Seed with something on screen rather than an empty page.
   useEffect(() => {
-    void run("", ALL)
-  }, [run])
+    void run("", ALL, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Infinite scroll, with the button below as the fallback for anyone whose
+  // browser or settings make the observer unreliable.
+  useEffect(() => {
+    const element = sentinel.current
+    if (!element || exhausted || typeof IntersectionObserver === "undefined") return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void run(query, providers, false)
+      },
+      { rootMargin: "600px" },
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [exhausted, query, providers, run])
 
   const toggle = (id: ProviderId) => {
     const next = providers.includes(id)
       ? providers.filter((entry) => entry !== id)
       : [...providers, id]
     setProviders(next)
-    void run(query, next)
+    void run(query, next, true)
   }
 
   /**
@@ -92,7 +156,7 @@ export default function AssetsPage() {
           className="mb-4 flex gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            void run(query, providers)
+            void run(query, providers, true)
           }}
         >
           <input
@@ -102,7 +166,7 @@ export default function AssetsPage() {
             placeholder="skull, helmet, bottle, statue…"
             className="w-full rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-4 py-2.5 font-mono text-[12px] text-bone outline-none placeholder:text-bone/25 focus:border-bone"
           />
-          <Button variant="primary" onClick={() => void run(query, providers)}>
+          <Button variant="primary" onClick={() => void run(query, providers, true)}>
             Search
           </Button>
         </form>
@@ -137,31 +201,39 @@ export default function AssetsPage() {
           </p>
         ))}
 
-        {loading && <p className="font-mono text-[11px] text-muted">Searching…</p>}
-
-        {!loading && outcome && outcome.results.length === 0 && (
+        {!loading && results.length === 0 && (
           <p className="font-mono text-[12px] text-bone/45">
             Nothing matched. Try a broader word — the Objaverse index is searched by category
             name, so &ldquo;chair&rdquo; finds more than &ldquo;eames lounge chair&rdquo;.
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {outcome?.results.map((asset) => (
+        <div className="grid auto-rows-[168px] grid-cols-2 gap-3 [grid-auto-flow:dense] sm:grid-cols-3 lg:grid-cols-4">
+          {results.map((asset, index) => (
             <AssetCard
-              key={`${asset.provider}-${asset.id}`}
+              key={`${asset.provider}-${asset.id}-${index}`}
               asset={asset}
               onSend={sendToStudio}
+              span={BENTO[index % BENTO.length]}
             />
           ))}
         </div>
 
-        {outcome && outcome.total > outcome.results.length && (
-          <p className="mt-6 font-mono text-[11px] text-muted">
-            Showing {outcome.results.length} of {outcome.total.toLocaleString()}. Narrow the
-            search to see the rest.
-          </p>
-        )}
+        <div ref={sentinel} className="h-px" aria-hidden />
+
+        <div className="mt-8 flex flex-col items-center gap-3">
+          {loading && <p className="font-mono text-[11px] text-muted">Loading…</p>}
+          {!loading && !exhausted && (
+            <Button onClick={() => void run(query, providers, false)}>Load more</Button>
+          )}
+          {outcome && (
+            <p className="font-mono text-[11px] text-muted">
+              {exhausted
+                ? `That is all ${outcome.total.toLocaleString()} of them.`
+                : `${results.length.toLocaleString()} of ${outcome.total.toLocaleString()}`}
+            </p>
+          )}
+        </div>
       </main>
     </>
   )
@@ -170,9 +242,12 @@ export default function AssetsPage() {
 function AssetCard({
   asset,
   onSend,
+  span,
 }: {
   asset: AssetResult
   onSend: (asset: AssetResult, url: string) => void
+  /** Which bento cell shape this tile takes. */
+  span: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [meta, setMeta] = useState<Partial<AssetResult> | null>(null)
@@ -212,25 +287,29 @@ function AssetCard({
   return (
     <div
       ref={ref}
-      className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2"
+      className={`group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 ${span}`}
     >
-      <div className="m-1.5 aspect-[4/3] overflow-hidden rounded-[var(--radius-md)] bg-ink">
+      <div className="relative m-1.5 flex-1 overflow-hidden rounded-[var(--radius-md)] bg-ink">
         {merged.thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={merged.thumbnail}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="grid h-full place-items-center font-mono text-[10px] text-bone/15">
-            ◐
+          /* Not every Objaverse uid still exists on Sketchfab, so some will
+             never have a picture. A tinted initial beats a broken frame. */
+          <div className="grid h-full place-items-center bg-ink-3">
+            <span className="font-mono text-[22px] text-bone/12">
+              {merged.name.slice(0, 1).toUpperCase()}
+            </span>
           </div>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 px-3 pb-3">
+      <div className="flex flex-col gap-1 px-3 pb-3">
         <p className="truncate font-mono text-[11px] text-bone/80" title={merged.name}>
           {merged.name}
         </p>
@@ -254,7 +333,7 @@ function AssetCard({
         )}
         {error && <p className="font-mono text-[10px] text-bone/45">{error}</p>}
 
-        <div className="mt-auto flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-1.5">
           {asset.importable ? (
             <button
               type="button"

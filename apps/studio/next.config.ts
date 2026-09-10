@@ -3,16 +3,18 @@ import type { NextConfig } from "next"
 
 const librarySrc = path.resolve(__dirname, "../../packages/liquidforge/src")
 
-/**
- * Static export is opt-in via `npm run build:static`.
+/*
+ * There is no static export any more, and that is a deliberate trade.
  *
- * Every route prerenders to HTML already — there are no API routes and no
- * runtime data fetching — so the site can ship as plain files to any static
- * host. It stays opt-in because `output: "export"` forbids ever adding an API
- * route, and the community page is written to grow a backend later.
+ * Every route here still prerenders, but the community gallery now has a real
+ * backend — `app/api/community` — and `output: "export"` forbids API routes
+ * outright. The gallery was always written to grow one; taking it means giving
+ * up the plain-files deploy, which is the correct way round: a read-only
+ * gallery that cannot accept a post is not the thing anyone asked for.
+ *
+ * Deploy to anywhere that runs Node. Set DATABASE_URL for Postgres, or leave it
+ * unset and posts land in a JSON file under .data/.
  */
-const isStatic = process.env.LIQUIDFORGE_STATIC === "1"
-
 /**
  * The Studio compiles the library from source rather than its build output.
  *
@@ -23,7 +25,6 @@ const isStatic = process.env.LIQUIDFORGE_STATIC === "1"
  * `npm run build`.
  */
 const nextConfig: NextConfig = {
-  ...(isStatic ? { output: "export" as const, trailingSlash: true } : {}),
   transpilePackages: ["liquidforge"],
   turbopack: {
     resolveAlias: {

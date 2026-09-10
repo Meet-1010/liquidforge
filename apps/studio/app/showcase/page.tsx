@@ -8,6 +8,7 @@ import { configFromPreset, decodeState, encodeState, generateCode, SHOWCASE_LAYO
 import type { LiquidConfig, ShowcaseLayout } from "liquidforge/codegen"
 import type { ObjectSource } from "liquidforge"
 import { MOCKUPS } from "@/components/mockups"
+import { DEMOS } from "@/components/demos/catalog"
 import { SiteNav } from "@/components/site-nav"
 import { CopyButton, Toggle } from "@/components/ui"
 
@@ -84,10 +85,56 @@ function Showcase() {
           </h1>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
             Every colourway looks good full-bleed on a dark page, which is the one place most of
-            them will never go. Here is the same surface as a landing page, a pricing card, a
-            band inside an article, and a 36px mark — with the code for each underneath.
+            them will never go. Below are five complete sites you can open and use, and under
+            those a layout explorer for the eight placements the export ships.
           </p>
         </header>
+
+        {/* -- the real sites ---------------------------------------------- */}
+        <section className="mb-16">
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-3">
+            <h2 className="font-mono text-[13px] tracking-tight text-bone">Five working sites</h2>
+            <p className="font-mono text-[11px] text-muted">
+              Full pages, not crops — open one and move the cursor
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {DEMOS.map((demo) => (
+              <Link
+                key={demo.slug}
+                href={`/showcase/${demo.slug}`}
+                className="group flex flex-col gap-3 rounded-[var(--radius-lg)] border border-rule bg-ink-2 p-4 transition-colors hover:border-rule-bright"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-mono text-[13px] text-bone">{demo.name}</span>
+                  <span className="font-mono text-[10px] text-muted">{demo.kind}</span>
+                </div>
+                {/* Why it belongs there, which is the part that took the
+                    thinking — anything looks good floating alone on black. */}
+                <p className="font-mono text-[11px] leading-relaxed text-bone-dim">
+                  {demo.rationale}
+                </p>
+                <div className="mt-auto flex items-center justify-between gap-3 pt-1">
+                  <span className="font-mono text-[10px] text-muted">{demo.uses}</span>
+                  <span className="flex h-5 w-16 overflow-hidden rounded-[var(--radius-pill)]" aria-hidden>
+                    {demo.preset.palette.map((colour, i) => (
+                      <span key={i} style={{ flex: 1, background: colour }} />
+                    ))}
+                  </span>
+                </div>
+                <span className="font-mono text-[11px] text-bone/45 group-hover:text-bone">
+                  Open the site →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-3">
+          <h2 className="font-mono text-[13px] tracking-tight text-bone">Layout explorer</h2>
+          <p className="font-mono text-[11px] text-muted">Your config, in each placement, with the code</p>
+        </div>
 
         {/* -- controls ---------------------------------------------------- */}
         <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3">

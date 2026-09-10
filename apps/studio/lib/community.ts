@@ -28,14 +28,43 @@ export function communityEntry(config: LiquidConfig, submission: Submission) {
 }
 
 /**
- * One click to submit, which is not the same as one click to publish.
+ * Post it, for real.
  *
- * There is no backend here and adding one to accept arbitrary posts would mean
- * hosting, moderation and spam, none of which this project has any business
- * carrying yet. What it can do is remove every step between "I made a thing"
- * and "it is in front of the maintainer": this builds a GitHub issue with the
- * entry already filled in and a link that reopens the exact look, so submitting
- * is pressing the button GitHub puts on its own form.
+ * This goes to the gallery's own API, which validates it, rate-limits it and
+ * stores it as pending. It is live in the sense that matters — no fork, no pull
+ * request, no waiting on a maintainer to copy JSON — and not live in the sense
+ * that it appears the instant you press it, because a gallery that publishes
+ * unreviewed strangers' text is a gallery that will eventually host something
+ * you have to apologise for.
+ */
+export async function postToCommunity(
+  config: LiquidConfig,
+  submission: Submission,
+): Promise<{ ok: boolean; message: string }> {
+  const entry = communityEntry(config, submission)
+  try {
+    const response = await fetch("/api/community", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: entry.title,
+        author: entry.author,
+        url: entry.url,
+        object: entry.object,
+        preset: entry.preset,
+      }),
+    })
+    const data = (await response.json().catch(() => ({}))) as { message?: string; error?: string }
+    if (!response.ok) return { ok: false, message: data.error ?? `Rejected (${response.status})` }
+    return { ok: true, message: data.message ?? "Submitted." }
+  } catch {
+    return { ok: false, message: "Could not reach the gallery. Is the site running?" }
+  }
+}
+
+/**
+ * The fallback, for anyone who would rather open a pull request — or for a
+ * deployment with no database behind it.
  */
 export function submitUrl(config: LiquidConfig, submission: Submission, origin: string): string {
   const entry = communityEntry(config, submission)

@@ -27,10 +27,10 @@ apps/studio/                The site — landing, Studio, presets, community
 | **MCP server** | Teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model. Not on npm yet — run it from this checkout, see [its README](packages/liquidforge-mcp/README.md) |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
-| **`/showcase`** | Four pretend websites running your config — landing page, pricing grid, article banner, profile mark |
+| **`/showcase`** | Five complete demo sites you can open and use, plus a layout explorer for the eight placements |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
 | **Surprise me** | The Studio's model tab rolls one at random out of 46,871, with its licence |
-| **`/community`** | Live gallery of creations |
+| **`/community`** | Live gallery, backed by a real database — post from the Studio's export |
 
 ---
 
@@ -51,6 +51,31 @@ npm run build:all   # package + MCP server
 npm run typecheck   # typecheck every workspace
 npm run mcp         # build and run the MCP server over stdio
 ```
+
+### The community gallery
+
+Posts go through `app/api/community`. With no configuration they land in a JSON
+file under `apps/studio/.data/`, so a fresh clone has a working gallery you can
+post to. For a deployment:
+
+```bash
+DATABASE_URL=postgres://…       # any Postgres; the driver is loaded lazily
+SUBMISSION_SALT=…               # salts the hashed submitter key
+MODERATION_TOKEN=…              # required before the moderation route answers
+```
+
+Nothing is public until it is approved. `GET /api/community/moderate` lists what
+is pending and `PATCH` with `{ id, status }` publishes or rejects it, both
+behind `MODERATION_TOKEN` — and with no token set the route refuses everything,
+because the failure mode for a missing secret has to be closed rather than open.
+
+Submissions are validated field by field rather than passed through, capped in
+length, restricted to presets that exist, and rate limited to three an hour per
+address. The address itself is never stored, only a salted hash of it.
+
+There is no static export any more. Every route still prerenders, but
+`output: "export"` forbids API routes, and a gallery that cannot accept a post
+is not the thing that was being asked for.
 
 ---
 

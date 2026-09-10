@@ -41,25 +41,74 @@ interface LoadedGltf {
   animations: AnimationClip[]
 }
 
+/** Bytes downloaded so far, and the total when the server reports one. */
+export interface LoadProgress {
+  loaded: number
+  total: number
+}
+
+export type ProgressHandler = (progress: LoadProgress) => void
+
 const cache = new Map<string, Promise<LoadedGltf>>()
 
-function loadGltf(src: string): Promise<LoadedGltf> {
+/**
+ * Give up rather than hang.
+ *
+ * A `.glb` that never arrives used to leave the surface saying "forging" for
+ * ever — no error, no progress, nothing to distinguish a slow 40MB download
+ * from a dead URL. Both read as broken, and only one of them is. The clock
+ * resets on every chunk, so a genuinely slow connection is not punished for
+ * being slow, only for being silent.
+ */
+const STALL_TIMEOUT_MS = 45_000
+
+function loadGltf(src: string, onProgress?: ProgressHandler): Promise<LoadedGltf> {
   const cached = cache.get(src)
   if (cached) return cached
 
   const promise = new Promise<LoadedGltf>((resolve, reject) => {
+    let stalled: ReturnType<typeof setTimeout>
+    let settled = false
+
+    const resetStallTimer = () => {
+      clearTimeout(stalled)
+      stalled = setTimeout(() => {
+        if (settled) return
+        settled = true
+        reject(
+          new Error(
+            `liquidforge: "${src}" stopped responding after ${STALL_TIMEOUT_MS / 1000}s. The file may be very large, or the host may be unreachable.`,
+          ),
+        )
+      }, STALL_TIMEOUT_MS)
+    }
+
+    const done = <T>(fn: (value: T) => void) => (value: T) => {
+      if (settled) return
+      settled = true
+      clearTimeout(stalled)
+      fn(value)
+    }
+
+    resetStallTimer()
+
     new GLTFLoader(geometryOnlyManager()).load(
       src,
-      (gltf) => resolve({ scene: gltf.scene, animations: gltf.animations ?? [] }),
-      undefined,
-      (cause) => {
+      done((gltf: { scene: Object3D; animations?: AnimationClip[] }) =>
+        resolve({ scene: gltf.scene, animations: gltf.animations ?? [] }),
+      ),
+      (event) => {
+        resetStallTimer()
+        onProgress?.({ loaded: event.loaded, total: event.total })
+      },
+      done((cause: unknown) => {
         const detail = cause instanceof Error ? cause.message : ""
         reject(
           new Error(
             `liquidforge: could not load "${src}".${detail ? ` ${detail}` : ""} Compressed meshes (Draco, Meshopt) and KTX2 textures need their own decoders, which this library does not bundle — re-export the model uncompressed, or upload a plain .glb.`,
           ),
         )
-      },
+      }),
     )
   })
   // Don't cache rejections, or a transient network blip becomes permanent.
@@ -84,10 +133,13 @@ function loadGltf(src: string): Promise<LoadedGltf> {
  * a custom shader doing its own displacement — and in any case the mesh being
  * drawn is a weld of every mesh in the file, which no single skeleton indexes.
  */
-export async function forgeModel(source: ModelObjectSource): Promise<BufferGeometry> {
+export async function forgeModel(
+  source: ModelObjectSource,
+  onProgress?: ProgressHandler,
+): Promise<BufferGeometry> {
   if (!source.src) throw new Error("liquidforge: no model file chosen yet")
 
-  const loaded = await loadGltf(source.src)
+  const loaded = await loadGltf(source.src, onProgress)
   // SkeletonUtils.clone, not Object3D.clone: a plain clone leaves SkinnedMeshes
   // pointing at the original's bones, so two heroes sharing a cached glTF would
   // drive each other's skeletons.
