@@ -185,6 +185,41 @@ Overrides layer on top of a colourway, merged one level deep, so you can move on
 
 ---
 
+## Where it goes
+
+A hero is the obvious placement and usually not the one you need. `codegen`
+emits eight, each a self-contained component with inline styles and no
+dependency beyond this package, so it pastes into any project regardless of how
+that project does CSS.
+
+| layout | |
+| --- | --- |
+| `hero` | full-bleed section with your headline over the surface |
+| `split` | copy on one side, surface on the other |
+| `card` | a product or feature card with the surface as its media |
+| `grid` | three feature cards in a row |
+| `banner` | a wide strip — a call to action, or a divider with weight |
+| `badge` | a small round mark, for a logo lockup or an avatar |
+| `backdrop` | fixed behind a whole page, with content scrolling over it |
+| `canvas` | just the surface; you do the layout |
+
+```ts
+import { generateCode, configFromPreset } from "liquidforge/codegen"
+
+generateCode(configFromPreset("mercury-3"), { showcase: "card" })
+```
+
+The layout has an opinion about two props and applies them itself rather than
+leaving them to you: a badge is always transparent, and a badge or a card in a
+grid drops to `quality="low"` — a 56px mark does not need the adaptive tier.
+
+The Studio has all eight in its export, and `/showcase` renders four of them as
+pretend websites so you can see a colourway somewhere other than full-bleed on
+black. That is the placement most people never use, and a palette that looks
+expensive at full size often turns to mud at 36px.
+
+---
+
 ## The blend-mode trap — read this before using `blend`
 
 The signature effect is a headline that inverts to the complement of the liquid behind it: teal over orange, olive over pink. It's one CSS line, and `<LiquidHero blend>` applies it for you.

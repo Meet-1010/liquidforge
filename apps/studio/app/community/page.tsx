@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { PRESETS, presetName } from "liquidforge"
 import { configFromPreset, shareUrl } from "liquidforge/codegen"
 import type { ObjectSource } from "liquidforge"
@@ -27,6 +28,10 @@ interface Entry {
  * The list is a JSON file in the repository on purpose. There is no backend
  * here, and an entry is only ever what you would have pasted into a page — an
  * object and a preset id — so a pull request is the whole submission flow.
+ *
+ * The Studio's export builds that entry and opens a prefilled issue with it, so
+ * from a maker's side it is one button. It still needs a person to merge, which
+ * is worth saying plainly rather than implying the gallery is live.
  */
 export default function CommunityPage() {
   const entries = community.entries as Entry[]
@@ -39,14 +44,22 @@ export default function CommunityPage() {
           <p className="label mb-3">01 — Community</p>
           <h1 className="display text-[clamp(2.2rem,6vw,3.6rem)]">Made with liquidforge.</h1>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">{community.note}</p>
-          <a
-            href="https://github.com/Meet-1010/liquidforge/blob/main/apps/studio/data/community.json"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-6 inline-flex rounded-[var(--radius-pill)] border border-rule px-4 py-2 font-mono text-[11px] text-bone/70 transition-colors hover:border-rule-bright hover:text-bone"
-          >
-            Add yours
-          </a>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <Link
+              href="/studio"
+              className="inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
+            >
+              Make one, then post it from the export
+            </Link>
+            <a
+              href="https://github.com/Meet-1010/liquidforge/blob/main/apps/studio/data/community.json"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex rounded-[var(--radius-pill)] border border-rule px-4 py-2 font-mono text-[11px] text-bone/70 transition-colors hover:border-rule-bright hover:text-bone"
+            >
+              Or open a pull request
+            </a>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

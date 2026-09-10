@@ -167,12 +167,20 @@ export default function Home() {
             than a different palette, and each is a palette plus about twenty numbers — data you
             can edit, not code you have to fork.
           </p>
-          <Link
-            href="/presets"
-            className="mt-6 inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
-          >
-            See all 90
-          </Link>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Link
+              href="/presets"
+              className="inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
+            >
+              See all 90
+            </Link>
+            <Link
+              href="/showcase"
+              className="inline-flex rounded-[var(--radius-pill)] border border-rule px-4 py-2 font-mono text-[11px] text-bone/70 transition-colors hover:border-rule-bright hover:text-bone"
+            >
+              See one on a real page
+            </Link>
+          </div>
         </section>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 py-10 font-mono text-[11px] text-muted">

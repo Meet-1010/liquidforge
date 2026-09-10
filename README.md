@@ -27,6 +27,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **MCP server** | Teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model. Not on npm yet — run it from this checkout, see [its README](packages/liquidforge-mcp/README.md) |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
 | **`/presets`** | The collection gallery — ten families, 90 colourways, each a live render |
+| **`/showcase`** | Four pretend websites running your config — landing page, pricing grid, article banner, profile mark |
 | **`/assets`** | Search five open 3D catalogues and send a model straight into the Studio |
 | **Surprise me** | The Studio's model tab rolls one at random out of 46,871, with its licence |
 | **`/community`** | Live gallery of creations |

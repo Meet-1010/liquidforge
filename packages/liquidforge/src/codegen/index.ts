@@ -8,6 +8,7 @@
 
 import { PRESETS, DEFAULT_PRESET_ID } from "../presets"
 import { BACKGROUND_TONES } from "../background"
+import { renderShowcase, SHOWCASE_LAYOUTS, type ShowcaseLayout } from "./showcase"
 import type {
   LiquidPreset,
   MaterialFamily,
@@ -129,7 +130,15 @@ function diff<T extends object>(current: T, base: T): Partial<T> {
 }
 
 export interface CodeOptions {
-  /** Emit `<LiquidHero>` with content, or the bare `<LiquidCanvas />`. */
+  /**
+   * How the surface sits on the page: as a hero, a card, a banner, a badge,
+   * a fixed backdrop, or bare. See `SHOWCASE_LAYOUTS`.
+   *
+   * `component` is the older name for the same thing and still works.
+   * @default "hero"
+   */
+  showcase?: ShowcaseLayout
+  /** @deprecated Use `showcase`. */
   component?: "hero" | "canvas"
   /** Package import vs. an ejected local path. */
   importFrom?: string
@@ -154,8 +163,24 @@ export interface CodeOptions {
  * reader changed.
  */
 export function generateCode(config: LiquidConfig, options: CodeOptions = {}): string {
-  const { component = "hero", importFrom = "liquidforge", background: includeBackground = true } = options
+  const {
+    component,
+    showcase,
+    importFrom = "liquidforge",
+    background: includeBackground = true,
+  } = options
   const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
+  const layout: ShowcaseLayout = showcase ?? (component === "canvas" ? "canvas" : "hero")
+
+  /*
+   * Two props the layout has an opinion about, resolved here rather than
+   * hardcoded into the templates. A template that writes `transparent` itself
+   * emits it twice the moment the config asks for it too, and React quietly
+   * takes the last one — which is the sort of thing that makes generated code
+   * look careless even when it works.
+   */
+  const forceTransparent = layout === "badge"
+  const smallByDefault = layout === "badge" || layout === "grid"
   const name = component === "hero" ? "LiquidHero" : "LiquidCanvas"
 
   const props: string[] = [
@@ -174,7 +199,9 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
   const shadingDiff = diff(config.shading, base.shading)
   if (Object.keys(shadingDiff).length > 0) props.push(`shading={${literal(shadingDiff, 3)}}`)
 
-  if (config.quality !== "auto") props.push(`quality="${config.quality}"`)
+  // A 56px badge and a card in a grid of three do not need the adaptive tier.
+  const quality = config.quality === "auto" && smallByDefault ? "low" : config.quality
+  if (quality !== "auto") props.push(`quality="${quality}"`)
 
   /*
    * The ground, in one of three ways.
@@ -184,7 +211,7 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
    * resolved hex, or the snippet would silently render on the tone the preset
    * ships with.
    */
-  if (!includeBackground || config.transparent) {
+  if (!includeBackground || config.transparent || forceTransparent) {
     props.push("transparent")
   } else if (config.backgroundColor) {
     props.push(`background="${config.backgroundColor}"`)
@@ -203,47 +230,27 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
     if (config.height !== "100vh") props.push(`height="${config.height}"`)
   }
 
-  const propBlock = props.map((prop) => `      ${prop}`).join("\n")
-
-  if (component === "canvas") {
-    return `"use client"
-
-import { LiquidCanvas } from "${importFrom}"
-
-export function LiquidSection() {
-  return (
-    <LiquidCanvas
-${propBlock}
-    />
-  )
-}
-`
-  }
+  /*
+   * The props, re-indented for wherever the layout puts them. A card nests the
+   * canvas four levels deep and a hero two, and a snippet whose indentation is
+   * wrong is the first thing a reader distrusts about generated code.
+   */
+  const propsAt = (indent: number) => props.map((prop) => `${" ".repeat(indent)}${prop}`).join("\n")
 
   const onLight = config.background === "light" && includeBackground && !config.transparent
-  const headlineColour = config.blend ? "" : `, color: "${onLight ? "#111" : "#fff"}"`
-  const blendNote = config.blend
-    ? `      {/* mix-blend-mode: difference. No ancestor of this section may set a
-          z-index, transform, filter or opacity below 1 — any of those isolates
-          the blend group and the headline renders flat white. */}\n`
-    : ""
+  const meta = SHOWCASE_LAYOUTS.find((entry) => entry.id === layout)
 
-  return `"use client"
+  // A badge or a backdrop is meant to sit over the page, so those layouts drop
+  // the ground whatever the config says — otherwise the emitted code contains a
+  // prop that visibly contradicts the layout it is wrapped in.
+  const effectiveInk = onLight ? "#111" : "#fff"
 
-import { LiquidHero } from "${importFrom}"
-
-export function LiquidSection() {
-  return (
-    <${name}
-${propBlock}
-    >
-${blendNote}      <h1 style={{ fontSize: "clamp(2.5rem, 9vw, 7rem)", margin: 0, letterSpacing: "-0.03em"${headlineColour} }}>
-        Your headline goes here
-      </h1>
-    </${name}>
-  )
-}
-`
+  return renderShowcase(layout, {
+    props: propsAt,
+    importFrom,
+    ink: effectiveInk,
+    blend: config.blend && (layout === "hero" || layout === "banner" || layout === "backdrop"),
+  }) + (meta?.caveat ? `\n// Note: ${meta.caveat.replace(/\n/g, "\n// ")}\n` : "")
 }
 
 // -- Share links -------------------------------------------------------------
@@ -290,3 +297,10 @@ export function shareUrl(config: LiquidConfig, base: string): string | null {
   if (isEphemeral(config.object)) return null
   return `${base.replace(/\/$/, "")}?c=${encodeState(config)}`
 }
+
+export {
+  SHOWCASE_LAYOUTS,
+  renderShowcase,
+  type ShowcaseLayout,
+  type ShowcaseMeta,
+} from "./showcase"

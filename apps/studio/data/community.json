@@ -1,5 +1,5 @@
 {
-  "note": "Add yourself with a pull request. One entry per creation: a title, your name and a link, plus the object and preset it uses. Every field maps onto <LiquidHero /> props, so an entry is exactly what you would paste into a page.",
+  "note": "Made something? The Studio's export has a Post it tab that fills this entry in and opens an issue with it. One entry per creation: a title, your name and a link, plus the object and preset it uses. Every field maps onto <LiquidHero /> props, so an entry is exactly what you would paste into a page.",
   "entries": [
     {
       "id": "ship-it",
