@@ -1,5 +1,7 @@
+import type { ObjectSource } from "../types"
+
 /**
- * Where a liquid object sits on someone else's page, and how it moves.
+ * What sits on someone else's page, where, and how it moves.
  *
  * This is the whole contract between the editor and the runtime. The editor
  * produces one of these; the runtime consumes it; nothing else is shared. That
@@ -67,6 +69,19 @@ export interface Placement {
    * @default "viewport"
    */
   frame?: "viewport" | "section"
+  /**
+   * The object itself. When present it wins over whatever the component was
+   * given as props.
+   *
+   * This is here so the editor can change *what* the thing is, not only where
+   * it sits. Without it, choosing a different shape means leaving the page,
+   * editing source, and coming back — which defeats the point of editing in
+   * place. With it, `<LiquidSpot id="hero" />` needs no other props at all:
+   * the file says everything.
+   */
+  object?: ObjectSource
+  /** Colourway id, e.g. `"mercury-3"`. Also wins over props when present. */
+  preset?: string
   /** Where it sits, and how big, when there is no path. */
   origin: PlacementPoint
   /** Optional scroll-driven route. Without one the object simply sits still. */

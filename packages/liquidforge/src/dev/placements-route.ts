@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, isAbsolute, resolve } from "node:path"
 import { PLACEMENTS_ENDPOINT, type Placement, type PlacementFile, type PlacementPoint } from "../placement/types"
+import type { ObjectSource } from "../types"
 
 /**
  * The half of the editor that runs on your machine.
@@ -64,6 +65,56 @@ function round(value: number): number {
   return Math.round(value * 1e4) / 1e4
 }
 
+/**
+ * Rebuild the object from known fields only.
+ *
+ * Same posture as the community gallery's validator, and for the same reason:
+ * this arrives over HTTP and ends up written to a file in someone's repo, so
+ * nothing is passed through — every field is read out by name or dropped. A
+ * remote `src` is capped and must be https; a blob URL names a file on one
+ * machine and would be a broken object everywhere else.
+ */
+function cleanObject(input: unknown): ObjectSource | null {
+  if (typeof input !== "object" || input === null) return null
+  const source = input as Record<string, unknown>
+  const clamp = (value: unknown, fallback: number, min: number, max: number) => {
+    const n = finite(value) ? value : fallback
+    return round(Math.min(max, Math.max(min, n)))
+  }
+  const https = (value: unknown): string | null => {
+    const url = String(value ?? "")
+    return /^https:\/\//i.test(url) && url.length <= 400 ? url : null
+  }
+
+  switch (source.type) {
+    case "shape": {
+      const shapes = ["sphere", "torus", "torusknot", "capsule", "icosahedron", "rounded-box"]
+      const shape = String(source.shape ?? "")
+      if (!shapes.includes(shape)) return null
+      return { type: "shape", shape: shape as never, detail: clamp(source.detail, 160, 32, 400) }
+    }
+    case "text": {
+      const value = String(source.value ?? "").slice(0, 24)
+      if (!value.trim()) return null
+      return { type: "text", value, depth: clamp(source.depth, 0.45, 0.05, 1.5), bevel: clamp(source.bevel, 0.03, 0, 0.12) }
+    }
+    case "model": {
+      const src = https(source.src)
+      return src ? { type: "model", src } : null
+    }
+    case "svg": {
+      const src = https(source.src)
+      return src ? { type: "svg", src, depth: clamp(source.depth, 0.45, 0.05, 1.5) } : null
+    }
+    case "image": {
+      const src = https(source.src)
+      return src ? { type: "image", src, depth: clamp(source.depth, 0.45, 0.05, 1.5) } : null
+    }
+    default:
+      return null
+  }
+}
+
 function cleanPlacement(input: unknown): Placement | null {
   if (typeof input !== "object" || input === null) return null
   const source = input as Record<string, unknown>
@@ -72,6 +123,13 @@ function cleanPlacement(input: unknown): Placement | null {
   if (!origin) return null
 
   const placement: Placement = { origin }
+
+  const object = cleanObject(source.object)
+  if (object) placement.object = object
+  // Preset ids are `<collection>-<n>`; anything else is not one.
+  if (typeof source.preset === "string" && /^[a-z]{3,20}-[1-9][0-9]?$/.test(source.preset)) {
+    placement.preset = source.preset
+  }
 
   if (source.frame === "viewport" || source.frame === "section") placement.frame = source.frame
   if (finite(source.layer)) placement.layer = Math.trunc(source.layer)

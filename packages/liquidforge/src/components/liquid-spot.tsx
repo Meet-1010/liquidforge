@@ -213,7 +213,16 @@ export function LiquidSpot({
           pointerEvents: placement.interactive ? "auto" : "none",
         }}
       >
-        <LiquidCanvas {...canvasProps} transparent={transparent} style={{ width: "100%", height: "100%" }} />
+        <LiquidCanvas
+          {...canvasProps}
+          /* The file wins over the props: whatever the editor last saved is
+             what renders, so a spot that has been placed needs no props here
+             beyond its id. */
+          object={placement.object ?? canvasProps.object}
+          preset={placement.preset ?? canvasProps.preset}
+          transparent={transparent}
+          style={{ width: "100%", height: "100%" }}
+        />
       </div>
     </div>
   )

@@ -1,6 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { COLLECTIONS } from "../presets"
+import { SHAPE_KINDS } from "../forge/shapes"
+import type { ObjectSource, ShapeKind } from "../types"
 import { pathToSvg } from "../placement/path"
 import { listSpots, placementListenerCount, setOverride, setScrub } from "../placement/live-store"
 import type { Placement, PlacementFile, PlacementPoint } from "../placement/types"
@@ -382,6 +385,12 @@ export function LiquidEditor({ placements = {}, endpoint }: LiquidEditorProps) {
       </svg>
 
       <Toolbar
+        shape={placement.object?.type === "shape" ? placement.object.shape : "torusknot"}
+        onShape={(shape) =>
+          update({ ...placement, object: { type: "shape", shape, detail: 180 } as ObjectSource })
+        }
+        preset={placement.preset ?? "mercury-3"}
+        onPreset={(preset) => update({ ...placement, preset })}
         spots={spots}
         active={active}
         onActive={(id) => {
@@ -443,6 +452,10 @@ function nearestPoint(
 /* ------------------------------------------------------------------ */
 
 interface ToolbarProps {
+  shape: ShapeKind
+  onShape: (shape: ShapeKind) => void
+  preset: string
+  onPreset: (preset: string) => void
   spots: string[]
   active: string | null
   onActive: (id: string) => void
@@ -500,6 +513,46 @@ function Toolbar(props: ToolbarProps) {
         maxWidth: "min(94vw, 840px)",
       }}
     >
+      {/*
+        What it is, before where it goes. Two native selects rather than a grid
+        of swatches: this bar floats over someone else's page and has to stay
+        small, and a select is the one control that holds ninety options without
+        taking any room until you open it.
+      */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", opacity: 0.4 }}>
+          Element
+        </span>
+        <select
+          value={props.shape}
+          onChange={(event) => props.onShape(event.target.value as ShapeKind)}
+          style={{ ...pill, background: INK }}
+          aria-label="Shape"
+        >
+          {SHAPE_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {kind}
+            </option>
+          ))}
+        </select>
+        <select
+          value={props.preset}
+          onChange={(event) => props.onPreset(event.target.value)}
+          style={{ ...pill, background: INK }}
+          aria-label="Look"
+        >
+          {COLLECTIONS.map((collection) => (
+            <optgroup key={collection.name} label={collection.name}>
+              {collection.colourways.map((colourway, index) => (
+                <option key={index} value={`${collection.name.toLowerCase()}-${index + 1}`}>
+                  {collection.name} {index + 1} · {colourway.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {props.spots.length > 1 && (
           <select

@@ -5,6 +5,7 @@ import { downloadBlob, exportModel, forgeGeometry, resolvePreset } from "liquidf
 import {
   encodeState,
   generateCode,
+  generatePlacementSetup,
   shareUrl,
   SHOWCASE_LAYOUTS,
   type LiquidConfig,
@@ -13,15 +14,18 @@ import {
 import { submitUrl } from "@/lib/community"
 import { Button, CopyButton, Field, Segmented, Toggle } from "./ui"
 
-type Tab = "code" | "preset" | "share"
+type Tab = "code" | "place" | "preset" | "share"
 
 /**
- * Three ways out.
+ * Four ways out.
  *
- * The component, for the common case. The preset as JSON, for anyone keeping
- * their looks in a design system rather than in JSX. And the `.glb`, because
- * the object forged here is real geometry and should not be trapped in this
- * page — the liquid surface is a shader and does not travel, but the mesh does.
+ * The component, for the common case. *Place it*, for the different question —
+ * "I already have a site, how do I get this onto it and drag it where I want" —
+ * which needs a recipe rather than a snippet. The preset as JSON, for anyone
+ * keeping their looks in a design system rather than in JSX. And the `.glb`,
+ * because the object forged here is real geometry and should not be trapped in
+ * this page — the liquid surface is a shader and does not travel, but the mesh
+ * does.
  */
 export function ExportModal({
   config,
@@ -41,6 +45,7 @@ export function ExportModal({
    * it with a second one.
    */
   const [withBackground, setWithBackground] = useState(true)
+  const [framework, setFramework] = useState<"next" | "vite">("next")
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,6 +58,7 @@ export function ExportModal({
   }, [onClose])
 
   const code = useMemo(() => {
+    if (tab === "place") return generatePlacementSetup(config, { framework })
     if (tab === "preset") {
       const preset = resolvePreset(config.preset, {
         family: config.family,
@@ -64,7 +70,7 @@ export function ExportModal({
       return JSON.stringify({ ...preset, id: `${preset.id}-custom` }, null, 2)
     }
     return generateCode(config, { showcase: layout, background: withBackground })
-  }, [config, tab, layout, withBackground])
+  }, [config, tab, layout, withBackground, framework])
 
   const origin = typeof window === "undefined" ? "" : window.location.origin
   const share = origin ? shareUrl(config, `${origin}/studio`) : null
@@ -109,10 +115,34 @@ export function ExportModal({
             onChange={setTab}
             options={[
               { value: "code", label: "Component" },
+              { value: "place", label: "Place it" },
               { value: "preset", label: "Preset JSON" },
               { value: "share", label: "Post it" },
             ]}
           />
+
+          {tab === "place" && (
+            <Field
+              label="Your setup"
+              hint="Everything below is the whole integration, in the order you do it — including the two files you delete when you have finished placing."
+            >
+              <Segmented
+                value={framework}
+                onChange={setFramework}
+                options={[
+                  { value: "next" as const, label: "Next.js" },
+                  { value: "vite" as const, label: "Vite" },
+                ]}
+              />
+              <p className="mt-2 font-mono text-[10px] leading-relaxed text-bone/35">
+                Never seen the editor?{" "}
+                <a href="/place" target="_blank" rel="noreferrer" className="text-bone/70 underline underline-offset-2 hover:text-bone">
+                  Try it on a demo page
+                </a>{" "}
+                first — same editor, someone else&apos;s article, nothing to install.
+              </p>
+            </Field>
+          )}
 
           {tab === "code" && (
             <>

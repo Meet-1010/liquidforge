@@ -306,3 +306,137 @@ export {
 } from "./showcase"
 
 export { mutatePreset, randomPreset, type MutateOptions } from "./mutate"
+
+/* ------------------------------------------------------------------ */
+
+export interface PlacementSetupOptions {
+  /** The key this spot takes in the placements file. @default "hero" */
+  id?: string
+  /** Which save route to show. @default "next" */
+  framework?: "next" | "vite"
+}
+
+/**
+ * The whole recipe for putting this object on someone else's page and
+ * positioning it there by hand.
+ *
+ * `generateCode` answers "give me a hero section". This answers a different
+ * question — "I already have a site, how do I get this onto it and move it
+ * where I want" — and the two need different output: not one snippet, but a
+ * placement file, a component, a dev route and a line to delete afterwards.
+ *
+ * Emitted in the order you actually do it, with the deletions at the end,
+ * because the thing people most need to be told is that the editor is
+ * temporary and the placement is not.
+ */
+export function generatePlacementSetup(
+  config: LiquidConfig,
+  options: PlacementSetupOptions = {},
+): string {
+  const { id = "hero", framework = "next" } = options
+  const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
+
+  const placement = {
+    [id]: {
+      frame: "viewport",
+      origin: { x: 0.72, y: 0.38, size: 0.32 },
+      layer: 0,
+      object: config.object,
+      preset: config.preset,
+    },
+  }
+
+  /*
+   * A placement carries the object and the colourway id, and nothing else. If
+   * this config has been hand-tuned past its colourway, those edits have no
+   * home in the file and have to travel as props — so say which ones, rather
+   * than emitting a snippet that silently renders the untuned version.
+   */
+  const tuned: string[] = []
+  if (config.family !== base.family) tuned.push(`family="${config.family}"`)
+  if (JSON.stringify(config.palette) !== JSON.stringify(base.palette)) {
+    tuned.push(`palette={${literal(config.palette, 4)}}`)
+  }
+  const surfaceDiff = diff(config.surface, base.surface)
+  if (Object.keys(surfaceDiff).length > 0) tuned.push(`surface={${literal(surfaceDiff, 4)}}`)
+  const shadingDiff = diff(config.shading, base.shading)
+  if (Object.keys(shadingDiff).length > 0) tuned.push(`shading={${literal(shadingDiff, 4)}}`)
+
+  const extraProps = tuned.length > 0 ? `\n        ${tuned.join("\n        ")}` : ""
+
+  const route =
+    framework === "vite"
+      ? `// vite.config.ts
+import { liquidforgePlacements } from "liquidforge/dev"
+
+export default defineConfig({
+  plugins: [react(), liquidforgePlacements()],
+})`
+      : `// app/api/liquidforge/placements/route.ts
+import { createPlacementsRoute } from "liquidforge/dev"
+
+export const { POST } = createPlacementsRoute()
+export const dynamic = "force-dynamic"`
+
+  return `# 1 · Install
+
+npm i liquidforge three
+
+
+# 2 · liquidforge.placements.json
+
+${JSON.stringify(placement, null, 2)}
+
+
+# 3 · Put it on the page
+
+import { LiquidSpot } from "liquidforge"
+import placements from "./liquidforge.placements.json"
+
+export default function Page() {
+  return (
+    <>
+      <LiquidSpot
+        id="${id}"
+        placement={placements.${id}}${extraProps}
+      />
+
+      {/* Your page, lifted above the object. The object sits at layer 0, which
+          is above the page background and below anything with a z-index of its
+          own — so this one line is what puts your text in front of it. */}
+      <main style={{ position: "relative", zIndex: 1 }}>
+        {/* everything you already had */}
+      </main>
+    </>
+  )
+}
+
+
+# 4 · The save route, so the editor can write to your repo
+
+${route}
+
+
+# 5 · Summon the editor
+
+import { LiquidEditor } from "liquidforge/editor"
+
+{process.env.NODE_ENV !== "production" && (
+  <LiquidEditor placements={placements} />
+)}
+
+Open your page and press Cmd+Shift+E, or click the "lf" button in the corner.
+Drag it where you want. Draw the route it takes as the page scrolls. Set how
+big it is at each point. Save.
+
+
+# 6 · When you are finished
+
+Delete step 5, and step 4 with it. liquidforge.placements.json stays where it
+is, the object stays exactly where you put it, and nothing about the page
+changes — the editor was only ever reading and writing that file.
+
+Put step 5 back whenever you want to move it again. It opens on what is on
+screen, because that file is the only thing it has ever read.
+`
+}
