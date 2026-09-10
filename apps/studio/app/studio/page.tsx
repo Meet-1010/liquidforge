@@ -8,10 +8,11 @@ import { PRESETS } from "liquidforge"
 import { configFromPreset, decodeState, encodeState, type LiquidConfig } from "liquidforge/codegen"
 import type { Quality } from "liquidforge"
 import { ExportModal } from "@/components/export-modal"
+import { FrontDoor } from "@/components/front-door"
 import { MaterialPanel } from "@/components/material-panel"
 import { ObjectPanel } from "@/components/object-panel"
 import { SiteNav } from "@/components/site-nav"
-import { Button, Collapsible, ColorField, Panel, Segmented, Slider, Toggle } from "@/components/ui"
+import { Button, Collapsible, ColorField, Segmented, Slider, Toggle } from "@/components/ui"
 
 export default function StudioPage() {
   return (
@@ -27,6 +28,8 @@ function Studio() {
   const [exporting, setExporting] = useState(false)
   const [recording, setRecording] = useState(false)
   const [recordSize, setRecordSize] = useState<"1080" | "1440" | "2160">("2160")
+  // Once you have answered the question, or skipped it, it stops asking.
+  const [doorDone, setDoorDone] = useState(false)
   const engineRef = useRef<LiquidEngine | null>(null)
 
   /*
@@ -112,7 +115,23 @@ function Studio() {
       <SiteNav />
 
       <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
-        <aside className="w-full shrink-0 overflow-y-auto border-rule lg:w-[340px] lg:border-r">
+        {/*
+          The rail is now a column: everything scrolls except the one thing
+          people came for. "Copy the component" used to sit at the end of a
+          1,950px scroll in a 900px window — the most important control in the
+          product and the hardest one to reach.
+        */}
+        <aside className="flex w-full shrink-0 flex-col border-rule lg:w-[340px] lg:border-r">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+          <FrontDoor
+            dismissed={doorDone}
+            onDismiss={() => setDoorDone(true)}
+            onPick={(next) => {
+              commit(next)
+              setDoorDone(true)
+            }}
+          />
+
           <ObjectPanel
             object={config.object}
             onChange={(object) => commit({ ...config, object })}
@@ -205,20 +224,11 @@ function Studio() {
             />
           </Collapsible>
 
-          <Panel title="Export">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="primary" onClick={() => setExporting(true)}>
-                Copy the component
-              </Button>
-              <a
-                href={`/post?c=${encodeState(config)}`}
-                className="inline-flex items-center rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-3.5 py-2 font-mono text-[11px] text-bone/75 transition-colors hover:border-rule-bright hover:text-bone"
-              >
-                Post it
-              </a>
-            </div>
-            {/* The loop is the asset people actually put on a timeline: the
-                still cannot carry the one thing that makes this worth using. */}
+          {/* The loop is the asset people actually put on a timeline — the
+              still cannot carry the one thing that makes this worth using — but
+              it is not what most visits are for, so it sits a click away rather
+              than beside the button everyone needs. */}
+          <Collapsible title="Record a loop" hint="video, for a timeline">
             <Segmented
               label="Loop resolution"
               value={recordSize}
@@ -256,7 +266,22 @@ function Studio() {
               Four seconds, looping seamlessly, at about 0.12 bits per pixel. 4K is heavy — if it
               drops frames on this machine, take it down a step.
             </p>
-          </Panel>
+          </Collapsible>
+          </div>
+
+          <div className="shrink-0 border-t border-rule bg-ink/95 px-4 py-3 backdrop-blur">
+            <div className="flex gap-2">
+              <Button variant="primary" onClick={() => setExporting(true)}>
+                Copy the component
+              </Button>
+              <a
+                href={`/post?c=${encodeState(config)}`}
+                className="inline-flex items-center rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-3.5 py-2 font-mono text-[11px] text-bone/75 transition-colors hover:border-rule-bright hover:text-bone"
+              >
+                Post it
+              </a>
+            </div>
+          </div>
         </aside>
 
         <main className="relative min-h-[320px] flex-1">
