@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { neon } from "@neondatabase/serverless"
 import type { CommunityStore } from "./types"
 import { defaultFileStore } from "./file-store"
 import { PostgresStore, type SqlClient } from "./postgres-store"
@@ -24,23 +25,35 @@ export async function getStore(): Promise<CommunityStore> {
   const url = process.env.DATABASE_URL
   if (url) {
     /*
-     * Resolved at runtime rather than imported, so a deployment that has no
-     * Postgres never has to install the driver — and so this file typechecks
-     * in a checkout where it is not installed, which is every checkout until
-     * someone deploys.
+     * A plain import, deliberately.
+     *
+     * This used to be a dynamic `import()` marked `webpackIgnore` with a
+     * `.catch(() => null)` around it, so that a checkout without the driver
+     * would still typecheck. The cost of that cleverness was a store that fell
+     * back to a file for *any* reason at all and reported the same sentence
+     * about the package not being installed — including when the package was
+     * installed and something else was wrong. The driver is a dependency of
+     * this app; importing it like one removes the whole question.
      */
-    const driver = (await import(
-      /* webpackIgnore: true */ "@neondatabase/serverless" as string
-    ).catch(() => null)) as { neon?: (url: string) => SqlClient } | null
-    const neon = driver?.neon
-
-    if (neon) {
-      store = new PostgresStore(neon(url))
+    try {
+      /*
+       * Neon's own type carries its result-shape generics, which do not line up
+       * with the vendor-neutral `SqlClient` this store is written against. The
+       * runtime contract is identical — a tagged template that returns rows —
+       * so the cast sits at this one boundary rather than making PostgresStore
+       * depend on one vendor's types, which is the thing it exists not to do.
+       */
+      store = new PostgresStore(neon(url) as unknown as SqlClient)
       return store
+    } catch (error) {
+      // Never silently. A gallery quietly running on a file instead of the
+      // database is the failure that wastes the most time, because everything
+      // works until it is deployed.
+      console.error(
+        "liquidforge: DATABASE_URL is set but the Postgres client could not be created — falling back to the file store.",
+        error,
+      )
     }
-    console.warn(
-      "liquidforge: DATABASE_URL is set but @neondatabase/serverless is not installed — falling back to the file store.",
-    )
   }
 
   /*
