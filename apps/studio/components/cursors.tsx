@@ -75,33 +75,37 @@ function RemoteCursor({
           className="shrink-0 drop-shadow-[0_2px_5px_rgba(0,0,0,0.45)]"
         >
           {/*
-            Every edge is a curve. Clockwise from the tip: the leading edge bows
-            outward on its way to the wing, the wing rounds over into the notch,
-            and the tail tapers away to a rounded point. The tip sits at
-            (2, 1.2) so the reported position lands on the point rather than on
-            the bounding box's corner.
+            An ordinary seven-point arrow — straight edges, the shape everyone
+            recognises — with every corner rounded off. The rounding is not in
+            the path data: it is a round-joined stroke of the same colour as the
+            fill, which fillets each corner by half the stroke width. Two
+            reasons over hand-authored arcs: the radius is one number you can
+            change, and the geometry stays legible as seven points instead of
+            fourteen curve handles.
 
-            The same path is stroked underneath in translucent black — a halo,
-            not an outline. The presence palette is all mid-to-light saturated
-            tones, so dark is the one halo that separates every one of them from
-            every background the Studio uses.
+            The tip sits at (2.4, 1.6) so the reported position lands on the
+            point rather than on the bounding box's corner.
+
+            The dark layer underneath is the same path stroked wider — a halo,
+            not an outline. The presence palette is seven mid-to-light saturated
+            tones, so dark is the one halo that separates all of them from every
+            background the Studio uses.
           */}
           {[
-            { fill: "none", stroke: "rgba(0,0,0,0.5)", width: 1.5 },
-            { fill: cursor.colour, stroke: "none", width: 0 },
-          ].map((layer, index) => (
+            { paint: "rgba(0,0,0,0.55)", width: 4.4 },
+            { paint: cursor.colour, width: 2.6 },
+          ].map((layer) => (
             <path
-              key={index}
-              d="M2.0 1.2
-                 C7.8 4.6 13.0 9.4 16.7 15.2
-                 C17.6 16.6 16.6 18.3 15.0 18.2
-                 C13.3 18.1 11.8 18.2 10.6 18.5
-                 C10.2 18.6 9.9 18.9 9.7 19.3
-                 C8.9 21.5 8.1 23.7 7.3 25.8
-                 C6.7 27.3 4.6 26.9 4.5 25.3
-                 C4.2 17.4 3.2 9.0 2.0 1.2 Z"
-              fill={layer.fill}
-              stroke={layer.stroke}
+              key={layer.paint}
+              d="M2.4 1.6
+                 L2.4 19.6
+                 L7.0 15.6
+                 L10.1 22.9
+                 L13.3 21.5
+                 L10.2 14.4
+                 L16.2 14.0 Z"
+              fill={layer.paint}
+              stroke={layer.paint}
               strokeWidth={layer.width}
               strokeLinejoin="round"
               strokeLinecap="round"
