@@ -2,7 +2,7 @@
   "name": "liquidforge-monorepo",
   "private": true,
   "version": "0.1.0",
-  "description": "Liquidforge — liquid 3D hero sections for React, plus an in-browser object forge.",
+  "description": "Liquidforge \u2014 liquid 3D hero sections for React, plus an in-browser object forge.",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -16,7 +16,8 @@
     "studio": "npm run dev --workspace=@liquidforge/studio",
     "mcp": "npm run build:all && node packages/liquidforge-mcp/dist/index.js",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "build:studio": "npm run build --workspace=liquidforge && npm run build --workspace=@liquidforge/studio"
   },
   "engines": {
     "node": ">=18.18"

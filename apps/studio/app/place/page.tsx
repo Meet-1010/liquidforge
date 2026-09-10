@@ -95,9 +95,10 @@ export default function PlacePage() {
       </main>
 
       {/*
-        Development only. In a production build this whole subtree — and the
-        editor module behind it — is dropped, because the condition is a
-        compile-time constant and the import is inside the branch.
+        Development only, and genuinely so: the bundler folds the constant, the
+        branch dies, and the editor module is tree-shaken out with it. Verified
+        rather than assumed — a production build of this app contains none of
+        the editor's strings anywhere in .next, static chunks included.
       */}
       {process.env.NODE_ENV !== "production" && (
         <LiquidEditor placements={placements as PlacementFile} />

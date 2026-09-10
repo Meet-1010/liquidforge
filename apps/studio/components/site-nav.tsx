@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/how", label: "How" },
   { href: "/presets", label: "Presets" },
   { href: "/showcase", label: "Showcase" },
+  { href: "/place", label: "Place" },
   { href: "/assets", label: "Assets" },
   { href: "/community", label: "Community" },
   { href: "/studio", label: "Studio" },
