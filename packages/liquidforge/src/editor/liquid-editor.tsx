@@ -42,10 +42,31 @@ export interface LiquidEditorProps {
   placements?: PlacementFile
   /** Where to POST saves. @default "/api/liquidforge/placements" */
   endpoint?: string
+  /**
+   * Handle the save yourself. Given this, the editor never calls the endpoint.
+   *
+   * The reason this exists: a hosted demo has no repository to write to, and
+   * the honest way to show someone the editor is to let them use all of it and
+   * then hand them the file it would have written. Return the sentence to show
+   * them afterwards.
+   */
+  onSave?: (placements: PlacementFile) => Promise<SaveOutcome> | SaveOutcome
+  /** Open on mount, rather than waiting to be summoned. @default false */
+  defaultOpen?: boolean
 }
 
-export function LiquidEditor({ placements = {}, endpoint }: LiquidEditorProps) {
-  const [open, setOpen] = useState(false)
+export interface SaveOutcome {
+  ok: boolean
+  message: string
+}
+
+export function LiquidEditor({
+  placements = {},
+  endpoint,
+  onSave,
+  defaultOpen = false,
+}: LiquidEditorProps) {
+  const [open, setOpen] = useState(defaultOpen)
   const [draft, setDraft] = useState<PlacementFile>(placements)
   const [spots, setSpots] = useState<string[]>([])
   const [active, setActive] = useState<string | null>(null)
@@ -246,6 +267,15 @@ export function LiquidEditor({ placements = {}, endpoint }: LiquidEditorProps) {
 
   const save = async () => {
     setStatus("Saving…")
+
+    if (onSave) {
+      const outcome = await onSave(draft)
+      if (outcome.ok) setDirty(false)
+      setStatus(outcome.message)
+      setTimeout(() => setStatus(null), 6000)
+      return
+    }
+
     const result = await savePlacements(draft, endpoint)
     if (result.ok) {
       setDirty(false)
