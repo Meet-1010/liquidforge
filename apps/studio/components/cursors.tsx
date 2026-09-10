@@ -6,9 +6,12 @@ import type { Cursor } from "@/lib/presence/hub"
 /**
  * Other people's cursors.
  *
- * An arrow with the name on a pill trailing its tip — the shape everyone has
- * settled on for this, and the one in the reference. The pill takes the
- * person's colour and the arrow matches, so a room of eight reads at a glance.
+ * An arrow with the name on a pill tucked under its tail. The arrow is drawn
+ * as four bezier curves rather than the usual straight-edged polygon: the
+ * leading edge sweeps, the back edge bows, and the tail tapers to a rounded
+ * point. That shape costs nothing extra to draw and it is the difference
+ * between a cursor that looks like a system default and one that looks like it
+ * belongs to this surface.
  *
  * Positions arrive on a 60ms tick, which is a sixth of the rate a screen
  * refreshes. Drawn straight they would visibly step, so each cursor eases
@@ -63,20 +66,50 @@ function RemoteCursor({
 
   return (
     <div ref={ref} className="absolute top-0 left-0 will-change-transform">
-      <div className="flex items-start gap-1">
-        <svg width="20" height="22" viewBox="0 0 20 22" fill="none" className="shrink-0 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]">
-          {/* The arrow, drawn from its tip so the point sits exactly on the
-              reported position rather than the bounding box's corner. */}
-          <path
-            d="M1 1L1 16.5L5.2 12.6L8.1 19.4L11.4 18L8.5 11.3L14.2 11L1 1Z"
-            fill={cursor.colour}
-            stroke="rgba(0,0,0,0.35)"
-            strokeWidth="0.8"
-            strokeLinejoin="round"
-          />
+      <div className="flex items-start">
+        <svg
+          width="24"
+          height="28"
+          viewBox="0 0 24 28"
+          fill="none"
+          className="shrink-0 drop-shadow-[0_2px_5px_rgba(0,0,0,0.45)]"
+        >
+          {/*
+            Every edge is a curve. Clockwise from the tip: the leading edge bows
+            outward on its way to the wing, the wing rounds over into the notch,
+            and the tail tapers away to a rounded point. The tip sits at
+            (2, 1.2) so the reported position lands on the point rather than on
+            the bounding box's corner.
+
+            The same path is stroked underneath in translucent black — a halo,
+            not an outline. The presence palette is all mid-to-light saturated
+            tones, so dark is the one halo that separates every one of them from
+            every background the Studio uses.
+          */}
+          {[
+            { fill: "none", stroke: "rgba(0,0,0,0.5)", width: 1.5 },
+            { fill: cursor.colour, stroke: "none", width: 0 },
+          ].map((layer, index) => (
+            <path
+              key={index}
+              d="M2.0 1.2
+                 C7.8 4.6 13.0 9.4 16.7 15.2
+                 C17.6 16.6 16.6 18.3 15.0 18.2
+                 C13.3 18.1 11.8 18.2 10.6 18.5
+                 C10.2 18.6 9.9 18.9 9.7 19.3
+                 C8.9 21.5 8.1 23.7 7.3 25.8
+                 C6.7 27.3 4.6 26.9 4.5 25.3
+                 C4.2 17.4 3.2 9.0 2.0 1.2 Z"
+              fill={layer.fill}
+              stroke={layer.stroke}
+              strokeWidth={layer.width}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ))}
         </svg>
         <span
-          className="mt-3 max-w-[12rem] truncate rounded-full px-2.5 py-1 font-mono text-[11px] leading-none shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+          className="-ml-1 mt-[18px] max-w-[12rem] truncate rounded-full px-2.5 py-[5px] font-mono text-[11px] leading-none shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
           style={{ background: cursor.colour, color: readableOn(cursor.colour) }}
         >
           {cursor.name}
