@@ -57,11 +57,12 @@ npm test --workspace=liquidforge-mcp
 | tool | |
 | --- | --- |
 | `liquidforge_get_started` | What the library is, how to install it, which tool to reach for next. Start here |
-| `liquidforge_get_docs` | Documentation by topic — including `blend` and `shader`, the two that matter |
+| `liquidforge_get_docs` | Documentation by topic — including `blend` and `shader`, the two that matter, and `placement` for the editor |
 | `liquidforge_list_collections` | Ten families, 90 colourways, with palettes |
 | `liquidforge_inspect_preset` | One colourway's exact numbers |
 | `liquidforge_recommend_preset` | Pick a family and colourway for a described site |
 | `liquidforge_generate_component` | Turn an explicit config into paste-ready TSX |
+| `liquidforge_generate_placement` | Put an object on a site that already exists: placement file, component, dev save route and the in-place editor, with what to delete afterwards |
 | `liquidforge_search_models` | Search five open 3D catalogues, ~46,900 models |
 | `liquidforge_get_model_import` | Resolve a catalogue id to a loadable `.glb` URL |
 

@@ -75,7 +75,7 @@ try {
 
   const listed = await request("tools/list", {})
   const names = (listed.result?.tools ?? []).map((tool) => tool.name)
-  check("tools/list returns all eight", names.length === 8, names.join(", "))
+  check("tools/list returns all nine", names.length === 9, names.join(", "))
 
   const started = await request("tools/call", {
     name: "liquidforge_get_started",
@@ -212,6 +212,50 @@ try {
     arguments: { provider: "sketchfab", id: "abc123" },
   })
   check("get_model_import refuses Sketchfab rather than guessing", sketchfab.result?.isError === true)
+
+  // Agents copy ids out of the search results table, which prints them as
+  // `code`. The backticks should not be the reason a real id is refused.
+  const pasted = await request("tools/call", {
+    name: "liquidforge_get_model_import",
+    arguments: { provider: "khronos", id: "`DamagedHelmet`", response_format: "json" },
+  })
+  check("get_model_import tolerates an id pasted with backticks", pasted.result?.isError !== true)
+
+  const placement = await request("tools/call", {
+    name: "liquidforge_generate_placement",
+    arguments: {
+      preset: "velvet-2",
+      object: { type: "shape", shape: "torusknot" },
+      id: "drift",
+      response_format: "json",
+    },
+  })
+  const setup = JSON.parse(placement.result.content[0].text).setup
+  check("generate_placement uses LiquidSpot under the given id", setup.includes('<LiquidSpot') && setup.includes('id="drift"'))
+  check("generate_placement puts the object and colourway in the file", setup.includes('"torusknot"') && setup.includes('"velvet-2"'))
+  check("generate_placement summons the editor and the save route", setup.includes("<LiquidEditor") && setup.includes("createPlacementsRoute"))
+  check("generate_placement says what to delete afterwards", /When you are finished/.test(setup))
+
+  const vite = await request("tools/call", {
+    name: "liquidforge_generate_placement",
+    arguments: { preset: "mercury-3", object: { type: "text", value: "HI" }, framework: "vite", response_format: "json" },
+  })
+  check("generate_placement emits the Vite plugin for Vite", JSON.parse(vite.result.content[0].text).setup.includes("liquidforgePlacements()"))
+
+  const unknown = await request("tools/call", {
+    name: "liquidforge_generate_placement",
+    arguments: { preset: "nope-99", object: { type: "shape", shape: "sphere" } },
+  })
+  check("generate_placement rejects an unknown preset", unknown.result?.isError === true)
+
+  const placementDocs = await request("tools/call", {
+    name: "liquidforge_get_docs",
+    arguments: { topic: "placement" },
+  })
+  check("get_docs placement warns about the underscore folder", /underscore/i.test(placementDocs.result.content[0].text))
+
+  const startedAgain = await request("tools/call", { name: "liquidforge_get_started", arguments: {} })
+  check("get_started tells TypeScript users about @types/three", startedAgain.result.content[0].text.includes("@types/three"))
 } catch (error) {
   failures++
   console.log(`  FAIL  ${error.message}`)

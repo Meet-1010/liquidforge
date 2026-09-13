@@ -140,7 +140,11 @@ Examples:
         response_format: ResponseFormat,
       },
     },
-    async ({ provider, id, response_format }) => {
+    async ({ provider, id: rawId, response_format }) => {
+      // search_models prints ids as `code` in a markdown table, and an agent
+      // copying from that table brings the backticks with it. Refusing a real
+      // id over its formatting helps nobody.
+      const id = rawId.trim().replace(/^`+|`+$/g, "").trim()
       try {
         const url = await resolveAssetUrl(provider, id)
         const component = `<LiquidHero\n  object={{ type: "model", src: "${url}" }}\n  preset="mercury-1"\n/>`

@@ -36,10 +36,16 @@ are no HDRIs to download and no \`PMREMGenerator\` step.`,
 
 \`\`\`bash
 npm install liquidforge three
+npm install -D @types/three   # TypeScript projects
 \`\`\`
 
 Peer dependencies: \`react\` (>=18) and \`three\` (>=0.160). That is the whole
 list — no react-three-fiber, no postprocessing stack.
+
+\`@types/three\` matters more than it looks: three ships no types of its own, and
+the library's declarations import from it, so a strict TypeScript project
+without it gets errors reported from *inside* liquidforge rather than from its
+own code — which reads like the library is broken.
 
 There is also a CLI:
 
@@ -412,8 +418,44 @@ Copies the real source into the project. The shader lives in
 
 If you add a family, keep the shared preamble: the advected hue field, the
 analytic studio environment and the palette ramp are used by all of them.`,
+
+  placement: `# Placing an object on an existing page
+
+For "put something on the site I already have" rather than "build me a hero".
+\`liquidforge_generate_placement\` writes the whole integration; this is what it
+is doing.
+
+- \`<LiquidSpot id="hero" placement={placements.hero} />\` floats an object over
+  the page. It owns no layout. With a placement that carries \`object\` and
+  \`preset\`, it needs no other props at all.
+- \`liquidforge.placements.json\` holds position, size, an optional scroll path,
+  the object and the colourway, as fractions of the frame — so it means the same
+  thing on a phone as on a monitor. About two hundred bytes per object.
+- \`<LiquidEditor />\` from \`liquidforge/editor\` is the in-place editor: drag to
+  place, draw the route it takes as the page scrolls, set size per point. Dev
+  only. Summoned with Cmd+Shift+E.
+- A dev route from \`liquidforge/dev\` writes the file when the editor saves.
+
+The part to tell the user plainly: the editor holds no state. Delete it and the
+dev route when they are done, and the object stays exactly where it was, because
+the file is what put it there. Re-add the editor later and it opens on what is on
+screen.
+
+## Traps, each of which fails silently
+
+- **Content must sit above the object.** The spot is layer 0. Give the page's
+  own content \`position: relative; z-index: 1\`. A negative layer paints behind
+  an opaque \`body\` background and the object simply is not visible.
+- **Next ignores folders starting with an underscore.** The save route must not
+  live under \`app/_anything/\`; it compiles and 404s. The default endpoint is
+  \`/api/liquidforge/placements\`.
+- **Relative \`file\` paths resolve against the dev server's cwd**, which in a
+  monorepo is the app folder, not the repo root.
+
+Try it with nothing installed at /place on the Liquidforge site.`,
 } as const
 
 export type TopicName = keyof typeof TOPICS
+
 
 export const TOPIC_NAMES = Object.keys(TOPICS) as TopicName[]

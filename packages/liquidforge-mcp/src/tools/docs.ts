@@ -45,6 +45,7 @@ Examples:
         { name: "liquidforge_inspect_preset", use_when: "You need one colourway's exact numbers" },
         { name: "liquidforge_recommend_preset", use_when: "You know what the site is and want a colourway chosen for it" },
         { name: "liquidforge_generate_component", use_when: "You already know the props and want paste-ready TSX" },
+        { name: "liquidforge_generate_placement", use_when: "They have a site already and want an object placed on it — dragged into position, drifting as the page scrolls" },
         { name: "liquidforge_search_models", use_when: "The hero needs a real object rather than a word or a shape" },
         { name: "liquidforge_get_model_import", use_when: "You picked a catalogue result and need a loadable URL" },
       ]

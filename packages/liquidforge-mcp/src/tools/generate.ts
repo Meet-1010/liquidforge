@@ -92,7 +92,7 @@ Examples:
 
       return reply(
         markdown,
-        { component: code, preset, install: "npm install liquidforge three" },
+        { component: code, preset, install: "npm install liquidforge three  (and @types/three in a TypeScript project)" },
         response_format,
       )
     },
