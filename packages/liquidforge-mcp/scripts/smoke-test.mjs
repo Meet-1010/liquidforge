@@ -175,6 +175,29 @@ try {
   check("generate_component emits a LiquidHero", code.includes("<LiquidHero"))
   check("generate_component names the preset", code.includes('preset="aurora-2"'))
   check("generate_component passes blend through", code.includes("blend"))
+
+  const webflow = await request("tools/call", {
+    name: "liquidforge_generate_component",
+    arguments: {
+      preset: "magma-2",
+      object: { type: "shape", shape: "torusknot" },
+      target: "webflow",
+      response_format: "json",
+    },
+  })
+  const embed = JSON.parse(webflow.result.content[0].text).component
+  check(
+    "generate_component emits a <liquid-forge> embed for Webflow",
+    embed.includes("<liquid-forge") && embed.includes('shape="torusknot"') && embed.includes("element.global.js"),
+  )
+  const framer = await request("tools/call", {
+    name: "liquidforge_generate_component",
+    arguments: { preset: "aurora-2", object: { type: "text", value: "HI" }, target: "framer", response_format: "json" },
+  })
+  check(
+    "generate_component emits a Framer code component",
+    JSON.parse(framer.result.content[0].text).component.includes("addPropertyControls"),
+  )
   // three.js is a static list and Objaverse reads the index off disk, so both
   // of these run with no network — which is the point of testing with them.
   const models = await request("tools/call", {

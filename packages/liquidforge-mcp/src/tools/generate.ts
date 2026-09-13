@@ -8,7 +8,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { PRESETS } from "liquidforge/presets"
-import { configFromPreset, generateCode } from "liquidforge/codegen"
+import { configFromPreset, generateCode, generateEmbed } from "liquidforge/codegen"
 import type { ObjectSource, Quality } from "liquidforge/presets"
 import { ResponseFormat, fail, reply } from "../format.js"
 
@@ -32,7 +32,7 @@ export function registerGenerateTool(server: McpServer): void {
     "liquidforge_generate_component",
     {
       title: "Generate the component",
-      description: `Emit a paste-ready React component for an explicit configuration.
+      description: `Emit a paste-ready React component — or, for a site with no React, a Webflow, Framer or plain HTML embed — for an explicit configuration.
 
 Only what differs from the named colourway is written out, so the snippet stays short instead of restating twenty numbers the reader did not change.
 
@@ -49,6 +49,8 @@ Args:
   - quality ('auto' | 'high' | 'balanced' | 'low'): default 'auto'
   - palette (string[], optional): override the colourway's colours
   - import_from (string, optional): import path, for ejected source (default: 'liquidforge')
+  - target ('react' | 'webflow' | 'framer' | 'html'): what the site is built with (default: 'react').
+      webflow/html -> a <script> tag plus a <liquid-forge> element; framer -> a code component file
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
 
 Returns:
@@ -57,6 +59,7 @@ Returns:
 Examples:
   - Use when: the user has picked a colourway and you are writing the file
   - Use when: they ejected the source and need the import path changed
+  - Use when: the site is Webflow, Framer, WordPress or plain HTML (set target)
   - Don't use when: you have not chosen a colourway yet (use liquidforge_recommend_preset)`,
       inputSchema: {
         preset: z.string().describe("Colourway id, e.g. 'mercury-3'"),
@@ -66,10 +69,11 @@ Examples:
         quality: z.enum(["auto", "high", "balanced", "low"]).default("auto"),
         palette: z.array(z.string()).optional(),
         import_from: z.string().default("liquidforge"),
+        target: z.enum(["react", "webflow", "framer", "html"]).default("react"),
         response_format: ResponseFormat,
       },
     },
-    async ({ preset, object, component, blend, quality, palette, import_from, response_format }) => {
+    async ({ preset, object, component, blend, quality, palette, import_from, target, response_format }) => {
       if (!PRESETS[preset]) {
         return fail(
           `Unknown preset "${preset}". Call liquidforge_list_collections for the 90 ids.`,
@@ -85,6 +89,16 @@ Examples:
         blend,
         quality: quality as Quality,
         ...(palette ? { palette } : {}),
+      }
+
+      if (target !== "react") {
+        const embed = generateEmbed(config, { target })
+        const language = target === "framer" ? "tsx" : "html"
+        const install =
+          target === "framer"
+            ? "Nothing to install: paste as a Framer code component; it loads the element from jsDelivr."
+            : "Nothing to install: the <script> tag loads the element from jsDelivr."
+        return reply(["```" + language, embed, "```", "", install].join("\n"), { component: embed, preset, target, install }, response_format)
       }
 
       const code = generateCode(config, { component, importFrom: import_from })

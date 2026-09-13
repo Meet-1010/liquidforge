@@ -86,6 +86,12 @@
       "import": "./dist/breed.js",
       "require": "./dist/breed.cjs"
     },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js",
+      "require": "./dist/element.cjs"
+    },
+    "./element.global.js": "./dist/element.global.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -100,7 +106,7 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "test": "node test/path.test.mjs && node test/breed.test.mjs && node test/route.test.mjs && node test/cli-add.test.mjs"
+    "test": "node test/path.test.mjs && node test/breed.test.mjs && node test/route.test.mjs && node test/cli-add.test.mjs && node test/embed.test.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

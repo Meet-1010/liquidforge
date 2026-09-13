@@ -8,6 +8,7 @@
 
 import { PRESETS, DEFAULT_PRESET_ID } from "../presets"
 import { BACKGROUND_TONES } from "../background"
+import { VERSION } from "../version"
 import { renderShowcase, SHOWCASE_LAYOUTS, type ShowcaseLayout } from "./showcase"
 import type {
   LiquidPreset,
@@ -261,6 +262,175 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
     ink: effectiveInk,
     blend: config.blend && (layout === "hero" || layout === "banner" || layout === "backdrop"),
   }) + (meta?.caveat ? `\n// Note: ${meta.caveat.replace(/\n/g, "\n// ")}\n` : "")
+}
+
+// -- No-code embeds ----------------------------------------------------------
+
+export type EmbedTarget = "html" | "webflow" | "framer"
+
+export interface EmbedOptions {
+  /** @default "html" */
+  target?: EmbedTarget
+  /**
+   * The version to load from the CDN. Defaults to this build's major.minor, so
+   * a pasted embed picks up fixes but never a breaking change.
+   */
+  version?: string
+  /** CSS height for the HTML and Webflow snippets. Framer sizes from the frame. @default config.height */
+  height?: string
+}
+
+/** The standalone `<liquid-forge>` script on jsDelivr, served straight from the npm package. */
+export function elementScriptUrl(version: string = VERSION): string {
+  const range = /^\d+\.\d+\.\d+$/.test(version) ? version.split(".").slice(0, 2).join(".") : version
+  const pinned = range.startsWith("0.0.0") ? "latest" : range
+  return `https://cdn.jsdelivr.net/npm/liquidforge@${pinned}/dist/element.global.js`
+}
+
+/**
+ * The attributes a `<liquid-forge>` needs to reproduce a config.
+ *
+ * Same rule as the component: only what differs from the named colourway is
+ * written, so the embed a designer pastes is readable at a glance.
+ */
+export function elementAttributes(config: LiquidConfig): Array<[string, string | true]> {
+  const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
+  const attributes: Array<[string, string | true]> = []
+  const object = config.object
+
+  switch (object.type) {
+    case "text":
+      attributes.push(["text", object.value])
+      if (object.depth !== undefined && object.depth !== 0.45) attributes.push(["depth", String(object.depth)])
+      break
+    case "shape":
+      attributes.push(["shape", object.shape])
+      break
+    case "model":
+      attributes.push(["model", object.src])
+      break
+    case "svg":
+    case "image":
+      // Inline SVG markup has no URL to put in an attribute; it travels whole.
+      if (!object.src) {
+        attributes.push(["object", JSON.stringify(object)])
+        break
+      }
+      attributes.push([object.type, object.src])
+      if (object.depth !== undefined && object.depth !== 0.45) attributes.push(["depth", String(object.depth)])
+      break
+    default:
+      attributes.push(["object", JSON.stringify(object)])
+  }
+
+  attributes.push(["preset", config.preset])
+  if (config.family !== base.family) attributes.push(["family", config.family])
+  if (JSON.stringify(config.palette) !== JSON.stringify(base.palette)) {
+    attributes.push(["palette", config.palette.join(",")])
+  }
+  const surfaceDiff = diff(config.surface, base.surface)
+  if (Object.keys(surfaceDiff).length > 0) attributes.push(["surface", JSON.stringify(surfaceDiff)])
+  const shadingDiff = diff(config.shading, base.shading)
+  if (Object.keys(shadingDiff).length > 0) attributes.push(["shading", JSON.stringify(shadingDiff)])
+
+  if (config.transparent) attributes.push(["transparent", true])
+  else if (config.backgroundColor) attributes.push(["background", config.backgroundColor])
+  else if (config.background !== base.background) {
+    const tone = BACKGROUND_TONES[config.background]
+    if (tone) attributes.push(["background", tone])
+    else attributes.push(["transparent", true])
+  }
+
+  if (config.quality !== "auto") attributes.push(["quality", config.quality])
+  if (config.motion.autoRotate) attributes.push(["auto-rotate", String(config.motion.autoRotate)])
+  if (config.motion.draggable === false) attributes.push(["draggable", "false"])
+  return attributes
+}
+
+const escapeAttribute = (value: string) =>
+  value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+
+/**
+ * The surface for a site with no React: Webflow, Framer, or any HTML page.
+ *
+ * All three load the same standalone script and use the same element, which is
+ * the point — one runtime to keep working, whatever the host. Webflow and plain
+ * HTML paste it as markup; Framer wraps it in a code component whose props are
+ * editable in Framer's own panel.
+ */
+export function generateEmbed(config: LiquidConfig, options: EmbedOptions = {}): string {
+  const { target = "html", version = VERSION } = options
+  const height = options.height ?? (config.height || "100vh")
+  const src = elementScriptUrl(version)
+  const attributes = elementAttributes(config)
+
+  if (target === "framer") {
+    const props = attributes
+      .filter(([name]) => !["text", "preset"].includes(name))
+      .map(([name, value]) => `        ${JSON.stringify(name)}: ${value === true ? '""' : JSON.stringify(value)},`)
+    const text = attributes.find(([name]) => name === "text")?.[1]
+    const objectLine = text === undefined ? "" : "        text: props.text,\n"
+    const textControl =
+      text === undefined
+        ? ""
+        : `    text: { type: ControlType.String, title: "Text", defaultValue: ${JSON.stringify(text)} },\n`
+    return `// Framer: Assets → Code → New file, paste this, then drag "Liquid" onto the canvas.
+import * as React from "react"
+import { addPropertyControls, ControlType } from "framer"
+
+const SRC = ${JSON.stringify(src)}
+
+/** Load the element once per page, however many Liquid frames there are. */
+function useLiquidforge() {
+    React.useEffect(() => {
+        if (document.querySelector(\`script[src="\${SRC}"]\`)) return
+        const script = document.createElement("script")
+        script.src = SRC
+        script.async = true
+        document.head.appendChild(script)
+    }, [])
+}
+
+/**
+ * @framerSupportedLayoutWidth any
+ * @framerSupportedLayoutHeight any
+ */
+export default function Liquid(props) {
+    useLiquidforge()
+    // A custom element, so React passes these through as attributes.
+    return React.createElement("liquid-forge", {
+${objectLine}        preset: props.preset,
+${props.join("\n")}
+        style: { display: "block", width: "100%", height: "100%", ...props.style },
+    })
+}
+
+addPropertyControls(Liquid, {
+${textControl}    preset: { type: ControlType.String, title: "Preset", defaultValue: ${JSON.stringify(config.preset)} },
+})
+`
+  }
+
+  const attributeText = attributes
+    .map(([name, value]) => (value === true ? name : `${name}="${escapeAttribute(value)}"`))
+    .join("\n  ")
+  const markup = `<script src="${src}" defer></script>
+<liquid-forge
+  ${attributeText}
+  style="display: block; width: 100%; height: ${escapeAttribute(height)}"
+></liquid-forge>`
+
+  if (target === "webflow") {
+    return `<!--
+  Webflow: drop an Embed element where the surface should go and paste this in.
+  Using it on several pages? Move the <script> line to Site settings → Custom
+  code → Footer code, and keep only the <liquid-forge> element in each Embed.
+  It renders on the published site; the Designer canvas shows an empty box.
+-->
+${markup}
+`
+  }
+  return `${markup}\n`
 }
 
 // -- Share links -------------------------------------------------------------

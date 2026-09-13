@@ -6,6 +6,8 @@ import type { LiquidEngine } from "liquidforge"
 import {
   encodeState,
   generateCode,
+  generateEmbed,
+  type EmbedTarget,
   generatePlacementSetup,
   shareUrl,
   SHOWCASE_LAYOUTS,
@@ -15,12 +17,13 @@ import {
 import { submitUrl } from "@/lib/community"
 import { Button, CopyButton, Field, Segmented, Toggle } from "./ui"
 
-type Tab = "code" | "place" | "preset" | "share"
+type Tab = "code" | "embed" | "place" | "preset" | "share"
 
 /**
- * Four ways out.
+ * Five ways out.
  *
- * The component, for the common case. *Place it*, for the different question —
+ * The component, for the common case. The same surface as an element and a
+ * script tag, for Webflow, Framer and every site with no React in it. *Place it*, for the different question —
  * "I already have a site, how do I get this onto it and drag it where I want" —
  * which needs a recipe rather than a snippet. The preset as JSON, for anyone
  * keeping their looks in a design system rather than in JSX. And the `.glb`,
@@ -54,6 +57,7 @@ export function ExportModal({
   const [withPoster, setWithPoster] = useState(false)
   const [posterState, setPosterState] = useState<"idle" | "working" | "done">("idle")
   const [framework, setFramework] = useState<"next" | "vite">("next")
+  const [embedTarget, setEmbedTarget] = useState<EmbedTarget>("webflow")
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,6 +71,7 @@ export function ExportModal({
 
   const code = useMemo(() => {
     if (tab === "place") return generatePlacementSetup(config, { framework })
+    if (tab === "embed") return generateEmbed(config, { target: embedTarget })
     if (tab === "preset") {
       const preset = resolvePreset(config.preset, {
         family: config.family,
@@ -82,7 +87,7 @@ export function ExportModal({
       background: withBackground,
       poster: withPoster ? "/liquidforge-poster.webp" : undefined,
     })
-  }, [config, tab, layout, withBackground, withPoster, framework])
+  }, [config, tab, layout, withBackground, withPoster, framework, embedTarget])
 
   /**
    * The poster, rendered by the same engine at the preview's proportions.
@@ -151,12 +156,30 @@ export function ExportModal({
             value={tab}
             onChange={setTab}
             options={[
-              { value: "code", label: "Component" },
+              { value: "code", label: "React" },
+              { value: "embed", label: "No-code" },
               { value: "place", label: "Place it" },
               { value: "preset", label: "Preset JSON" },
               { value: "share", label: "Post it" },
             ]}
           />
+
+          {tab === "embed" && (
+            <Field
+              label="Your site"
+              hint="The same surface as the React component, as a <liquid-forge> element and one script — for sites that have no React to put a component in."
+            >
+              <Segmented
+                value={embedTarget}
+                onChange={setEmbedTarget}
+                options={[
+                  { value: "webflow" as const, label: "Webflow" },
+                  { value: "framer" as const, label: "Framer" },
+                  { value: "html" as const, label: "Any HTML" },
+                ]}
+              />
+            </Field>
+          )}
 
           {tab === "place" && (
             <Field

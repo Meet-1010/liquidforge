@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs"
 import { defineConfig } from "tsup"
+
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+  version: string
+}
+const define = { __LIQUIDFORGE_VERSION__: JSON.stringify(version) }
 
 /*
  * No config here sets `clean`. The entries build concurrently, and a `clean` on
@@ -20,6 +26,7 @@ export default defineConfig([
       placement: "src/placement/index.ts",
       editor: "src/editor/index.ts",
       breed: "src/breed/index.ts",
+      element: "src/element/index.ts",
     },
     format: ["esm", "cjs"],
     dts: true,
@@ -27,6 +34,25 @@ export default defineConfig([
     sourcemap: true,
     target: "es2020",
     external: ["react", "react-dom", "three"],
+    define,
+  },
+  /*
+   * `<liquid-forge>` as one self-contained script, three.js included, for the
+   * places that take a script tag and nothing else — Webflow, Squarespace, a
+   * plain HTML page. Everywhere with a bundler should import
+   * `liquidforge/element` instead and share its copy of three.
+   */
+  {
+    entry: { "element.global": "src/element/index.ts" },
+    format: ["iife"],
+    outExtension: () => ({ js: ".js" }),
+    dts: false,
+    minify: true,
+    sourcemap: false,
+    target: "es2020",
+    platform: "browser",
+    noExternal: [/.*/],
+    define,
   },
   {
     entry: { dev: "src/dev/index.ts" },
