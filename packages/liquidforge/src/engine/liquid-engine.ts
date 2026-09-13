@@ -766,13 +766,20 @@ export class LiquidEngine {
     this.frame = 0
   }
 
-  private step(): void {
+  /**
+   * One frame of simulation and render.
+   *
+   * `fixedDeltaMs` is for offline rendering: every frame advances by exactly
+   * that much, however long it took to encode the one before, so a recording
+   * plays back at the speed it was simulated and never drops a frame.
+   */
+  private step(fixedDeltaMs?: number): void {
     const mesh = this.mesh
     const handle = this.handle
     if (!mesh || !handle) return
 
     const now = performance.now()
-    const deltaMs = now - this.lastNow
+    const deltaMs = fixedDeltaMs ?? now - this.lastNow
     this.lastNow = now
     // Clamp so returning to a backgrounded tab does not fast-forward every ring
     // in the buffer through its whole life in one step.
@@ -989,7 +996,15 @@ export class LiquidEngine {
 
     const mimeType =
       options.mimeType ??
-      ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) =>
+      [
+        // Safari and recent Chrome can write MP4 directly; prefer it, since it is
+        // the file people can actually drop into an editor or post.
+        "video/mp4;codecs=avc1.640033",
+        "video/mp4",
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ].find((type) =>
         MediaRecorder.isTypeSupported(type),
       )
 
@@ -1048,13 +1063,83 @@ export class LiquidEngine {
     return blob
   }
 
+  /**
+   * Render a loop frame by frame, at exact times, handing each to `onFrame`.
+   *
+   * The real-time recorder above captures whatever the screen manages to draw,
+   * which is why a 4K take on a laptop came out with dropped frames — and why it
+   * can only produce WebM, because that is what MediaRecorder writes in most
+   * browsers. This one runs the simulation with a fixed step, renders every
+   * frame whether or not the machine could have kept up live, and lets the
+   * caller encode each one however it likes — to MP4 through WebCodecs, for
+   * the Studio.
+   *
+   * `onFrame` is called in the same task as the render, so the drawing buffer
+   * is still intact: capture from the canvas before awaiting anything. The
+   * promise it returns is awaited before the next frame, which is how an encoder
+   * applies backpressure.
+   */
+  async renderFrames(
+    options: { seconds?: number; fps?: number; width?: number; height?: number },
+    onFrame: (canvas: HTMLCanvasElement, index: number, timestampUs: number) => void | Promise<void>,
+  ): Promise<number> {
+    const { seconds = 4, fps = 30, width = 3840, height = 2160 } = options
+    if (!this.mesh || !this.handle) throw new Error("liquidforge: nothing to render yet")
+
+    const wasRunning = this.running
+    this.stop()
+
+    const previous = this.renderer.getSize(new Vector2())
+    const previousDpr = this.dpr
+    const previousTime = this.time
+    this.recording = true
+    this.renderer.setPixelRatio(1)
+    this.renderer.setSize(width, height, false)
+    this.camera.aspect = width / height
+    this.frameCamera()
+
+    const frames = Math.max(1, Math.round(seconds * fps))
+    const stepMs = 1000 / fps
+    this.scripted = { startedAt: 0, durationMs: seconds * 1000, progress: 0 }
+    this.trail.clear()
+
+    try {
+      // Pre-roll the tail of the loop without capturing it, so the first frame
+      // already has the ripples and the eased pointer the last frame leaves
+      // behind. Starting from a still surface is what made the old loop visibly
+      // jump at the seam.
+      const preroll = Math.min(frames, Math.round(fps * 1.5))
+      for (let i = frames - preroll; i < frames; i++) {
+        this.scripted.progress = i / frames
+        this.step(stepMs)
+      }
+      for (let i = 0; i < frames; i++) {
+        this.scripted.progress = i / frames
+        this.step(stepMs)
+        await onFrame(this.canvas, i, Math.round((i * 1_000_000) / fps))
+      }
+    } finally {
+      this.scripted = null
+      this.recording = false
+      this.time = previousTime
+      this.renderer.setPixelRatio(previousDpr)
+      this.renderer.setSize(previous.x, previous.y, false)
+      this.camera.aspect = previous.x / previous.y || 1
+      this.frameCamera()
+      this.renderOnce()
+      if (wasRunning) this.start()
+    }
+    return frames
+  }
+
   /** A closed figure-of-eight, so the first frame and the last are the same. */
-  private scripted: { startedAt: number; durationMs: number } | null = null
+  private scripted: { startedAt: number; durationMs: number; progress?: number } | null = null
   private recording = false
 
   private scriptedPointer(): Vector2 | null {
     if (!this.scripted) return null
-    const t = ((performance.now() - this.scripted.startedAt) / this.scripted.durationMs) % 1
+    const t =
+      this.scripted.progress ?? ((performance.now() - this.scripted.startedAt) / this.scripted.durationMs) % 1
     const angle = t * Math.PI * 2
     return this.scratchPointer.set(Math.sin(angle) * 0.55, Math.sin(angle * 2) * 0.34)
   }

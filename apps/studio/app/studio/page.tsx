@@ -12,6 +12,7 @@ import { FrontDoor } from "@/components/front-door"
 import { MaterialPanel } from "@/components/material-panel"
 import { ObjectPanel } from "@/components/object-panel"
 import { SiteNav } from "@/components/site-nav"
+import { recordMp4 } from "@/lib/record-mp4"
 import { Button, Collapsible, ColorField, Segmented, Slider, Toggle } from "@/components/ui"
 
 export default function StudioPage() {
@@ -26,7 +27,9 @@ function Studio() {
   const params = useSearchParams()
   const [config, setConfig] = useState<LiquidConfig>(() => configFromPreset())
   const [exporting, setExporting] = useState(false)
-  const [recording, setRecording] = useState(false)
+  // null when idle; 0–1 while a loop is being rendered and encoded.
+  const [recording, setRecording] = useState<number | null>(null)
+  const [recordError, setRecordError] = useState<string | null>(null)
   const [recordSize, setRecordSize] = useState<"1080" | "1440" | "2160">("2160")
   // Once you have answered the question, or skipped it, it stops asking.
   const [doorDone, setDoorDone] = useState(false)
@@ -240,31 +243,43 @@ function Studio() {
               onChange={setRecordSize}
             />
             <Button
-              disabled={recording}
+              disabled={recording !== null}
               onClick={async () => {
                 const engine = engineRef.current
                 if (!engine) return
-                setRecording(true)
+                setRecording(0)
+                setRecordError(null)
                 try {
-                  // Recorded at this size regardless of how big the preview is
+                  // Rendered at this size regardless of how big the preview is
                   // on screen — the drawing buffer is resized for the take.
                   const height = Number(recordSize)
-                  const blob = await engine.recordLoop({
+                  const blob = await recordMp4(engine, {
                     seconds: 4,
                     width: Math.round((height * 16) / 9),
                     height,
+                    onProgress: setRecording,
                   })
-                  downloadBlob(blob, `liquidforge-${config.preset}-${recordSize}p.webm`)
+                  downloadBlob(blob, `liquidforge-${config.preset}-${recordSize}p.mp4`)
+                } catch (error) {
+                  setRecordError(error instanceof Error ? error.message : String(error))
                 } finally {
-                  setRecording(false)
+                  setRecording(null)
                 }
               }}
             >
-              {recording ? "Recording 4s…" : `Record a ${recordSize === "2160" ? "4K" : recordSize + "p"} loop`}
+              {recording !== null
+                ? `Rendering ${Math.round(recording * 100)}%`
+                : `Record a ${recordSize === "2160" ? "4K" : recordSize + "p"} loop`}
             </Button>
+            {recordError && (
+              <p role="alert" className="font-mono text-[11px] leading-relaxed text-[#ff8a7a]">
+                {recordError}
+              </p>
+            )}
             <p className="font-mono text-[10px] leading-relaxed text-bone/30">
-              Four seconds, looping seamlessly, at about 0.12 bits per pixel. 4K is heavy — if it
-              drops frames on this machine, take it down a step.
+              Four seconds of H.264 MP4, looping seamlessly. Every frame is rendered, so a slow machine
+              takes longer rather than dropping frames. Transparent grounds come out black — video has no
+              alpha.
             </p>
           </Collapsible>
           </div>

@@ -2,7 +2,7 @@
   "name": "@liquidforge/studio",
   "version": "0.1.0",
   "private": true,
-  "description": "Liquidforge Studio \u2014 forge an object in the browser, tune the material live, copy the code.",
+  "description": "Liquidforge Studio — forge an object in the browser, tune the material live, copy the code.",
   "scripts": {
     "dev": "next dev",
     "prebuild": "npm run build --prefix ../../packages/liquidforge",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "liquidforge": "*",
+    "mediabunny": "^1.56.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
