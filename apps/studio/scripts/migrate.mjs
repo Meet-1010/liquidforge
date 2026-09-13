@@ -54,6 +54,14 @@ const statements = [
   // Remixes hang off their parent; the gallery shows the count on a card.
   `create index if not exists community_posts_parent_idx
      on community_posts (parent_id)`,
+  // Breeding: a second parent, and the look itself — a bred or tuned colourway
+  // is not one of the named presets, so the id alone cannot carry it. Both are
+  // added columns, nullable, so every existing row stays exactly as it was.
+  `alter table community_posts
+     add column if not exists second_parent_id text references community_posts(id) on delete set null`,
+  `alter table community_posts add column if not exists look jsonb`,
+  `create index if not exists community_posts_second_parent_idx
+     on community_posts (second_parent_id)`,
 ]
 
 for (const statement of statements) {

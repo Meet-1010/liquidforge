@@ -1,4 +1,14 @@
-import type { ObjectSource } from "liquidforge"
+import type { LiquidPreset, ObjectSource } from "liquidforge"
+
+/**
+ * A look that is not one of the named colourways — tuned in the Studio, or bred.
+ *
+ * Stored beside the preset id rather than instead of it: the id still says
+ * which colourway it started from, and a post with no look renders exactly as
+ * before. Before this, a colourway tuned in the Studio lost its tuning the
+ * moment it was posted.
+ */
+export type Look = Pick<LiquidPreset, "family" | "palette" | "surface" | "shading" | "background">
 
 /** A creation, as it lives in the store. */
 export interface Post {
@@ -22,6 +32,9 @@ export interface Post {
   submitterKey: string
   /** The post this was remixed from, when it was. */
   parentId?: string
+  /** The other parent, when this was bred from two posts. */
+  secondParentId?: string
+  look?: Look
 }
 
 export interface NewPost {
@@ -32,6 +45,8 @@ export interface NewPost {
   preset: string
   submitterKey: string
   parentId?: string
+  secondParentId?: string
+  look?: Look
 }
 
 /**

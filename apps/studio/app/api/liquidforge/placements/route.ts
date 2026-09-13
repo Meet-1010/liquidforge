@@ -9,6 +9,8 @@ import { createPlacementsRoute } from "liquidforge/dev"
  */
 // No `file` given: the default is "liquidforge.placements.json" relative to the
 // dev server's cwd, which for this app is apps/studio — exactly where it goes.
-export const { POST } = createPlacementsRoute()
+// GET and DELETE serve the proposal an agent (the MCP server) leaves for review;
+// POST is the editor saving.
+export const { GET, DELETE, POST } = createPlacementsRoute()
 
 export const dynamic = "force-dynamic"

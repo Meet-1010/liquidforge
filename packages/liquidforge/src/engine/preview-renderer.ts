@@ -43,16 +43,39 @@ export class PreviewRenderer {
   /**
    * Paint one still into `target`.
    *
-   * Serialised: there is one engine, so overlapping calls would fight over its
-   * geometry and its camera. Cards resolve in the order they asked.
+   * The drawing is serialised — there is one engine, so overlapping calls would
+   * fight over its geometry and its camera — but forging is not. Every card's
+   * object starts downloading and tessellating the moment it asks, and joins
+   * the drawing queue when that is done. Forging inside the queue meant one
+   * slow model download held up every card behind it, including the ones whose
+   * geometry was already cached and needed a few milliseconds.
    */
   capture(request: CaptureRequest): Promise<boolean> {
-    const run = () => this.draw(request)
-    this.chain = this.chain.then(run, run)
-    return this.chain as Promise<boolean>
+    const key = JSON.stringify(request.object)
+    const forged = this.geometryFor(request.object, key)
+    return forged.then(
+      (geometry) => {
+        const run = () => this.draw(request, geometry, key)
+        this.chain = this.chain.then(run, run)
+        return this.chain as Promise<boolean>
+      },
+      () => false,
+    )
   }
 
-  private async draw(request: CaptureRequest): Promise<boolean> {
+  private geometryFor(object: ObjectSource, key: string): Promise<BufferGeometry> {
+    let cached = this.geometry.get(key)
+    if (!cached) {
+      cached = forgeGeometry(object)
+      // Don't cache a rejection — a transient network failure would
+      // otherwise be permanent for the rest of the session.
+      cached.catch(() => this.geometry.delete(key))
+      this.geometry.set(key, cached)
+    }
+    return cached
+  }
+
+  private async draw(request: CaptureRequest, forged: BufferGeometry, key: string): Promise<boolean> {
     if (this.disposed || typeof document === "undefined") return false
     const { object, preset, width, height, target } = request
     if (width <= 0 || height <= 0) return false
@@ -60,19 +83,7 @@ export class PreviewRenderer {
     const engine = this.ensureEngine()
     if (!engine) return false
 
-    const key = JSON.stringify(object)
     if (key !== this.currentObject) {
-      let cached = this.geometry.get(key)
-      if (!cached) {
-        cached = forgeGeometry(object)
-        // Don't cache a rejection — a transient network failure would
-        // otherwise be permanent for the rest of the session.
-        cached.catch(() => this.geometry.delete(key))
-        this.geometry.set(key, cached)
-      }
-      const forged = await cached
-      if (this.disposed) return false
-
       engine.setGeometry(forged, {
         forceSphereProbe:
           object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron"),

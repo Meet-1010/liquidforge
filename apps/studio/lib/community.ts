@@ -1,4 +1,11 @@
-import { encodeState, isEphemeral, type LiquidConfig } from "liquidforge/codegen"
+import { PRESETS, resolvePreset, type LiquidPreset, type ObjectSource } from "liquidforge"
+import {
+  configFromPreset as configFromPresetLike,
+  encodeState,
+  isEphemeral,
+  type LiquidConfig,
+} from "liquidforge/codegen"
+import type { Look } from "@/lib/store/types"
 
 const REPO = "https://github.com/Meet-1010/liquidforge"
 
@@ -40,9 +47,10 @@ export function communityEntry(config: LiquidConfig, submission: Submission) {
 export async function postToCommunity(
   config: LiquidConfig,
   submission: Submission,
-  parentId?: string,
+  parents: { parentId?: string; secondParentId?: string } = {},
 ): Promise<{ ok: boolean; message: string; id?: string }> {
   const entry = communityEntry(config, submission)
+  const look = lookOf(config)
   try {
     const response = await fetch("/api/community", {
       method: "POST",
@@ -53,7 +61,9 @@ export async function postToCommunity(
         url: entry.url,
         object: entry.object,
         preset: entry.preset,
-        parentId,
+        ...(look ? { look } : {}),
+        parentId: parents.parentId,
+        secondParentId: parents.secondParentId,
       }),
     })
     const data = (await response.json().catch(() => ({}))) as {
@@ -103,4 +113,63 @@ export function submitUrl(config: LiquidConfig, submission: Submission, origin: 
 /** An object built from an uploaded file cannot travel in a link or a JSON entry. */
 export function canSubmit(config: LiquidConfig): boolean {
   return !isEphemeral(config.object)
+}
+
+/**
+ * The look a config has, when it is not simply its named colourway.
+ *
+ * `undefined` for an untouched preset, so the common post stays as small as it
+ * always was and a colourway that is later retuned in the library still updates
+ * every post that used it unchanged.
+ */
+export function lookOf(config: LiquidConfig): Look | undefined {
+  const base = PRESETS[config.preset]
+  const look: Look = {
+    family: config.family,
+    palette: config.palette,
+    surface: config.surface,
+    shading: config.shading,
+    background: config.background,
+  }
+  if (
+    base &&
+    base.family === look.family &&
+    base.background === look.background &&
+    JSON.stringify(base.palette) === JSON.stringify(look.palette) &&
+    JSON.stringify(base.surface) === JSON.stringify(look.surface) &&
+    JSON.stringify(base.shading) === JSON.stringify(look.shading)
+  ) {
+    return undefined
+  }
+  return look
+}
+
+/** What a post, seeded or published, renders as: its colourway, with its own look on top. */
+export function presetForPost(post: { preset: string; look?: Look }): LiquidPreset {
+  return resolvePreset(post.preset, post.look ?? {})
+}
+
+/**
+ * A Studio link that opens with exactly this look on this object, carrying its
+ * parents through so a post made from it credits them.
+ */
+export function studioLinkFor(
+  preset: LiquidPreset,
+  object: ObjectSource,
+  basePresetId: string,
+  parents: { from?: string; with?: string } = {},
+): string {
+  const params = new URLSearchParams()
+  const config: LiquidConfig = {
+    ...configFromPresetLike(basePresetId, object),
+    family: preset.family,
+    palette: [...preset.palette],
+    surface: { ...preset.surface },
+    shading: { ...preset.shading },
+    background: preset.background,
+  }
+  params.set("c", encodeState(config))
+  if (parents.from) params.set("from", parents.from)
+  if (parents.with) params.set("with", parents.with)
+  return `/studio?${params.toString()}`
 }

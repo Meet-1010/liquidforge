@@ -53,6 +53,7 @@ function Embed({ id }: { id: string }) {
         setConfig({
           object: post.object,
           preset: post.preset,
+          ...(post.look ?? {}),
         } as LiquidConfig)
       })
       .catch(() => setMissing(true))

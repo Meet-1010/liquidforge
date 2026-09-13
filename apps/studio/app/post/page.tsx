@@ -66,6 +66,7 @@ function Composer() {
   })
 
   const parentId = params.get("from") ?? undefined
+  const secondParentId = params.get("with") ?? undefined
   const postable = canSubmit(config) && title.trim().length >= 2
 
   const publish = async () => {
@@ -76,7 +77,7 @@ function Composer() {
     } catch {
       // Not important enough to stop a post over.
     }
-    const result = await postToCommunity(config, { title, author, url: link }, parentId)
+    const result = await postToCommunity(config, { title, author, url: link }, { parentId, secondParentId })
     if (result.ok) {
       // Straight to the gallery, where it is already there.
       router.push(`/community?new=${encodeURIComponent(result.id ?? "")}`)
@@ -102,13 +103,15 @@ function Composer() {
           </div>
           <p className="mt-3 font-mono text-[11px] text-muted">
             {preset.label} · {presetName(config.preset)} · {config.object.type}
-            {parentId && " · remix"}
+            {parentId && (secondParentId ? " · bred from two posts" : " · remix")}
           </p>
         </div>
 
         <div className="flex flex-col gap-4">
           <div>
-            <p className="label mb-2">{parentId ? "Post a remix" : "Post to the community"}</p>
+            <p className="label mb-2">
+              {secondParentId ? "Post a cross" : parentId ? "Post a remix" : "Post to the community"}
+            </p>
             <h1 className="display m-0 text-[clamp(1.8rem,4.5vw,2.6rem)]">
               Put it in the gallery.
             </h1>

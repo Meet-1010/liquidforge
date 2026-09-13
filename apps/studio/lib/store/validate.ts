@@ -1,5 +1,6 @@
 import { PRESETS } from "liquidforge/presets"
 import type { ObjectSource } from "liquidforge/presets"
+import type { Look } from "./types"
 
 /**
  * What a submission is allowed to be.
@@ -24,6 +25,9 @@ export interface ValidationResult {
     url: string
     object: ObjectSource
     preset: string
+    look?: Look
+    parentId?: string
+    secondParentId?: string
   }
 }
 
@@ -48,7 +52,97 @@ export function validateSubmission(input: unknown): ValidationResult {
   const object = validateObject(body.object)
   if (!object) return { ok: false, error: "That object cannot be shared" }
 
-  return { ok: true, value: { title, author, url, object, preset } }
+  let look: Look | undefined
+  if (body.look !== undefined && body.look !== null) {
+    look = validateLook(body.look, preset) ?? undefined
+    if (!look) return { ok: false, error: "That look cannot be shared" }
+  }
+
+  const parentId = postId(body.parentId)
+  // Two parents that are the same post is a remix, not a cross.
+  const second = postId(body.secondParentId)
+  const secondParentId = second && second !== parentId ? second : undefined
+
+  return { ok: true, value: { title, author, url, object, preset, look, parentId, secondParentId } }
+}
+
+const POST_ID = /^[a-z0-9][a-z0-9-]{0,79}$/
+
+function postId(value: unknown): string | undefined {
+  return typeof value === "string" && POST_ID.test(value) ? value : undefined
+}
+
+const FAMILIES = [
+  "mercury", "aurora", "prism", "magma", "pearl", "obsidian",
+  "velvet", "halo", "jade", "plasma", "original",
+] as const
+const BACKGROUNDS = ["dark", "mid", "light", "transparent"] as const
+
+/** The range every gene may take; the same bounds breeding clamps to. */
+const SURFACE: Record<keyof Look["surface"], [number, number]> = {
+  noise: [0, 0.16],
+  dimple: [0, 0.4],
+  rippleAmp: [0, 0.25],
+  rippleSpeed: [0.05, 2.4],
+  rippleTightness: [4, 160],
+  trailSpacing: [0.01, 0.4],
+  advection: [0, 1.5],
+}
+const SHADING: Record<keyof Look["shading"], [number, number]> = {
+  metalness: [0, 1],
+  roughness: [0, 1],
+  fresnel: [0, 1.5],
+  specPower: [1, 200],
+  transmission: [0, 1],
+  ior: [1, 2.4],
+  thinFilm: [0, 1],
+  emissive: [0, 3],
+}
+
+/**
+ * Rebuild a look from known genes only, each clamped to its range.
+ *
+ * The same rule as the object: nothing is spread through. A missing number
+ * takes the base colourway's value, so a look is always complete however little
+ * of it was sent.
+ */
+function validateLook(input: unknown, presetId: string): Look | null {
+  if (typeof input !== "object" || input === null) return null
+  const look = input as Record<string, unknown>
+  const base = PRESETS[presetId]
+
+  const family = FAMILIES.find((name) => name === look.family)
+  if (!family) return null
+  const background = BACKGROUNDS.find((name) => name === look.background) ?? base.background
+
+  if (!Array.isArray(look.palette) || look.palette.length === 0 || look.palette.length > 8) return null
+  const palette = look.palette.map((colour) => String(colour).toLowerCase())
+  if (!palette.every((colour) => /^#[0-9a-f]{6}$/.test(colour))) return null
+
+  const genes = <T extends object>(
+    raw: unknown,
+    ranges: Record<string, [number, number]>,
+    fallback: T,
+  ): T => {
+    const source = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {}
+    const out: Record<string, number> = {}
+    for (const [key, [min, max]] of Object.entries(ranges)) {
+      const value = source[key]
+      const fallbackValue = (fallback as Record<string, number | undefined>)[key]
+      const n = typeof value === "number" && Number.isFinite(value) ? value : fallbackValue
+      if (n === undefined) continue
+      out[key] = Math.min(max, Math.max(min, n))
+    }
+    return out as T
+  }
+
+  return {
+    family,
+    background,
+    palette,
+    surface: genes(look.surface, SURFACE, base.surface),
+    shading: genes(look.shading, SHADING, base.shading),
+  }
 }
 
 /**

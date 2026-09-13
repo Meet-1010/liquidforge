@@ -72,11 +72,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const parentId = typeof (body as { parentId?: unknown }).parentId === "string"
-      ? ((body as { parentId: string }).parentId || undefined)
-      : undefined
-
-    const post = await store.create({ ...result.value, submitterKey, parentId })
+    const post = await store.create({ ...result.value, submitterKey })
     return NextResponse.json(
       { id: post.id, status: post.status, message: "Posted." },
       { status: 201 },

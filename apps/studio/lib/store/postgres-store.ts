@@ -21,7 +21,9 @@ import type { CommunityStore, NewPost, Post } from "./types"
  *   created_at    timestamptz not null default now(),
  *   status        text not null default 'published',
  *   submitter_key text not null,
- *   parent_id     text references community_posts(id) on delete set null
+ *   parent_id     text references community_posts(id) on delete set null,
+ *   second_parent_id text references community_posts(id) on delete set null,
+ *   look          jsonb
  * );
  * create index if not exists community_posts_status_idx
  *   on community_posts (status, created_at desc);
@@ -45,6 +47,10 @@ interface Row {
   status: Post["status"]
   submitter_key: string
   parent_id: string | null
+  // Optional on the type as well: a database migrated before these columns
+  // existed returns rows without them, and the gallery should still read.
+  second_parent_id?: string | null
+  look?: Post["look"] | null
 }
 
 const toPost = (row: Row): Post => ({
@@ -58,6 +64,8 @@ const toPost = (row: Row): Post => ({
   status: row.status,
   submitterKey: row.submitter_key,
   ...(row.parent_id ? { parentId: row.parent_id } : {}),
+  ...(row.second_parent_id ? { secondParentId: row.second_parent_id } : {}),
+  ...(row.look ? { look: row.look } : {}),
 })
 
 export class PostgresStore implements CommunityStore {
@@ -89,10 +97,12 @@ export class PostgresStore implements CommunityStore {
       .slice(0, 40) || "untitled"}-${Date.now().toString(36)}`
 
     const rows = await this.sql<Row>`
-      insert into community_posts (id, title, author, url, object, preset, status, submitter_key, parent_id)
+      insert into community_posts
+        (id, title, author, url, object, preset, status, submitter_key, parent_id, second_parent_id, look)
       values (${id}, ${post.title}, ${post.author}, ${post.url},
               ${JSON.stringify(post.object)}::jsonb, ${post.preset}, 'published',
-              ${post.submitterKey}, ${post.parentId ?? null})
+              ${post.submitterKey}, ${post.parentId ?? null}, ${post.secondParentId ?? null},
+              ${post.look ? JSON.stringify(post.look) : null}::jsonb)
       returning *
     `
     return toPost(rows[0])

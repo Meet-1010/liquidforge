@@ -34,6 +34,15 @@ function Studio() {
   // Once you have answered the question, or skipped it, it stops asking.
   const [doorDone, setDoorDone] = useState(false)
   const engineRef = useRef<LiquidEngine | null>(null)
+  // A remix or a cross opened from the gallery names its parents in the link;
+  // they ride along to the composer so the post credits them. Before this, a
+  // remix's parent was dropped at the Studio and never reached the post.
+  const lineage = ["from", "with"]
+    .map((key) => {
+      const value = params.get(key)
+      return value ? `&${key}=${encodeURIComponent(value)}` : ""
+    })
+    .join("")
 
   /*
    * Undo, which the Studio has needed since the first slider.
@@ -290,7 +299,7 @@ function Studio() {
                 Copy the component
               </Button>
               <a
-                href={`/post?c=${encodeState(config)}`}
+                href={`/post?c=${encodeState(config)}${lineage}`}
                 className="inline-flex items-center rounded-[var(--radius-pill)] border border-rule bg-ink-2 px-3.5 py-2 font-mono text-[11px] text-bone/75 transition-colors hover:border-rule-bright hover:text-bone"
               >
                 Post it
