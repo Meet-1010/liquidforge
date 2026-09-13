@@ -16,6 +16,7 @@ const FAMILIES: Array<{ value: MaterialFamily; label: string }> = [
   { value: "halo", label: "Halo" },
   { value: "jade", label: "Jade" },
   { value: "plasma", label: "Plasma" },
+  { value: "original", label: "Original" },
 ]
 
 /**
@@ -83,6 +84,13 @@ export function MaterialPanel({
             <p className="font-mono text-[10px] leading-relaxed text-bone/30">
               {collection.blurb}
             </p>
+            {config.family === "original" && (
+              <p className="font-mono text-[10px] leading-relaxed text-bone/45">
+                {config.object.type === "model" || config.object.type === "image" || config.object.type === "svg"
+                  ? "Keeps this object's own textures and colours; the colourway only sets the light on it."
+                  : "Original keeps a model's, image's or SVG's own colours. Text and shapes have none, so they take the first palette colour."}
+              </p>
+            )}
             <Field label="Colourway" hint={presetName(config.preset)}>
               <div className="grid grid-cols-3 gap-1.5">
                 {collection.colourways.map((colourway, index) => {

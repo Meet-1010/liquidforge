@@ -153,6 +153,14 @@ export interface CodeOptions {
    * @default true
    */
   background?: boolean
+  /**
+   * A still to paint before the engine starts, e.g. `"/liquidforge-poster.webp"`.
+   *
+   * The Studio downloads the image to go with it. The page shows the picture at
+   * once and swaps in the live surface when the browser is idle, so the part of
+   * the hero that is expensive stops being the part that decides first paint.
+   */
+  poster?: string
 }
 
 /**
@@ -168,6 +176,7 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
     showcase,
     importFrom = "liquidforge",
     background: includeBackground = true,
+    poster,
   } = options
   const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
   const layout: ShowcaseLayout = showcase ?? (component === "canvas" ? "canvas" : "hero")
@@ -187,6 +196,7 @@ export function generateCode(config: LiquidConfig, options: CodeOptions = {}): s
     `object={${literal(config.object, 3)}}`,
     `preset="${config.preset}"`,
   ]
+  if (poster) props.push(`poster="${poster.replace(/"/g, "&quot;")}"`)
 
   if (config.family !== base.family) props.push(`family="${config.family}"`)
   if (JSON.stringify(config.palette) !== JSON.stringify(base.palette)) {

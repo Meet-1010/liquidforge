@@ -375,7 +375,7 @@ function Studio() {
         </main>
       </div>
 
-      {exporting && <ExportModal config={config} onClose={() => setExporting(false)} />}
+      {exporting && <ExportModal config={config} engine={engineRef.current} onClose={() => setExporting(false)} />}
     </div>
   )
 }

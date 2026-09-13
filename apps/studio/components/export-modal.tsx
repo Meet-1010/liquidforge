@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { downloadBlob, exportModel, forgeGeometry, resolvePreset } from "liquidforge"
+import type { LiquidEngine } from "liquidforge"
 import {
   encodeState,
   generateCode,
@@ -29,9 +30,12 @@ type Tab = "code" | "place" | "preset" | "share"
  */
 export function ExportModal({
   config,
+  engine,
   onClose,
 }: {
   config: LiquidConfig
+  /** The Studio's live engine, which renders the poster. */
+  engine?: LiquidEngine | null
   onClose: () => void
 }) {
   const [tab, setTab] = useState<Tab>("code")
@@ -45,6 +49,10 @@ export function ExportModal({
    * it with a second one.
    */
   const [withBackground, setWithBackground] = useState(true)
+  // Off by default: a poster is one more file to put in `public/`, worth it for
+  // a hero above the fold and not for a badge in a footer.
+  const [withPoster, setWithPoster] = useState(false)
+  const [posterState, setPosterState] = useState<"idle" | "working" | "done">("idle")
   const [framework, setFramework] = useState<"next" | "vite">("next")
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,8 +77,37 @@ export function ExportModal({
       })
       return JSON.stringify({ ...preset, id: `${preset.id}-custom` }, null, 2)
     }
-    return generateCode(config, { showcase: layout, background: withBackground })
-  }, [config, tab, layout, withBackground, framework])
+    return generateCode(config, {
+      showcase: layout,
+      background: withBackground,
+      poster: withPoster ? "/liquidforge-poster.webp" : undefined,
+    })
+  }, [config, tab, layout, withBackground, withPoster, framework])
+
+  /**
+   * The poster, rendered by the same engine at the preview's proportions.
+   *
+   * Same proportions matters: the still is shown with `object-fit: contain` and
+   * then crossfades to the live surface, so a still framed for a different
+   * shape would visibly jump at the swap.
+   */
+  const downloadPoster = async () => {
+    if (!engine) return
+    setPosterState("working")
+    setError(null)
+    try {
+      const aspect = engine.camera.aspect || 16 / 10
+      const width = 1920
+      const height = Math.max(480, Math.min(2400, Math.round(width / aspect)))
+      const blob = await engine.posterBlob(width, height, "image/webp", 0.9)
+      if (!blob) throw new Error("Nothing on screen to render yet")
+      downloadBlob(blob, "liquidforge-poster.webp")
+      setPosterState("done")
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setPosterState("idle")
+    }
+  }
 
   const origin = typeof window === "undefined" ? "" : window.location.origin
   const share = origin ? shareUrl(config, `${origin}/studio`) : null
@@ -177,6 +214,13 @@ export function ExportModal({
                   ? "A finished section — it paints its own ground."
                   : "Just the surface, composited over whatever your page already has."}
               </p>
+              <Toggle label="Show a poster while it loads" checked={withPoster} onChange={setWithPoster} />
+              {withPoster && (
+                <p className="px-2 font-mono text-[10px] leading-relaxed text-bone/30">
+                  The page paints a still straight away and swaps in the live surface once the browser
+                  is idle. Download the poster below and put it in <code className="text-bone/60">public/</code>.
+                </p>
+              )}
               {meta?.caveat && (
                 <p className="px-2 font-mono text-[10px] leading-relaxed text-bone/35">
                   {meta.caveat}
@@ -222,6 +266,11 @@ export function ExportModal({
           ) : (
             <>
               <CopyButton text={code} label="Copy" variant="primary" />
+              {tab === "code" && withPoster && (
+                <Button onClick={downloadPoster} disabled={!engine || posterState === "working"}>
+                  {posterState === "working" ? "Rendering…" : posterState === "done" ? "Downloaded" : "Download poster"}
+                </Button>
+              )}
               {share ? (
                 <>
                   <CopyButton text={share} label="Copy link" />
