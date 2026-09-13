@@ -381,6 +381,7 @@ export const dynamic = "force-dynamic"`
   return `# 1 · Install
 
 npm i liquidforge three
+npm i -D @types/three   # TypeScript projects: three ships no types of its own
 
 
 # 2 · liquidforge.placements.json

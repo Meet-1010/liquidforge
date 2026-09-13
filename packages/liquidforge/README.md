@@ -25,9 +25,10 @@ Liquidforge removes both. It's an installable component, it forges the object in
 
 ```bash
 npm install liquidforge three
+npm install -D @types/three   # TypeScript projects
 ```
 
-Two peer dependencies: `react` (>=18) and `three` (>=0.160). No react-three-fiber, no postprocessing stack, and no HDRIs — the environment the metal reflects is computed analytically in the fragment shader.
+Two peer dependencies: `react` (>=18) and `three` (>=0.160). In a TypeScript project add `@types/three` as well — three ships no types of its own, and without them a strict build reports errors from inside this library rather than from your code. No react-three-fiber, no postprocessing stack, and no HDRIs — the environment the metal reflects is computed analytically in the fragment shader.
 
 Or scaffold it:
 

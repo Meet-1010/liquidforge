@@ -95,11 +95,12 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "test": "node test/path.test.mjs"
+    "test": "node test/path.test.mjs && node test/cli-add.test.mjs"
   },
   "peerDependencies": {
     "react": ">=18",
-    "three": ">=0.160"
+    "three": ">=0.160",
+    "@types/three": ">=0.160"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -107,5 +108,10 @@
     "@types/three": "^0.172.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
+  },
+  "peerDependenciesMeta": {
+    "@types/three": {
+      "optional": true
+    }
   }
 }
