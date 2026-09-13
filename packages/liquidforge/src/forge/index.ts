@@ -11,6 +11,7 @@ export { forgeSvg } from "./svg"
 export { forgeImage } from "./image"
 export { forgeShape, SHAPE_KINDS } from "./shapes"
 export { forgeModel, type LoadProgress, type ProgressHandler } from "./model"
+export { APPEARANCE_STRIDE, MAX_SLOTS, buildAtlas, type Appearance } from "./appearance"
 export { LiquidRig, RIG_VERTEX_LIMIT, type RigSource } from "./rig"
 export { exportModel, downloadModel, downloadBlob, type ExportOptions } from "./export"
 export {
@@ -32,26 +33,41 @@ export const DEFAULT_OBJECT: ObjectSource = { type: "shape", shape: "sphere", de
  * Shapes are synchronous; everything else needs canvas or network work, so the
  * entry point is async for a single call signature.
  */
+export interface ForgeOptions {
+  /**
+   * Keep the source's own surface — a model's textures and colours, an image's
+   * pixels, an SVG's fills — for the `original` family. Costs the texture
+   * downloads a geometry-only forge skips, so it is off unless asked for.
+   * @default false
+   */
+  appearance?: boolean
+}
+
 export async function forgeGeometry(
   source: ObjectSource,
   onProgress?: ProgressHandler,
+  options: ForgeOptions = {},
 ): Promise<BufferGeometry> {
-  const geometry = await build(source, onProgress)
+  const geometry = await build(source, onProgress, options)
   return fitGeometry(geometry)
 }
 
-async function build(source: ObjectSource, onProgress?: ProgressHandler): Promise<BufferGeometry> {
+async function build(
+  source: ObjectSource,
+  onProgress: ProgressHandler | undefined,
+  options: ForgeOptions,
+): Promise<BufferGeometry> {
   switch (source.type) {
     case "text":
       return forgeText(source)
     case "svg":
-      return forgeSvg(source)
+      return forgeSvg(source, options)
     case "image":
-      return forgeImage(source)
+      return forgeImage(source, options)
     case "shape":
       return forgeShape(source)
     case "model":
-      return forgeModel(source, onProgress)
+      return forgeModel(source, onProgress, options)
     default: {
       const exhaustive: never = source
       throw new Error(`liquidforge: unknown object source ${JSON.stringify(exhaustive)}`)

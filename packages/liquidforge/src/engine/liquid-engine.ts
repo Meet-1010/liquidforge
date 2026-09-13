@@ -1,7 +1,10 @@
 import {
   BufferGeometry,
+  CanvasTexture,
   Color,
+  LinearFilter,
   Matrix3,
+  NoColorSpace,
   Mesh,
   PerspectiveCamera,
   Scene,
@@ -9,7 +12,12 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three"
-import { applyPreset, createLiquidMaterial, type LiquidMaterialHandle } from "../material/liquid-material"
+import {
+  applyPreset,
+  createLiquidMaterial,
+  type LiquidMaterialHandle,
+  type MaterialAppearance,
+} from "../material/liquid-material"
 import { backgroundColor } from "../material/environment"
 import { computeNormals, prepareGeometry } from "./prepare-geometry"
 import { SurfaceProbe, type ProbeMode } from "./pointer"
@@ -141,6 +149,9 @@ export class LiquidEngine {
   private radius = 1
   private zoom = 1
   private rig: LiquidRig | null = null
+  /** The current object's own surface, for the original family. */
+  private appearance: MaterialAppearance | null = null
+  private mutation = 0
   private readonly extents = new Vector3(1, 1, 1)
 
   private frame = 0
@@ -206,6 +217,7 @@ export class LiquidEngine {
     if (options.interactive !== false) {
       this.bindPointer()
       this.bindScroll()
+      this.bindDeviceMotion()
     }
   }
 
@@ -247,9 +259,28 @@ export class LiquidEngine {
 
     this.disposeMesh()
 
+    if (prepared.appearance) {
+      let texture: CanvasTexture | null = null
+      if (prepared.appearance.atlas) {
+        texture = new CanvasTexture(prepared.appearance.atlas)
+        // Raw bytes in, raw bytes out: the families write their colour without
+        // a conversion, so a texture read without one looks like itself.
+        texture.colorSpace = NoColorSpace
+        // Matches glTF's own convention, which the atlas was packed in.
+        texture.flipY = false
+        // No mipmaps: a cell's neighbours would bleed into it at the small end
+        // of the chain, and the atlas is already sized for the object on screen.
+        texture.generateMipmaps = false
+        texture.minFilter = LinearFilter
+        texture.magFilter = LinearFilter
+        texture.needsUpdate = true
+      }
+      this.appearance = { texture, rects: prepared.appearance.rects }
+    }
+
     this.radius = prepared.radius
     this.extents.copy(prepared.extents)
-    this.handle = createLiquidMaterial(this.preset, this.profile.trail)
+    this.handle = createLiquidMaterial(this.preset, this.profile.trail, this.appearance)
     this.mesh = new Mesh(prepared.geometry, this.handle.material)
     this.scene.add(this.mesh)
 
@@ -289,6 +320,7 @@ export class LiquidEngine {
   private bind(handle: LiquidMaterialHandle, radius: number): void {
     const u = handle.material.uniforms
     u.uRadius.value = radius
+    u.uMutation.value = this.mutation
     u.uTrail.value = this.trail.points
     u.uTrailN.value = this.trail.normals
   }
@@ -334,7 +366,7 @@ export class LiquidEngine {
     // material. Everything else moves live, which is what keeps the Studio's
     // sliders from stuttering on every drag.
     if (familyChanged) {
-      const next = createLiquidMaterial(preset, this.profile.trail)
+      const next = createLiquidMaterial(preset, this.profile.trail, this.appearance)
       this.bind(next, this.radius)
       this.mesh.material = next.material
       this.handle.dispose()
@@ -344,6 +376,26 @@ export class LiquidEngine {
       applyPreset(this.handle.material, preset)
     }
     this.renderOnce()
+  }
+
+  /**
+   * How far into a melt the surface is, 0 to 1.
+   *
+   * Nothing in the engine drives this on its own. A placement changing object at
+   * a scroll checkpoint does: it raises this toward 1, swaps the geometry while
+   * the surface is boiling too hard to read, and lets it fall back. The value is
+   * kept here so a material rebuilt mid-melt picks it up.
+   */
+  setMutation(value: number): void {
+    this.mutation = Math.max(0, Math.min(1, value))
+    const u = this.handle?.material.uniforms
+    if (u?.uMutation) u.uMutation.value = this.mutation
+    if (!this.running) this.renderOnce()
+  }
+
+  /** Whether the current object carries its own surface. */
+  get hasAppearance(): boolean {
+    return this.appearance !== null
   }
 
   setMotion(motion: MotionOptions): void {
@@ -581,6 +633,56 @@ export class LiquidEngine {
   }
 
   /**
+   * Tilt as an input.
+   *
+   * The pointer is just a position in normalised device coordinates, so the
+   * phone's orientation can stand in for it: roll becomes x, pitch becomes y.
+   * The pitch is measured against a baseline taken from the first reading and
+   * drifted slowly toward the current one, because nobody holds a phone flat and
+   * everyone holds it at a different angle — a fixed zero would pin the well to
+   * the bottom edge for half the people looking at it.
+   */
+  private bindDeviceMotion(): void {
+    if (typeof window === "undefined" || typeof DeviceOrientationEvent === "undefined") return
+    const setting = this.motion.deviceMotion ?? "auto"
+    if (setting === false) return
+    const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
+    if (setting === "auto" && !coarse) return
+
+    let baseline: number | null = null
+    const onOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta == null || event.gamma == null) return
+      if (baseline === null) baseline = event.beta
+      baseline += (event.beta - baseline) * 0.004
+      const x = Math.max(-1, Math.min(1, event.gamma / 28))
+      const y = Math.max(-1, Math.min(1, -(event.beta - baseline) / 28))
+      this.pointer.set(x * 0.85, y * 0.85)
+      this.pointerSeen = true
+    }
+    const listen = () => {
+      window.addEventListener("deviceorientation", onOrientation)
+      this.detach.push(() => window.removeEventListener("deviceorientation", onOrientation))
+    }
+
+    const gated = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
+    if (typeof gated.requestPermission === "function") {
+      // iOS will only ask inside a user gesture. The first tap anywhere is the
+      // earliest honest moment, and asking on load is simply refused.
+      const ask = () => {
+        gated.requestPermission?.()
+          .then((answer) => {
+            if (answer === "granted") listen()
+          })
+          .catch(() => {})
+      }
+      window.addEventListener("touchend", ask, { once: true, passive: true })
+      this.detach.push(() => window.removeEventListener("touchend", ask))
+    } else {
+      listen()
+    }
+  }
+
+  /**
    * Audio as an input.
    *
    * One analyser over the low band, sampled per frame. Built lazily because
@@ -788,6 +890,46 @@ export class LiquidEngine {
     return true
   }
 
+  /**
+   * A still of the current frame, at a size of your choosing, as an image file.
+   *
+   * For the `poster` prop: the page paints this first, as its largest image,
+   * and the live surface fades in over it once the browser has time. Rendered
+   * at the requested size rather than the on-screen one, the same way a
+   * recording is, so a poster for a 1600px hero is not a 400px thumbnail
+   * scaled up.
+   */
+  async posterBlob(
+    width = 1600,
+    height = 1000,
+    type = "image/webp",
+    quality = 0.9,
+  ): Promise<Blob | null> {
+    if (!this.mesh || !this.handle) return null
+    const previous = this.renderer.getSize(new Vector2())
+    const previousDpr = this.dpr
+    const wasRecording = this.recording
+    this.recording = true
+    this.renderer.setPixelRatio(1)
+    this.renderer.setSize(width, height, false)
+    this.camera.aspect = width / height
+    this.frameCamera()
+
+    // Rendered and read in the same task, or the drawing buffer is already gone.
+    const blob = await new Promise<Blob | null>((resolve) => {
+      this.renderOnce()
+      this.canvas.toBlob(resolve, type, quality)
+    })
+
+    this.recording = wasRecording
+    this.renderer.setPixelRatio(previousDpr)
+    this.renderer.setSize(previous.x, previous.y, false)
+    this.camera.aspect = previous.x / previous.y || 1
+    this.frameCamera()
+    this.renderOnce()
+    return blob
+  }
+
   /** One frame, outside the loop — for a resize, a preset change, or reduced motion. */
   renderOnce(): void {
     const mesh = this.mesh
@@ -943,6 +1085,8 @@ export class LiquidEngine {
   private disposeMesh(): void {
     this.rig?.dispose()
     this.rig = null
+    this.appearance?.texture?.dispose()
+    this.appearance = null
     if (this.mesh) {
       this.scene.remove(this.mesh)
       this.mesh.geometry.dispose()

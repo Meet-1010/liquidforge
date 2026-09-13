@@ -1,6 +1,7 @@
-import { BufferGeometry, ExtrudeGeometry } from "three"
+import { Box3, BufferGeometry, ExtrudeGeometry, Vector3 } from "three"
 import { contourBounds, contoursToShapes, traceContours } from "./contour"
-import { fitTransform, rasterizeImage, thresholdRaster } from "./raster"
+import { fitTransform, loadImage, rasterizeImage, thresholdRaster } from "./raster"
+import { APPEARANCE_STRIDE, buildAtlas, type Appearance } from "./appearance"
 import type { ImageObjectSource } from "../types"
 
 /**
@@ -13,7 +14,10 @@ import type { ImageObjectSource } from "../types"
  * icons and marks are what this mode is for, and they only ever needed the
  * outline.
  */
-export async function forgeImage(source: ImageObjectSource): Promise<BufferGeometry> {
+export async function forgeImage(
+  source: ImageObjectSource,
+  options: { appearance?: boolean } = {},
+): Promise<BufferGeometry> {
   const { src, depth = 0.45, threshold = 0.5 } = source
   if (!src) throw new Error("liquidforge: no image chosen yet")
 
@@ -43,6 +47,38 @@ export async function forgeImage(source: ImageObjectSource): Promise<BufferGeome
     curveSegments: 8,
   })
 
+  // Where the traced pixels ended up before centring, so each vertex can be
+  // walked back to the pixel it came from.
+  const centre = new Box3().setFromBufferAttribute(geometry.getAttribute("position") as never).getCenter(new Vector3())
   geometry.center()
+
+  if (options.appearance) {
+    /*
+     * The image's own pixels, mapped straight back onto its silhouette.
+     *
+     * `contoursToShapes` placed each traced pixel at (px * scale + offset.x,
+     * -py * scale + offset.y), and `center()` then shifted everything by
+     * -centre. Inverting both gives the source pixel for every vertex, so the
+     * front face shows the picture exactly where it was drawn, and the side
+     * walls pick up the colour at the edge they were extruded from.
+     */
+    const image = await loadImage(src)
+    const { atlas, rects } = buildAtlas([image])
+    const position = geometry.getAttribute("position")
+    const extras = new Float32Array(position.count * APPEARANCE_STRIDE)
+    for (let v = 0; v < position.count; v++) {
+      const o = v * APPEARANCE_STRIDE
+      const px = (position.getX(v) + centre.x - offset.x) / scale
+      const py = -(position.getY(v) + centre.y - offset.y) / scale
+      extras[o] = Math.min(1, Math.max(0, px / width))
+      extras[o + 1] = Math.min(1, Math.max(0, py / height))
+      extras[o + 2] = 1
+      extras[o + 3] = 1
+      extras[o + 4] = 1
+      extras[o + 5] = atlas ? 0 : -1
+    }
+    geometry.userData.appearance = { extras, atlas, rects } satisfies Appearance
+  }
+
   return geometry
 }

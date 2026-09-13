@@ -1,4 +1,5 @@
 import { BufferAttribute, BufferGeometry, Sphere, Vector3 } from "three"
+import { APPEARANCE_STRIDE, type Appearance } from "../forge/appearance"
 
 export interface PrepareOptions {
   /** Longest triangle edge to aim for, as a fraction of the bounding radius. */
@@ -29,6 +30,12 @@ export interface PreparedGeometry {
    * topology — which does not change as a rig moves.
    */
   weld: WeldGroups
+  /**
+   * The source's own surface, when it was forged with one. The per-vertex part
+   * is already on the geometry as `lfUv`, `lfSurface` and `lfSlot`; this is the
+   * texture those read from.
+   */
+  appearance?: Pick<Appearance, "atlas" | "rects">
 }
 
 export interface WeldGroups {
@@ -62,10 +69,17 @@ export function prepareGeometry(
   input: BufferGeometry,
   { maxEdge, vertexBudget, creaseAngle = 35 }: PrepareOptions,
 ): PreparedGeometry {
+  // Appearance is aligned with the source's non-indexed vertices. Every forge
+  // that attaches one builds non-indexed geometry, so an indexed input carrying
+  // one is a bug upstream — drop the surface rather than scramble it.
+  const sourceAppearance = input.userData?.appearance as Appearance | undefined
+  const appearance = sourceAppearance && !input.index ? sourceAppearance : undefined
+
   let geometry = input.index ? input.toNonIndexed() : input.clone()
 
   // Only position survives the pipeline — normals are rebuilt from scratch
-  // below and nothing else in the shader reads the mesh's attributes.
+  // below, and the one family that wants the source's surface has it carried
+  // separately, in `extras`, so it can follow the vertices through every pass.
   for (const name of Object.keys(geometry.attributes)) {
     if (name !== "position") geometry.deleteAttribute(name)
   }
@@ -75,6 +89,8 @@ export function prepareGeometry(
   const target = maxEdge * radius
 
   let positions = geometry.getAttribute("position").array as Float32Array
+  let extras: Float32Array | null =
+    appearance && appearance.extras.length === (positions.length / 3) * APPEARANCE_STRIDE ? appearance.extras : null
 
   // Anything from a public catalogue can be a photogrammetry scan — Poly Haven
   // ships grass at 1.6 million triangles. `buildNormals` below buckets every
@@ -92,7 +108,7 @@ export function prepareGeometry(
   const ceiling = vertexBudget / 3
   let decimatedFrom: number | undefined
   if (!rigged && inputTriangles > ceiling) {
-    positions = decimate(positions, ceiling)
+    ;({ positions, extras } = decimate(positions, ceiling, extras))
     decimatedFrom = inputTriangles
   }
 
@@ -105,7 +121,7 @@ export function prepareGeometry(
     const vertexCount = positions.length / 3
     if (vertexCount * 4 > vertexBudget) break
     if (edgePercentile(positions, 0.95) <= target) break
-    positions = subdivide(positions)
+    ;({ positions, extras } = subdivide(positions, extras))
   }
 
   const creaseCos = Math.cos((creaseAngle * Math.PI) / 180)
@@ -118,6 +134,26 @@ export function prepareGeometry(
   out.setAttribute("position", new BufferAttribute(positions, 3))
   out.setAttribute("normal", new BufferAttribute(normal, 3))
   out.setAttribute("flowNormal", new BufferAttribute(flowNormal, 3))
+  if (extras) {
+    const count = positions.length / 3
+    const uv = new Float32Array(count * 2)
+    const surface = new Float32Array(count * 3)
+    const slot = new Float32Array(count)
+    for (let v = 0; v < count; v++) {
+      const o = v * APPEARANCE_STRIDE
+      uv[v * 2] = extras[o]
+      uv[v * 2 + 1] = extras[o + 1]
+      surface[v * 3] = extras[o + 2]
+      surface[v * 3 + 1] = extras[o + 3]
+      surface[v * 3 + 2] = extras[o + 4]
+      slot[v] = extras[o + 5]
+    }
+    // Prefixed so they can never collide with the `uv` and `color` three
+    // declares for itself on a ShaderMaterial.
+    out.setAttribute("lfUv", new BufferAttribute(uv, 2))
+    out.setAttribute("lfSurface", new BufferAttribute(surface, 3))
+    out.setAttribute("lfSlot", new BufferAttribute(slot, 1))
+  }
   out.boundingSphere = new Sphere(new Vector3(), radius)
   out.computeBoundingBox()
   const extents = out.boundingBox
@@ -133,6 +169,7 @@ export function prepareGeometry(
     triangles: positions.length / 9,
     decimatedFrom,
     weld: { groups, creaseCos },
+    ...(extras && appearance ? { appearance: { atlas: appearance.atlas, rects: appearance.rects } } : {}),
   }
 }
 
@@ -147,25 +184,33 @@ export function prepareGeometry(
  * equal positions for merged vertices, so the welding below has nothing left
  * to guess at.
  */
-function decimate(positions: Float32Array, target: number): Float32Array {
-  let current = positions
+function decimate(
+  positions: Float32Array,
+  target: number,
+  extras: Float32Array | null,
+): { positions: Float32Array; extras: Float32Array | null } {
+  let current = { positions, extras }
   // Roughly one cell per output vertex, and a surface of n cells per axis
   // carries on the order of n^2 of them.
   let cellsPerAxis = Math.max(8, Math.ceil(Math.sqrt(target)))
 
   for (let attempt = 0; attempt < 5; attempt++) {
-    const next = cluster(current, cellsPerAxis)
+    const next = cluster(current.positions, current.extras, cellsPerAxis)
     // A pass that removes nothing will not remove anything next time either.
-    if (next.length === 0 || next.length >= current.length) break
+    if (next.positions.length === 0 || next.positions.length >= current.positions.length) break
     current = next
-    if (current.length / 9 <= target) break
+    if (current.positions.length / 9 <= target) break
     cellsPerAxis = Math.max(8, Math.round(cellsPerAxis * 0.7))
   }
 
   return current
 }
 
-function cluster(positions: Float32Array, cellsPerAxis: number): Float32Array {
+function cluster(
+  positions: Float32Array,
+  extras: Float32Array | null,
+  cellsPerAxis: number,
+): { positions: Float32Array; extras: Float32Array | null } {
   let minX = Infinity, minY = Infinity, minZ = Infinity
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
   for (let i = 0; i < positions.length; i += 3) {
@@ -209,6 +254,7 @@ function cluster(positions: Float32Array, cellsPerAxis: number): Float32Array {
   }
 
   const out: number[] = []
+  const outExtras: number[] = []
   for (let t = 0; t < positions.length; t += 9) {
     const ka = cellOf(t)
     const kb = cellOf(t + 3)
@@ -219,9 +265,19 @@ function cluster(positions: Float32Array, cellsPerAxis: number): Float32Array {
     const b = centroids.get(kb)!
     const c = centroids.get(kc)!
     out.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2])
+    if (extras) {
+      // The surviving triangle keeps its own corners' surface rather than a
+      // cell average: averaging UVs across two texture islands lands in the
+      // gutter between them, and a triangle's corners always share an island.
+      const v = t / 3
+      for (let k = 0; k < 3; k++) {
+        const o = (v + k) * APPEARANCE_STRIDE
+        for (let s = 0; s < APPEARANCE_STRIDE; s++) outExtras.push(extras[o + s])
+      }
+    }
   }
 
-  return new Float32Array(out)
+  return { positions: new Float32Array(out), extras: extras ? new Float32Array(outExtras) : null }
 }
 
 /**
@@ -257,26 +313,46 @@ function dist(p: Float32Array, a: number, b: number): number {
 }
 
 /** Split every triangle into four by its edge midpoints. */
-function subdivide(positions: Float32Array): Float32Array {
+function subdivide(
+  positions: Float32Array,
+  extras: Float32Array | null,
+): { positions: Float32Array; extras: Float32Array | null } {
   const triangles = positions.length / 9
   const out = new Float32Array(triangles * 4 * 9)
   const mid = new Float32Array(9) // ab, bc, ca
 
+  const S = APPEARANCE_STRIDE
+  const outExtras = extras ? new Float32Array(triangles * 4 * 3 * S) : null
+  const midExtras = new Float32Array(3 * S)
+
   let w = 0
+  let we = 0
   const push = (source: Float32Array, offset: number) => {
     out[w++] = source[offset]
     out[w++] = source[offset + 1]
     out[w++] = source[offset + 2]
   }
+  const pushExtras = (source: Float32Array, offset: number) => {
+    if (!outExtras) return
+    for (let s = 0; s < S; s++) outExtras[we++] = source[offset + s]
+  }
 
   for (let t = 0; t < triangles; t++) {
     const o = t * 9
+    const oe = t * 3 * S
     for (let k = 0; k < 3; k++) {
       const a = o + k * 3
       const b = o + ((k + 1) % 3) * 3
       mid[k * 3] = (positions[a] + positions[b]) * 0.5
       mid[k * 3 + 1] = (positions[a + 1] + positions[b + 1]) * 0.5
       mid[k * 3 + 2] = (positions[a + 2] + positions[b + 2]) * 0.5
+      if (extras) {
+        // A midpoint of a UV is exactly what the rasteriser would have
+        // interpolated there, so subdividing never moves the texture.
+        const ea = oe + k * S
+        const eb = oe + ((k + 1) % 3) * S
+        for (let s = 0; s < S; s++) midExtras[k * S + s] = (extras[ea + s] + extras[eb + s]) * 0.5
+      }
     }
 
     // (a, ab, ca) (ab, b, bc) (ca, bc, c) (ab, bc, ca)
@@ -284,9 +360,16 @@ function subdivide(positions: Float32Array): Float32Array {
     push(mid, 0); push(positions, o + 3); push(mid, 3)
     push(mid, 6); push(mid, 3); push(positions, o + 6)
     push(mid, 0); push(mid, 3); push(mid, 6)
+
+    if (extras) {
+      pushExtras(extras, oe); pushExtras(midExtras, 0); pushExtras(midExtras, 2 * S)
+      pushExtras(midExtras, 0); pushExtras(extras, oe + S); pushExtras(midExtras, S)
+      pushExtras(midExtras, 2 * S); pushExtras(midExtras, S); pushExtras(extras, oe + 2 * S)
+      pushExtras(midExtras, 0); pushExtras(midExtras, S); pushExtras(midExtras, 2 * S)
+    }
   }
 
-  return out
+  return { positions: out, extras: outExtras }
 }
 
 /**

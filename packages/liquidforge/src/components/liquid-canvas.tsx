@@ -1,14 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, version as reactVersion } from "react"
 import { LiquidEngine } from "../engine/liquid-engine"
 import { LiquidLoading } from "./loading"
 import { forgeGeometry, DEFAULT_OBJECT } from "../forge"
@@ -88,6 +80,18 @@ export interface LiquidCanvasProps {
   background?: string
   /** Stop rendering when scrolled out of view. @default true */
   pauseOffscreen?: boolean
+  /**
+   * A still image of this surface, painted first.
+   *
+   * A WebGL hero is the classic way to fail Core Web Vitals: the largest thing
+   * on the page is a canvas that cannot draw until a script has downloaded, a
+   * shader has compiled and a mesh has been built. With a poster, the page's
+   * largest paint is this image instead, the engine is not even created until
+   * the browser is idle, and the live surface fades in over the still once its
+   * first frame is ready. Generate one from the Studio, or with
+   * `engine.posterBlob()`.
+   */
+  poster?: string
   /** Shown while the object is being forged. */
   fallback?: ReactNode
   /** Shown if WebGL is unavailable or the object fails to build. */
@@ -131,6 +135,7 @@ export function LiquidCanvas({
   transparent = false,
   background,
   pauseOffscreen = true,
+  poster,
   fallback,
   errorFallback,
   onReady,
@@ -147,6 +152,36 @@ export function LiquidCanvas({
   const [generation, setGeneration] = useState(0)
   const [ready, setReady] = useState(false)
   const [incomplete, setIncomplete] = useState(false)
+  /**
+   * Whether the engine may be built yet. Immediately, without a poster. With
+   * one, not until the page has loaded and the browser is idle — the still is
+   * already doing the job, and the point is to stay out of the way of the
+   * page's own first paint and first input.
+   */
+  const [awake, setAwake] = useState(!poster)
+
+  useEffect(() => {
+    if (!poster || awake) return
+    let idle = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const wake = () => setAwake(true)
+    const schedule = () => {
+      const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number
+        cancelIdleCallback?: (id: number) => void
+      }
+      if (w.requestIdleCallback) idle = w.requestIdleCallback(wake, { timeout: 2500 })
+      else timer = setTimeout(wake, 400)
+    }
+    if (document.readyState === "complete") schedule()
+    else window.addEventListener("load", schedule, { once: true })
+    return () => {
+      window.removeEventListener("load", schedule)
+      const w = window as Window & { cancelIdleCallback?: (id: number) => void }
+      if (idle && w.cancelIdleCallback) w.cancelIdleCallback(idle)
+      if (timer) clearTimeout(timer)
+    }
+  }, [poster, awake])
   const [error, setError] = useState<Error | null>(null)
   /** Megabytes in, so a slow download looks like a slow download. */
   const [progress, setProgress] = useState<string | null>(null)
@@ -165,6 +200,14 @@ export function LiquidCanvas({
   )
 
   const objectKey = JSON.stringify(object)
+  /**
+   * Only three kinds of source have a surface of their own to keep, and only
+   * one family reads it. Re-forging on this flag, not on the family, means a
+   * word switching into Original does not rebuild a mesh that has nothing new
+   * to carry.
+   */
+  const wantsSurface =
+    resolved.family === "original" && (object.type === "model" || object.type === "image" || object.type === "svg")
 
   useEffect(() => setWebglOk(supportsWebGL()), [])
 
@@ -182,7 +225,7 @@ export function LiquidCanvas({
   // prepared geometry rather than set as uniforms.
   useEffect(() => {
     const container = surfaceRef.current
-    if (!container || !supportsWebGL()) return
+    if (!container || !supportsWebGL() || !awake) return
 
     let engine: LiquidEngine
     try {
@@ -218,7 +261,7 @@ export function LiquidCanvas({
       engine.dispose()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quality, generation])
+  }, [quality, generation, awake])
 
   // -- the object ------------------------------------------------------------
   useEffect(() => {
@@ -239,11 +282,15 @@ export function LiquidCanvas({
     setIncomplete(false)
     setProgress(null)
 
-    forgeGeometry(object, ({ loaded, total }) => {
-      if (cancelled) return
-      const mb = (bytes: number) => (bytes / 1_048_576).toFixed(1)
-      setProgress(total > 0 ? `${mb(loaded)} / ${mb(total)} MB` : `${mb(loaded)} MB`)
-    })
+    forgeGeometry(
+      object,
+      ({ loaded, total }) => {
+        if (cancelled) return
+        const mb = (bytes: number) => (bytes / 1_048_576).toFixed(1)
+        setProgress(total > 0 ? `${mb(loaded)} / ${mb(total)} MB` : `${mb(loaded)} MB`)
+      },
+      { appearance: wantsSurface },
+    )
       .then((geometry) => {
         if (cancelled || engineRef.current !== engine) {
           geometry.dispose()
@@ -276,7 +323,7 @@ export function LiquidCanvas({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectKey, epoch])
+  }, [objectKey, epoch, wantsSurface])
 
   // -- live settings ---------------------------------------------------------
   useEffect(() => {
@@ -384,7 +431,36 @@ export function LiquidCanvas({
       data-liquidforge="canvas"
       data-state={error ? "error" : incomplete ? "waiting" : ready ? "ready" : "loading"}
     >
-      <div ref={surfaceRef} style={{ position: "absolute", inset: 0 }} />
+      {poster && (
+        <img
+          src={poster}
+          alt=""
+          aria-hidden
+          decoding="async"
+          {...(Number.parseInt(reactVersion, 10) >= 19 ? { fetchPriority: "high" } : { fetchpriority: "high" })}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            opacity: ready ? 0 : 1,
+            transition: "opacity 450ms ease",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      <div
+        ref={surfaceRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          // Under a poster the live surface fades in rather than cutting in, so
+          // the handoff from still to moving is not a flash.
+          ...(poster ? { opacity: ready ? 1 : 0, transition: "opacity 450ms ease" } : null),
+        }}
+      />
 
       {error && (
         <div style={overlayStyle} data-liquidforge="error">
@@ -398,7 +474,7 @@ export function LiquidCanvas({
         </div>
       )}
 
-      {!error && !incomplete && !ready && (
+      {!error && !incomplete && !ready && !poster && (
         <div style={overlayStyle} data-liquidforge="loading">
           {fallback ?? (
             <LiquidLoading

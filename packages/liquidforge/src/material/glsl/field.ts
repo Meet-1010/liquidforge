@@ -36,6 +36,7 @@ uniform float uRippleAmp;
 uniform float uRippleSpeed;
 uniform float uRippleTight;
 uniform float uAdvection;
+uniform float uMutation;    // 0..1, how far into a melt-and-reform the surface is
 
 uniform float uPress;       // 0..1, how hard the cursor is pressing in
 uniform vec3  uPtr;         // object-space point on the surface under the cursor
@@ -103,8 +104,15 @@ float lf_height(vec3 p, vec3 n){
 float lf_drift(vec3 p){
   vec3 q = p / uRadius;
   float t = uTime * 0.14;
-  return (lf_snoise(q * 0.85 + vec3(t, t * 0.7, -t)) * 0.7
-        + lf_snoise(q * 1.7  + vec3(-t * 0.6, t * 0.4, t)) * 0.2) * uNoise;
+  float calm = (lf_snoise(q * 0.85 + vec3(t, t * 0.7, -t)) * 0.7
+              + lf_snoise(q * 1.7  + vec3(-t * 0.6, t * 0.4, t)) * 0.2) * uNoise;
+  // A checkpoint change. The surface boils up, the object is swapped at the
+  // peak while nobody can read its shape, and it settles into the new one —
+  // which reads as the liquid becoming something else rather than as a cut.
+  if (uMutation < 0.001) return calm;
+  float boil = lf_snoise(q * 3.1 + vec3(uTime * 1.3, -uTime * 0.9, uTime * 1.1)) * 0.65
+             + lf_snoise(q * 6.3 + vec3(-uTime * 1.7, uTime * 1.2, -uTime)) * 0.35;
+  return calm + boil * uMutation * uRadius * 0.24;
 }
 `
 }

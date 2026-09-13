@@ -88,6 +88,12 @@ export type MaterialFamily =
   | "halo"
   | "jade"
   | "plasma"
+  /**
+   * The object's own surface — its textures, its vertex colours, its fills —
+   * with only the liquid applied on top. Every other family replaces what the
+   * object looks like; this one keeps it and makes it move.
+   */
+  | "original"
 
 /** How the surface moves. Every field is in object-space units on a 2-unit object. */
 export interface SurfaceOptions {
@@ -260,6 +266,16 @@ export interface MotionOptions {
    * @default undefined
    */
   audio?: HTMLMediaElement | null
+  /**
+   * Steer the light and the well by tilting the phone.
+   *
+   * On a touch screen there is no cursor, so a hero that only answers the
+   * cursor just sits there for most visitors. With this on, the device's tilt
+   * becomes the pointer. iOS only hands out motion data after a tap, so there
+   * the first touch asks for it. `"auto"` turns it on for coarse pointers only.
+   * @default "auto"
+   */
+  deviceMotion?: boolean | "auto"
   /**
    * Honour `prefers-reduced-motion`. When the visitor has asked for reduced
    * motion the drift, ripples and advection freeze and the object renders as a

@@ -121,6 +121,17 @@ const SIGNALS: Record<MaterialFamily, { words: string[]; register: string }> = {
     ],
     register: "electric and technical",
   },
+  original: {
+    // For a brief about the thing itself — a product, a photograph, packaging,
+    // a mascot — where replacing its surface with chrome would lose the point.
+    words: [
+      "product", "packaging", "photo", "photograph", "photoreal", "realistic", "mascot",
+      "character", "merch", "sneaker", "toy", "collectible", "figurine", "3d scan", "scan",
+      "authentic", "true colours", "true colors", "as it is", "keep the colours", "keep the colors",
+      "own colours", "own colors", "texture", "textured",
+    ],
+    register: "faithful to the object's own look",
+  },
 }
 
 /**

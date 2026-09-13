@@ -12,6 +12,7 @@ export const FAMILY_INDEX: Record<MaterialFamily, number> = {
   halo: 7,
   jade: 8,
   plasma: 9,
+  original: 10,
 }
 
 /**
@@ -40,9 +41,10 @@ export const FAMILY_INDEX: Record<MaterialFamily, number> = {
  * so it behaves like a studio the viewer is standing in: the object turning
  * sweeps its reflections, exactly as it should.
  */
-export function fragmentGlsl(trail: number, family: MaterialFamily): string {
+export function fragmentGlsl(trail: number, family: MaterialFamily, appearance = false): string {
   return /* glsl */ `
 #define LF_FAMILY ${FAMILY_INDEX[family]}
+${appearance ? "#define LF_APPEARANCE" : ""}
 
 ${fieldGlsl(trail)}
 ${ADVECT_GLSL}
@@ -70,6 +72,38 @@ varying vec3  vView;
 varying vec3  vObjPos;
 varying vec3  vFlow;
 varying float vHeight;
+
+#ifdef LF_APPEARANCE
+uniform sampler2D uAtlas;
+uniform vec4      uAtlasRects[16];
+uniform float     uHasAtlas;
+varying vec2  vUv;
+varying vec3  vSurface;
+varying float vSlot;
+
+/**
+ * The object's own colour at this fragment.
+ *
+ * The base colour always applies; the texture only where this vertex's
+ * material had one. UVs wrap inside their atlas cell with \`fract\`, which is
+ * what a repeating glTF texture expects.
+ */
+vec3 lf_surface(){
+  vec3 c = vSurface;
+  float slot = floor(vSlot + 0.5);
+  if (uHasAtlas > 0.5 && slot > -0.5) {
+    vec4 r = uAtlasRects[0];
+    for (int k = 0; k < 16; k++) {
+      if (float(k) == slot) r = uAtlasRects[k];
+    }
+    c *= texture2D(uAtlas, r.xy + fract(vUv) * r.zw).rgb;
+  }
+  return c;
+}
+#else
+/** A word or a primitive has no surface of its own; the colourway lends one. */
+vec3 lf_surface(){ return uPalette[0]; }
+#endif
 
 vec3 lf_rotY(vec3 v, float a){ float c=cos(a), s=sin(a); return vec3(c*v.x+s*v.z, v.y, -s*v.x+c*v.z); }
 vec3 lf_rotX(vec3 v, float a){ float c=cos(a), s=sin(a); return vec3(v.x, c*v.y-s*v.z, s*v.y+c*v.z); }
@@ -326,7 +360,7 @@ void main(){
   col += vec3(1.0) * pow(clamp(dot(reflect(-A, N), V), 0.0, 1.0), uSpecPower) * 0.3;
   col = mix(col, uEnvHorizon, fres * uFresnel * 0.25);
 
-#else
+#elif LF_FAMILY == 9
   // ---- Plasma: filaments in a dark body ------------------------------------
   // Magma emits from depth; this emits from the advected field, so the cursor
   // does not warm the surface, it drags the light around in it. A triangle wave
@@ -337,6 +371,31 @@ void main(){
   col += lf_ramp(clamp(0.35 + filament * 0.65, 0.0, 1.0)) * filament * uEmissive;
   col += lf_env(R, max(uRoughness, 0.5)) * 0.12 * uMetalness;
   col = mix(col, uEnvHorizon, fres * uFresnel * 0.3);
+
+#else
+  // ---- Original: the object's own surface, with the liquid on top ---------
+  // Everything above replaces what the object looks like. This keeps it. The
+  // ripples cannot show through colour here — the colour is the object's — so
+  // they show through light instead: a diffuse term that shifts with the rebuilt
+  // normal, and a clear coat whose reflections bend across every dent. The
+  // colourway is the finish and the light, never the colour.
+  vec3 base = lf_surface();
+  float wrap = clamp((ndl + 0.35) / 1.35, 0.0, 1.0);
+  // The colourway tints the light's hue and never its brightness: dividing by
+  // the brightest channel keeps a dim studio from dimming the object, which on
+  // the first pass turned a #ff5a36 fill into brick.
+  vec3 tint = uEnvTop / max(0.2, max(uEnvTop.r, max(uEnvTop.g, uEnvTop.b)));
+  vec3 light = mix(vec3(1.0), tint, 0.22);
+  // A face turned toward the light lands at about its own colour, which is the
+  // promise; the shadow side still falls off so the form reads.
+  col = base * light * (0.42 + 0.72 * wrap);
+
+  float coatF = mix(0.04, 1.0, fres) * mix(0.35, 1.0, uFresnel);
+  vec3 coat = lf_env(R, uRoughness) + lf_key(R, A, uRoughness);
+  col += coat * coatF * (0.25 + 0.75 * uMetalness);
+  // A heavy coat tints the body the way lacquer over a print does.
+  col = mix(col, col * (coat * 0.8 + 0.2), uMetalness * 0.3);
+  col += vec3(1.0) * pow(clamp(dot(R, A), 0.0, 1.0), uSpecPower) * 0.4 * (1.0 - uRoughness);
 #endif
 
   // The well under the cursor sits in its own shadow, whatever the family.

@@ -414,6 +414,69 @@ const PLASMA: Collection = {
   ],
 }
 
+// -- Original ----------------------------------------------------------------
+
+/**
+ * The object as it came, made liquid.
+ *
+ * Every other family is a material that replaces the object's surface. This
+ * one keeps it — a model's own textures and colours, an image's own pixels, an
+ * SVG's own fills — and adds only the motion and the light. So a colourway
+ * here is not a colour at all: it is a *finish* and a *light*. The palette's
+ * first entry is the base colour for sources that have no surface of their own
+ * (a word, a primitive), and the rest tint the studio the finish reflects.
+ */
+const ORIGINAL: Collection = {
+  name: "Original",
+  family: "original",
+  blurb: "Your object's own textures and colours, untouched — only the liquid is added.",
+  background: "mid",
+  surface: {
+    noise: 0.028,
+    dimple: 0.1,
+    rippleAmp: 0.06,
+    rippleSpeed: 0.85,
+    rippleTightness: 46,
+    trailSpacing: 0.07,
+    advection: 0.4,
+  },
+  // metalness is how strongly the clear coat reflects the studio; roughness is
+  // how sharp that reflection is. Low by default: the object's own surface is
+  // the point, and a coat that mirrors too much hides it.
+  shading: { metalness: 0.35, roughness: 0.22, fresnel: 0.45, specPower: 36 },
+  colourways: [
+    { name: "Natural", palette: ["#e9e4da", "#f4f1ea", "#9aa0aa", "#2a2c31"] },
+    {
+      name: "Wet",
+      palette: ["#dfe3e8", "#ffffff", "#a8b3c2", "#1a1d22"],
+      shading: { metalness: 0.7, roughness: 0.05, fresnel: 0.7, specPower: 70 },
+    },
+    {
+      name: "Satin",
+      palette: ["#ece6dc", "#f6f2ea", "#b7ae9f", "#35322c"],
+      shading: { metalness: 0.15, roughness: 0.55, fresnel: 0.3, specPower: 14 },
+    },
+    {
+      name: "Glazed",
+      palette: ["#f2efe8", "#ffffff", "#c9c1b3", "#2b2925"],
+      shading: { metalness: 0.55, roughness: 0.1, fresnel: 0.55, specPower: 90 },
+    },
+    { name: "Studio", palette: ["#f5f5f5", "#ffffff", "#d9dde3", "#40444b"] },
+    {
+      name: "Noir",
+      palette: ["#bdbdbd", "#6e7076", "#2b2d31", "#050506"],
+      shading: { metalness: 0.45, roughness: 0.18, fresnel: 0.8, specPower: 60 },
+    },
+    { name: "Golden hour", palette: ["#f1dcc0", "#ffcf94", "#e0925a", "#3a2412"] },
+    { name: "Moonlit", palette: ["#d6def0", "#a9c2ff", "#5a74b8", "#0d1426"] },
+    {
+      name: "Chrome-dipped",
+      palette: ["#e8ebf0", "#ffffff", "#8a90a0", "#15171c"],
+      shading: { metalness: 0.95, roughness: 0.06, fresnel: 0.6, specPower: 80 },
+    },
+  ],
+}
+
 export const COLLECTIONS: Collection[] = [
   MERCURY,
   AURORA,
@@ -425,4 +488,5 @@ export const COLLECTIONS: Collection[] = [
   HALO,
   JADE,
   PLASMA,
+  ORIGINAL,
 ]

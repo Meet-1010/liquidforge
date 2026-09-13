@@ -1,4 +1,4 @@
-import { Color, DoubleSide, Matrix3, ShaderMaterial, Vector2, Vector3, Vector4 } from "three"
+import { Color, DoubleSide, Matrix3, ShaderMaterial, Vector2, Vector3, Vector4, type Texture } from "three"
 import { fragmentGlsl } from "./glsl/fragment"
 import { vertexGlsl } from "./glsl/vertex"
 import { studioColors } from "./environment"
@@ -45,10 +45,29 @@ function paletteVectors(palette: string[]): Color[] {
   return colors
 }
 
-export function createLiquidMaterial(preset: LiquidPreset, trail: number): LiquidMaterialHandle {
+/** The source's own surface, for the `original` family. */
+export interface MaterialAppearance {
+  texture: Texture | null
+  rects: Float32Array
+}
+
+function atlasRects(rects: Float32Array | undefined): Vector4[] {
+  return Array.from({ length: 16 }, (_, i) =>
+    rects ? new Vector4(rects[i * 4], rects[i * 4 + 1], rects[i * 4 + 2], rects[i * 4 + 3]) : new Vector4(0, 0, 1, 1),
+  )
+}
+
+export function createLiquidMaterial(
+  preset: LiquidPreset,
+  trail: number,
+  appearance?: MaterialAppearance | null,
+): LiquidMaterialHandle {
+  // Only the one family reads the surface, so only it pays for the varyings,
+  // the atlas lookup and the loop over its rects.
+  const withSurface = preset.family === "original" && Boolean(appearance)
   const material = new ShaderMaterial({
-    vertexShader: vertexGlsl(trail),
-    fragmentShader: fragmentGlsl(trail, preset.family),
+    vertexShader: vertexGlsl(trail, withSurface),
+    fragmentShader: fragmentGlsl(trail, preset.family, withSurface),
     // Contour-traced geometry can wind either way and a deep ripple can turn a
     // face over, so both sides have to draw. The fragment shader flips the
     // normal on back faces to keep the relief the right way round.
@@ -67,6 +86,11 @@ export function createLiquidMaterial(preset: LiquidPreset, trail: number): Liqui
       uRippleSpeed: { value: preset.surface.rippleSpeed },
       uRippleTight: { value: preset.surface.rippleTightness },
       uAdvection: { value: preset.surface.advection },
+      uMutation: { value: 0 },
+
+      uAtlas: { value: withSurface ? (appearance?.texture ?? null) : null },
+      uAtlasRects: { value: atlasRects(withSurface ? appearance?.rects : undefined) },
+      uHasAtlas: { value: withSurface && appearance?.texture ? 1 : 0 },
 
       uPress: { value: 0 },
       uPtr: { value: new Vector3(0, 0, 1) },

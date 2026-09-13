@@ -29,11 +29,24 @@ import { fieldGlsl } from "./field"
  * open along every edge. `flowNormal` is welded across position, so the seam
  * holds; `normal` still shades it, so the crease stays crisp.
  */
-export function vertexGlsl(trail: number): string {
+export function vertexGlsl(trail: number, appearance = false): string {
   return /* glsl */ `
+${appearance ? "#define LF_APPEARANCE" : ""}
 ${fieldGlsl(trail)}
 
 attribute vec3 flowNormal;
+
+#ifdef LF_APPEARANCE
+// The source's own surface, carried through the pipeline for the original
+// family. Named with a prefix so they never collide with the uv and color
+// attributes three declares on a ShaderMaterial for itself.
+attribute vec2  lfUv;
+attribute vec3  lfSurface;
+attribute float lfSlot;
+varying vec2  vUv;
+varying vec3  vSurface;
+varying float vSlot;
+#endif
 
 // Diagnostics. 1 is the correct behaviour; 0 is the specific failure the
 // explainer page exists to show.
@@ -67,6 +80,16 @@ void main(){
   float hb = nz + lf_height(position + t2 * e, dir);
 
   vec3 nrm = normalize(n - (t1 * (ha - h) + t2 * (hb - h)) / e * uRebuildNormals);
+
+  // A melt pulls the object in a little, so the reforming shape grows back out
+  // of the old one instead of popping to full size.
+  p *= 1.0 - uMutation * 0.14;
+
+#ifdef LF_APPEARANCE
+  vUv = lfUv;
+  vSurface = lfSurface;
+  vSlot = lfSlot;
+#endif
 
   vObjPos = p;
   vFlow = nrm;

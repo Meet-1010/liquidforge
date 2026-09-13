@@ -6,11 +6,14 @@ import {
   Mesh,
   Object3D,
   Vector3,
+  type Material,
+  type Texture,
 } from "three"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js"
 import { LiquidRig, RIG_VERTEX_LIMIT, type RigSource } from "./rig"
 import type { ModelObjectSource } from "../types"
+import { APPEARANCE_STRIDE, MAX_SLOTS, buildAtlas, linearToSrgb, srgbOf, type Appearance } from "./appearance"
 
 /** A 1x1 transparent PNG. Small enough to be free, real enough to decode. */
 const BLANK_PIXEL =
@@ -62,8 +65,11 @@ const cache = new Map<string, Promise<LoadedGltf>>()
  */
 const STALL_TIMEOUT_MS = 45_000
 
-function loadGltf(src: string, onProgress?: ProgressHandler): Promise<LoadedGltf> {
-  const cached = cache.get(src)
+function loadGltf(src: string, onProgress?: ProgressHandler, withTextures = false): Promise<LoadedGltf> {
+  // The geometry-only load and the textured load are different requests with
+  // different results, so they cannot share an entry.
+  const key = `${withTextures ? "textured" : "shape"}:${src}`
+  const cached = cache.get(key)
   if (cached) return cached
 
   const promise = new Promise<LoadedGltf>((resolve, reject) => {
@@ -92,7 +98,7 @@ function loadGltf(src: string, onProgress?: ProgressHandler): Promise<LoadedGltf
 
     resetStallTimer()
 
-    new GLTFLoader(geometryOnlyManager()).load(
+    new GLTFLoader(withTextures ? new LoadingManager() : geometryOnlyManager()).load(
       src,
       done((gltf: { scene: Object3D; animations?: AnimationClip[] }) =>
         resolve({ scene: gltf.scene, animations: gltf.animations ?? [] }),
@@ -112,8 +118,8 @@ function loadGltf(src: string, onProgress?: ProgressHandler): Promise<LoadedGltf
     )
   })
   // Don't cache rejections, or a transient network blip becomes permanent.
-  promise.catch(() => cache.delete(src))
-  cache.set(src, promise)
+  promise.catch(() => cache.delete(key))
+  cache.set(key, promise)
   return promise
 }
 
@@ -136,10 +142,12 @@ function loadGltf(src: string, onProgress?: ProgressHandler): Promise<LoadedGltf
 export async function forgeModel(
   source: ModelObjectSource,
   onProgress?: ProgressHandler,
+  options: { appearance?: boolean } = {},
 ): Promise<BufferGeometry> {
   if (!source.src) throw new Error("liquidforge: no model file chosen yet")
 
-  const loaded = await loadGltf(source.src, onProgress)
+  const keepAppearance = options.appearance === true
+  const loaded = await loadGltf(source.src, onProgress, keepAppearance)
   // SkeletonUtils.clone, not Object3D.clone: a plain clone leaves SkinnedMeshes
   // pointing at the original's bones, so two heroes sharing a cached glTF would
   // drive each other's skeletons.
@@ -147,8 +155,23 @@ export async function forgeModel(
   scene.updateWorldMatrix(true, true)
 
   const chunks: Float32Array[] = []
+  const extraChunks: Float32Array[] = []
   const sources: RigSource[] = []
   let total = 0
+
+  // One atlas slot per distinct image, however many materials point at it.
+  const slotOf = new Map<unknown, number>()
+  const atlasImages: CanvasImageSource[] = []
+  const slotFor = (map: Texture | null | undefined): number => {
+    const image = map?.image as CanvasImageSource | undefined
+    if (!image) return -1
+    const known = slotOf.get(image)
+    if (known !== undefined) return known
+    if (atlasImages.length >= MAX_SLOTS) return -1
+    slotOf.set(image, atlasImages.length)
+    atlasImages.push(image)
+    return atlasImages.length - 1
+  }
 
   const world = new Vector3()
 
@@ -186,6 +209,8 @@ export async function forgeModel(
     chunks.push(array)
     sources.push({ mesh, offset: total / 3, count: position.count })
     total += array.length
+
+    if (keepAppearance) extraChunks.push(meshAppearance(mesh, local, position.count, slotFor))
   })
 
   if (total === 0) throw new Error(`liquidforge: "${source.src}" contains no meshes`)
@@ -200,6 +225,17 @@ export async function forgeModel(
   const geometry = new BufferGeometry()
   geometry.setAttribute("position", new BufferAttribute(positions, 3))
 
+  if (keepAppearance) {
+    const extras = new Float32Array((total / 3) * APPEARANCE_STRIDE)
+    let at = 0
+    for (const chunk of extraChunks) {
+      extras.set(chunk, at)
+      at += chunk.length
+    }
+    const { atlas, rects } = buildAtlas(atlasImages)
+    geometry.userData.appearance = { extras, atlas, rects } satisfies Appearance
+  }
+
   const vertices = total / 3
   if (loaded.animations.length > 0 && vertices <= RIG_VERTEX_LIMIT) {
     // Filled in by `fitGeometry`, which is the only thing that knows how the
@@ -213,4 +249,78 @@ export async function forgeModel(
   }
 
   return geometry
+}
+
+/**
+ * One mesh's surface, per vertex: its UV, its base colour, and its atlas slot.
+ *
+ * A glTF mesh can carry several materials, split by geometry groups, and each
+ * can bring a colour factor, vertex colours and a base-colour map with its own
+ * UV transform. All four are resolved here so the shader only ever sees one
+ * colour and one lookup.
+ */
+function meshAppearance(
+  mesh: Mesh,
+  geometry: BufferGeometry,
+  count: number,
+  slotFor: (map: Texture | null | undefined) => number,
+): Float32Array {
+  const out = new Float32Array(count * APPEARANCE_STRIDE)
+  const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as Array<
+    Material & { color?: import("three").Color; map?: Texture | null; vertexColors?: boolean }
+  >
+  const uv = geometry.getAttribute("uv")
+  const colour = geometry.getAttribute("color")
+  const groups = geometry.groups.length > 0 ? geometry.groups : [{ start: 0, count, materialIndex: 0 }]
+
+  // Resolve each material once, not once per vertex.
+  const resolved = materials.map((material) => {
+    const map = material?.map ?? null
+    if (map) map.updateMatrix()
+    return {
+      base: srgbOf(material?.color),
+      map,
+      slot: slotFor(map),
+      vertexColours: Boolean(material?.vertexColors && colour),
+    }
+  })
+
+  for (const group of groups) {
+    const entry = resolved[group.materialIndex ?? 0] ?? resolved[0]
+    if (!entry) continue
+    const end = Math.min(count, group.start + group.count)
+    const e = entry.map?.matrix.elements
+
+    for (let v = group.start; v < end; v++) {
+      const o = v * APPEARANCE_STRIDE
+      let u = uv ? uv.getX(v) : 0
+      let w = uv ? uv.getY(v) : 0
+      if (e) {
+        // KHR_texture_transform, as three already parsed it into the map.
+        const tu = e[0] * u + e[3] * w + e[6]
+        const tw = e[1] * u + e[4] * w + e[7]
+        u = tu
+        w = tw
+      }
+      // glTF maps are loaded unflipped, which matches the atlas; anything that
+      // arrived flipped needs turning the right way up to match.
+      if (entry.map?.flipY) w = 1 - w
+
+      let [r, g, b] = entry.base
+      if (entry.vertexColours && colour) {
+        r *= linearToSrgb(colour.getX(v))
+        g *= linearToSrgb(colour.getY(v))
+        b *= linearToSrgb(colour.getZ(v))
+      }
+
+      out[o] = u
+      out[o + 1] = w
+      out[o + 2] = r
+      out[o + 3] = g
+      out[o + 4] = b
+      out[o + 5] = entry.slot
+    }
+  }
+
+  return out
 }
