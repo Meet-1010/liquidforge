@@ -31,6 +31,49 @@ export interface PlacementPoint {
    * Rotation at this point, in turns (1 = full circle). Omitted means carry on.
    */
   spin?: number
+  /**
+   * The scroll progress, 0–1, at which the object reaches this point.
+   *
+   * Omitted, points are spaced by distance along the route, which is what a
+   * hand-drawn path wants. Set, this point becomes a fixed moment — "be here
+   * when the reader is a third of the way down" — and the points either side of
+   * it are spaced by distance within that window.
+   */
+  at?: number
+  /**
+   * Tie this point's moment to an element instead of a number.
+   *
+   * The object reaches this point on screen at the moment the element reaches
+   * the same height on screen. So when the copy above it changes and the
+   * element moves down the page, the moment moves with it, and the object still
+   * arrives beside `#pricing` rather than beside whatever is now where pricing
+   * used to be. Only meaningful in the `viewport` frame.
+   */
+  anchor?: PlacementAnchor
+  /**
+   * From this point on, the object becomes this. A point that sets an object or
+   * a colourway is a checkpoint: scroll past it and the surface boils up, the
+   * shape swaps at the peak, and it settles into the new one.
+   */
+  object?: ObjectSource
+  /** From this point on, this colourway — bred into from the previous one across the checkpoint. */
+  preset?: string
+}
+
+export interface PlacementAnchor {
+  /** A CSS selector. An id is the robust choice; the editor writes one when it can. */
+  selector: string
+  /** Which height of the element meets the point: 0 its top, 1 its bottom. @default 0.5 */
+  ay?: number
+  /**
+   * Also take the point's horizontal position from the element, so the object
+   * lines up with it sideways as well — useful when a layout reflows between
+   * one column and two.
+   * @default false
+   */
+  followX?: boolean
+  /** With `followX`, which part of the element's width: 0 left, 1 right. @default 0.5 */
+  ax?: number
 }
 
 export interface PlacementPath {
@@ -47,6 +90,12 @@ export interface PlacementPath {
    * @default 0.12
    */
   ease?: number
+  /**
+   * How much scroll either side of a checkpoint the transition takes, as a
+   * fraction of the whole. Wider melts are slower and more deliberate.
+   * @default 0.06
+   */
+  morph?: number
   /**
    * `true` draws through the points as a smooth curve, `false` as straight
    * segments. Drawn paths are dense enough that the two look nearly identical;
@@ -102,11 +151,52 @@ export interface Placement {
    */
   layer?: number
   /**
+   * A different placement for narrower screens.
+   *
+   * Fractions of the viewport put the object *proportionally* in the same place
+   * on a phone, which is often exactly wrong: a size that sits beside a column
+   * on a monitor covers the whole column on a phone. Each override replaces the
+   * route for that width — and can swap the object or colourway too, if a
+   * smaller one reads better there. Widths are `BREAKPOINTS`.
+   */
+  breakpoints?: Partial<Record<BreakpointName, PlacementOverride>>
+  /**
    * Whether the object swallows pointer events. Off by default: something
    * floating over a page should not eat clicks meant for the page.
    * @default false
    */
   interactive?: boolean
+}
+
+export type BreakpointName = "tablet" | "phone"
+
+/** The widest viewport, in CSS pixels, each breakpoint applies to. */
+export const BREAKPOINTS: Record<BreakpointName, number> = { tablet: 1024, phone: 640 }
+
+/** What a breakpoint may replace. Anything it leaves out is inherited. */
+export type PlacementOverride = Partial<Pick<Placement, "origin" | "path" | "object" | "preset" | "frame">>
+
+/** Which breakpoint a viewport width falls into, or null for the full placement. */
+export function breakpointFor(width: number): BreakpointName | null {
+  if (width <= BREAKPOINTS.phone) return "phone"
+  if (width <= BREAKPOINTS.tablet) return "tablet"
+  return null
+}
+
+/**
+ * The placement to use at a given width.
+ *
+ * A phone falls back to the tablet override when it has none of its own, and
+ * then to the full placement, because a layout that works on a tablet is
+ * usually closer to right on a phone than the desktop one is.
+ */
+export function resolveBreakpoint(placement: Placement, width: number): Placement {
+  const name = breakpointFor(width)
+  if (!name || !placement.breakpoints) return placement
+  const override =
+    placement.breakpoints[name] ?? (name === "phone" ? placement.breakpoints.tablet : undefined)
+  if (!override) return placement
+  return { ...placement, ...override, breakpoints: placement.breakpoints }
 }
 
 /** What the sidecar file holds: one placement per `id` on the page. */

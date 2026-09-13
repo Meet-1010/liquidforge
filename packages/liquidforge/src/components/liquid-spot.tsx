@@ -1,12 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { LiquidCanvas, type LiquidCanvasProps } from "./liquid-canvas"
+import type { LiquidEngine } from "../engine/liquid-engine"
 import { useReducedMotion } from "../hooks/use-reduced-motion"
-import { pointAt, samplePath, type SampledPath } from "../placement/path"
+import { checkpointAt, pointAt, samplePath, type SampledPath } from "../placement/path"
+import { resolveAnchors } from "../placement/anchors"
 import { getOverride, getScrub, subscribePlacements } from "../placement/live-store"
 import { warnIfPaintedBehindBackground } from "../placement/layer-check"
-import { DEFAULT_PLACEMENT, type Placement } from "../placement/types"
+import { breakpointFor, DEFAULT_PLACEMENT, resolveBreakpoint, type Placement, type PlacementPath } from "../placement/types"
+import { blendPresets } from "../breed"
+import { forgeGeometry } from "../forge"
+import { resolvePreset } from "../presets"
+import type { ObjectSource } from "../types"
 
 export interface LiquidSpotProps extends LiquidCanvasProps {
   /**
@@ -24,13 +30,13 @@ export interface LiquidSpotProps extends LiquidCanvasProps {
  *
  * Unlike `LiquidHero`, this one owns no layout: it floats over whatever you
  * already built, at a position and size that came from the editor, optionally
- * travelling a path as the page scrolls.
+ * travelling a path as the page scrolls — and, at checkpoints along that path,
+ * melting into a different object and a different look.
  *
  * ```tsx
  * import placements from "./liquidforge.placements.json"
  *
- * <LiquidSpot id="hero" placement={placements.hero}
- *   object={{ type: "shape", shape: "torusknot" }} preset="mercury-3" />
+ * <LiquidSpot id="hero" placement={placements.hero} />
  * ```
  *
  * The `placement` prop is the entire interface to the editor. Nothing here
@@ -45,10 +51,13 @@ export function LiquidSpot({
   // it is the only sane default — unlike `LiquidHero`, which owns its own band
   // of the layout and can reasonably paint a ground.
   transparent = true,
+  onEngine,
+  fallback,
   ...canvasProps
 }: LiquidSpotProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  const engineRef = useRef<LiquidEngine | null>(null)
   const reducedMotion = useReducedMotion()
 
   /*
@@ -56,17 +65,30 @@ export function LiquidSpot({
    * shows up here on the same frame. With no editor these both return
    * undefined for the life of the page and we fall through to the props.
    */
-  const override = useSyncExternalStore(
-    subscribePlacements,
-    () => getOverride(id),
-    () => undefined,
+  const override = useSyncExternalStore(subscribePlacements, () => getOverride(id), () => undefined)
+  const scrub = useSyncExternalStore(subscribePlacements, () => getScrub(id), () => undefined)
+  const raw = override ?? fromProps
+
+  // -- breakpoint ------------------------------------------------------------
+  // Tracked as a bucket, not a width, so resizing within one bucket does not
+  // re-render anything — the frame is re-measured inside the paint loop anyway.
+  const [bucket, setBucket] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : breakpointFor(window.innerWidth),
   )
-  const scrub = useSyncExternalStore(
-    subscribePlacements,
-    () => getScrub(id),
-    () => undefined,
+  useEffect(() => {
+    const onResize = () => setBucket(breakpointFor(window.innerWidth))
+    onResize()
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
+  const placement = useMemo(
+    () =>
+      resolveBreakpoint(
+        raw,
+        bucket === "phone" ? 1 : bucket === "tablet" ? 800 : typeof window === "undefined" ? 1440 : 100_000,
+      ),
+    [raw, bucket],
   )
-  const placement = override ?? fromProps
 
   const frame = placement.frame ?? "viewport"
   const path = placement.path
@@ -76,15 +98,109 @@ export function LiquidSpot({
     if (process.env.NODE_ENV === "production" || layer >= 0) return
     warnIfPaintedBehindBackground(hostRef.current, id)
   }, [layer, id])
+
+  // -- anchors ---------------------------------------------------------------
+  const [anchors, setAnchors] = useState(() => resolveAnchors(undefined))
+  useEffect(() => {
+    if (!path?.points.some((point) => point.anchor) || frame !== "viewport") {
+      setAnchors(resolveAnchors(undefined))
+      return
+    }
+    let queued = 0
+    let lastKey = ""
+    const measure = () => {
+      queued = 0
+      const next = resolveAnchors(path)
+      // Only re-sample when a moment actually moved, not on every observer tick.
+      const key = next.pinned.map((v) => (v === undefined ? "-" : v.toFixed(4))).join(",") +
+        "|" + next.xs.map((v) => (v === undefined ? "-" : v.toFixed(4))).join(",")
+      if (key === lastKey) return
+      lastKey = key
+      setAnchors(next)
+    }
+    const request = () => {
+      if (!queued) queued = requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener("resize", request)
+    // Images decoding, fonts swapping, content streaming in: all of it moves the
+    // elements the moments are pinned to.
+    const observer = new ResizeObserver(request)
+    observer.observe(document.documentElement)
+    return () => {
+      cancelAnimationFrame(queued)
+      window.removeEventListener("resize", request)
+      observer.disconnect()
+    }
+  }, [path, frame])
+
+  const effectivePath: PlacementPath | undefined = useMemo(() => {
+    if (!path) return undefined
+    if (!anchors.xs.some((x) => x !== undefined)) return path
+    return { ...path, points: path.points.map((point, i) => (anchors.xs[i] === undefined ? point : { ...point, x: anchors.xs[i]! })) }
+  }, [path, anchors])
+
   const sampled: SampledPath | null = useMemo(
-    () => (path && path.points.length > 0 ? samplePath(path) : null),
-    [path],
+    () => (effectivePath && effectivePath.points.length > 0 ? samplePath(effectivePath, anchors.pinned) : null),
+    [effectivePath, anchors],
+  )
+
+  // -- checkpoints -----------------------------------------------------------
+  const baseObject: ObjectSource | undefined = placement.object ?? canvasProps.object
+  const basePreset: string | undefined =
+    placement.preset ?? (typeof canvasProps.preset === "string" ? canvasProps.preset : undefined)
+  const hasCheckpoints = Boolean(path?.points.some((point) => point.object || point.preset))
+
+  // Only crossing a checkpoint re-renders; everything between is imperative.
+  const [settled, setSettled] = useState<{ objectFrom: number; preset: string | undefined }>({
+    objectFrom: -1,
+    preset: basePreset,
+  })
+  const settledRef = useRef(settled)
+  settledRef.current = settled
+  const lastLook = useRef("")
+  const lastMutation = useRef(-1)
+
+  // An edit to the placement — a new base look, a redrawn route — starts the
+  // checkpoint bookkeeping over; the next frame works out where the scroll is.
+  const pathKey = JSON.stringify(path?.points ?? null)
+  useEffect(() => {
+    const reset = { objectFrom: -1, preset: basePreset }
+    settledRef.current = reset
+    setSettled(reset)
+    lastLook.current = ""
+    lastMutation.current = -1
+  }, [basePreset, pathKey])
+
+  const currentObject =
+    settled.objectFrom >= 0 ? (path?.points[settled.objectFrom]?.object ?? baseObject) : baseObject
+
+  // Warm the forge for every checkpoint's object up front, so the swap at the
+  // peak of a melt is a cache hit rather than a download that lands late.
+  const checkpointObjectsKey = JSON.stringify(path?.points.map((point) => point.object ?? null) ?? [])
+  useEffect(() => {
+    if (!hasCheckpoints || typeof window === "undefined") return
+    for (const point of path?.points ?? []) {
+      if (point.object && (point.object.type === "model" || point.object.type === "svg")) {
+        forgeGeometry(point.object).then((geometry) => geometry.dispose()).catch(() => {})
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkpointObjectsKey, hasCheckpoints])
+
+  const handleEngine = useCallback(
+    (engine: LiquidEngine | null) => {
+      engineRef.current = engine
+      onEngine?.(engine)
+    },
+    [onEngine],
   )
 
   /*
-   * Scroll position, the eased position chasing it, and whether anything has
-   * been painted yet — all in refs. This component renders once and then never
-   * again; every frame after that is a transform written directly to the node.
+   * Scroll position, the eased position chasing it, and the last thing written
+   * to the engine — all in refs. Between checkpoints this component does not
+   * render; every frame is a transform written to the node and a handful of
+   * uniforms written to the material.
    */
   const target = useRef(0)
   const eased = useRef<number | null>(null)
@@ -103,7 +219,7 @@ export function LiquidSpot({
       if (width === 0 || height === 0) return
 
       let spot = placement.origin
-      if (sampled) {
+      if (sampled && effectivePath) {
         if (scrub != null) {
           // The editor is holding the playhead. Follow it exactly — easing here
           // would make the scrubber feel broken rather than smooth.
@@ -115,6 +231,37 @@ export function LiquidSpot({
           eased.current += (target.current - eased.current) * ease
         }
         spot = pointAt(sampled, eased.current) ?? placement.origin
+
+        if (hasCheckpoints) {
+          const state = checkpointAt(effectivePath, sampled, eased.current, { object: baseObject, preset: basePreset }, path?.morph)
+          const engine = engineRef.current
+
+          // The object and the settled look change by re-render, and only when
+          // a checkpoint is actually crossed.
+          const settledPreset = state.blend > 0 ? settledRef.current.preset : state.presetTo
+          if (state.objectFrom !== settledRef.current.objectFrom || (state.blend === 0 && settledPreset !== settledRef.current.preset)) {
+            const next = { objectFrom: state.objectFrom, preset: state.blend === 0 ? state.presetTo : settledRef.current.preset }
+            settledRef.current = next
+            setSettled(next)
+          }
+
+          if (engine) {
+            if (Math.abs(state.mutation - lastMutation.current) > 0.002) {
+              lastMutation.current = state.mutation
+              engine.setMutation(reducedMotion ? 0 : state.mutation)
+            }
+            const look = `${state.presetFrom}|${state.presetTo}|${state.blend.toFixed(3)}`
+            if (look !== lastLook.current && state.presetTo) {
+              lastLook.current = look
+              const to = resolvePreset(state.presetTo)
+              engine.setPresetLive(
+                state.blend > 0 && state.presetFrom && state.presetFrom !== state.presetTo
+                  ? blendPresets(resolvePreset(state.presetFrom), to, state.blend)
+                  : to,
+              )
+            }
+          }
+        }
       }
 
       const size = (spot.size ?? 0.34) * width
@@ -156,10 +303,10 @@ export function LiquidSpot({
       window.removeEventListener("resize", onResize)
       observer.disconnect()
     }
-  }, [frame, path, placement, sampled, reducedMotion, scrub])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame, effectivePath, placement, sampled, reducedMotion, scrub, hasCheckpoints, basePreset, JSON.stringify(baseObject)])
 
-  // Scroll → target progress. Inlined rather than using the hook so the whole
-  // runtime path stays in one file you can read top to bottom.
+  // Scroll → target progress.
   useEffect(() => {
     if (typeof window === "undefined" || !sampled) return
 
@@ -217,11 +364,15 @@ export function LiquidSpot({
           {...canvasProps}
           /* The file wins over the props: whatever the editor last saved is
              what renders, so a spot that has been placed needs no props here
-             beyond its id. */
-          object={placement.object ?? canvasProps.object}
-          preset={placement.preset ?? canvasProps.preset}
+             beyond its id. At a checkpoint, the checkpoint's object wins. */
+          object={currentObject ?? canvasProps.object}
+          preset={settled.preset ?? basePreset ?? canvasProps.preset}
           transparent={transparent}
-          style={{ width: "100%", height: "100%" }}
+          onEngine={handleEngine}
+          // A floating object must not flash a loading label mid-scroll when a
+          // checkpoint swaps it: the old mesh stays up until the new one is ready.
+          fallback={fallback ?? <span />}
+          style={{ width: "100%", height: "100%", minHeight: 0 }}
         />
       </div>
     </div>

@@ -355,7 +355,24 @@ export class LiquidEngine {
 
   // -- configuration ---------------------------------------------------------
 
+  /**
+   * Take a new look without an extra frame.
+   *
+   * For callers that change the preset continuously — a scroll checkpoint
+   * breeding one colourway into the next — and already have a render loop
+   * running. `setPreset` renders once on every call so a still canvas updates;
+   * at scroll rate that doubles the work of every frame.
+   */
+  setPresetLive(preset: LiquidPreset): void {
+    this.applyPresetState(preset)
+  }
+
   setPreset(preset: LiquidPreset): void {
+    this.applyPresetState(preset)
+    this.renderOnce()
+  }
+
+  private applyPresetState(preset: LiquidPreset): void {
     const familyChanged = preset.family !== this.preset.family
     this.preset = preset
     this.applyClearColor()
@@ -375,7 +392,6 @@ export class LiquidEngine {
     } else {
       applyPreset(this.handle.material, preset)
     }
-    this.renderOnce()
   }
 
   /**

@@ -15,8 +15,16 @@ export { LiquidSpot, type LiquidSpotProps } from "./components/liquid-spot"
 // Placement — the runtime half of the in-place editor. The editor itself lives
 // at "liquidforge/editor" so it never reaches a production bundle.
 export {
+  BREAKPOINTS,
   DEFAULT_PLACEMENT,
   PLACEMENTS_ENDPOINT,
+  breakpointFor,
+  resolveBreakpoint,
+  checkpointAt,
+  type BreakpointName,
+  type CheckpointState,
+  type PlacementAnchor,
+  type PlacementOverride,
   samplePath,
   pointAt,
   pathToSvg,
@@ -88,6 +96,7 @@ export {
 } from "./catalog"
 
 export { mutatePreset, randomPreset, type MutateOptions } from "./codegen/mutate"
+export { blendPresets, breed, litter, mixHex, type Child, type BreedOptions } from "./breed"
 
 export {
   recommend,

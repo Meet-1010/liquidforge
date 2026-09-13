@@ -9,7 +9,7 @@
  *
  *   node test/path.test.mjs      (after npm run build)
  */
-import { samplePath, pointAt } from "../dist/placement.js"
+import { samplePath, pointAt, checkpointAt } from "../dist/placement.js"
 
 let pass = 0, fail = 0
 const ok = (name, cond, detail = "") => { cond ? pass++ : fail++; console.log(`${cond ? "  ok" : "FAIL"}  ${name}${detail ? "  → " + detail : ""}`) }
@@ -80,6 +80,50 @@ ok("smoothing bows the line between the points",
 ok("a smoothed path is at least as long as the straight one",
    sRound.length >= sSharp.length - 1e-6,
    `straight=${sSharp.length.toFixed(4)} smooth=${sRound.length.toFixed(4)}`)
+
+// 6. Timed points. An `at` pins the moment a point is reached; between two
+//    pinned moments, points are still spaced by distance.
+const timed = { points: [{ x: 0, y: 0 }, { x: 1, y: 0, at: 0.8 }, { x: 1, y: 1 }], smooth: false }
+const sT = samplePath(timed)
+ok("a point with `at` is reached exactly then", near(pointAt(sT, 0.8).x, 1, 0.001) && near(pointAt(sT, 0.8).y, 0, 0.001),
+   `(${pointAt(sT, 0.8).x.toFixed(3)}, ${pointAt(sT, 0.8).y.toFixed(3)})`)
+ok("before it, the object moves by distance within the window", near(pointAt(sT, 0.4).x, 0.5, 0.01), `x=${pointAt(sT, 0.4).x.toFixed(3)}`)
+ok("after it, the rest of the route fills the rest of the scroll", near(pointAt(sT, 0.9).y, 0.5, 0.01), `y=${pointAt(sT, 0.9).y.toFixed(3)}`)
+
+// 7. A pinned moment (what an anchor resolves to) overrides the point's own.
+const sP = samplePath(timed, [undefined, 0.25, undefined])
+ok("a pinned moment overrides `at`", near(pointAt(sP, 0.25).x, 1, 0.001), `x=${pointAt(sP, 0.25).x.toFixed(3)}`)
+
+// 8. Two anchors that resolve out of order must not make the object run back.
+const sM = samplePath({ points: [{ x: 0, y: 0 }, { x: 0.5, y: 0, at: 0.6 }, { x: 1, y: 0, at: 0.3 }, { x: 1, y: 1 }], smooth: false })
+ok("moments never run backwards", sM.ats.every((a, i) => i === 0 || a >= sM.ats[i - 1]), sM.ats.map((a) => a.toFixed(2)).join(" "))
+
+// 9. No timings at all behaves exactly like the old arc-length path.
+const plain = samplePath({ points: [{ x: 0, y: 0 }, { x: 0.1, y: 0 }, { x: 1, y: 0 }], smooth: false })
+ok("untimed points are timed by distance", near(plain.ats[1], 0.1, 0.001), `ats=${plain.ats.map((a) => a.toFixed(3)).join(" ")}`)
+
+// 10. Checkpoints: the object, the look, and the melt.
+const cpPath = {
+  points: [
+    { x: 0, y: 0.5 },
+    { x: 0.5, y: 0.5, at: 0.5, object: { type: "shape", shape: "capsule" }, preset: "magma-1" },
+    { x: 1, y: 0.5 },
+  ],
+  smooth: false,
+}
+const cpS = samplePath(cpPath)
+const base = { object: { type: "shape", shape: "torusknot" }, preset: "mercury-3" }
+const early = checkpointAt(cpPath, cpS, 0.2, base)
+ok("before a checkpoint, the placement's own object and look", early.object.shape === "torusknot" && early.presetTo === "mercury-3" && early.mutation === 0)
+const peak = checkpointAt(cpPath, cpS, 0.5, base)
+ok("on the checkpoint the melt peaks", near(peak.mutation, 1, 0.001), `mutation=${peak.mutation.toFixed(3)}`)
+const justBefore = checkpointAt(cpPath, cpS, 0.49, base)
+const justAfter = checkpointAt(cpPath, cpS, 0.51, base)
+ok("the object swaps exactly as the checkpoint is crossed", justBefore.object.shape === "torusknot" && justAfter.object.shape === "capsule")
+ok("the look is bred across the window, not cut", justBefore.blend > 0.3 && justBefore.blend < 0.5 && justAfter.blend > 0.5 && justAfter.blend < 0.7 && justAfter.presetFrom === "mercury-3" && justAfter.presetTo === "magma-1",
+   `blend ${justBefore.blend.toFixed(2)} → ${justAfter.blend.toFixed(2)}`)
+const late = checkpointAt(cpPath, cpS, 0.9, base)
+ok("after the window, settled on the new object and look", late.object.shape === "capsule" && late.presetFrom === "magma-1" && late.presetTo === "magma-1" && late.blend === 0 && late.mutation === 0)
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

@@ -169,6 +169,13 @@ export function applyPreset(material: ShaderMaterial, preset: LiquidPreset): voi
   ;(u.uEnvHorizon.value as Color).copy(env.horizon)
   ;(u.uEnvBottom.value as Color).copy(env.bottom)
 
-  material.transparent = (preset.shading.transmission ?? 0) > 0
-  material.needsUpdate = true
+  // Everything above is a uniform write, which three picks up on the next frame
+  // by itself. Flagging the material for an update on every call is what made
+  // this unusable at scroll rate — it re-checks the program each time — so it is
+  // only flagged when the transparency state genuinely flips.
+  const transparent = (preset.shading.transmission ?? 0) > 0
+  if (material.transparent !== transparent) {
+    material.transparent = transparent
+    material.needsUpdate = true
+  }
 }

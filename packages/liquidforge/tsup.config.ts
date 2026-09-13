@@ -19,6 +19,7 @@ export default defineConfig([
       codegen: "src/codegen/index.ts",
       placement: "src/placement/index.ts",
       editor: "src/editor/index.ts",
+      breed: "src/breed/index.ts",
     },
     format: ["esm", "cjs"],
     dts: true,
