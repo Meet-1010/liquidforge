@@ -17,12 +17,25 @@
         {
           "x": 0.26,
           "y": 0.48,
-          "size": 0.42
+          "size": 0.42,
+          "object": {
+            "type": "text",
+            "value": "MELT",
+            "depth": 0.45,
+            "bevel": 0.03
+          },
+          "preset": "aurora-3"
         },
         {
           "x": 0.72,
           "y": 0.66,
-          "size": 0.24
+          "size": 0.24,
+          "object": {
+            "type": "shape",
+            "shape": "capsule",
+            "detail": 160
+          },
+          "preset": "magma-4"
         },
         {
           "x": 0.22,

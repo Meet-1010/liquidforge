@@ -84,7 +84,7 @@ export default function PlacePage() {
 }
 
 /**
- * The four things to try, in the order they make sense.
+ * The things to try, in the order they make sense.
  *
  * Numbered because this genuinely is a sequence — you cannot size a point on a
  * path you have not drawn yet — rather than because numbers look tidy.
@@ -122,7 +122,15 @@ const STEPS = [
   },
   {
     title: "Size it along the way",
-    body: "In Size, click a handle and set how big the object is at that point. It can swell as it passes behind the text and shrink again on the way out. Then press Save and look at the file at the bottom of this page — that JSON is everything.",
+    body: "In Size, click a handle and set how big the object is at that point. It can swell as it passes behind the text and shrink again on the way out.",
+  },
+  {
+    title: "Change what it is on the way",
+    body: "Back in Path, select a handle and pick a different shape or look in the Element row. That point becomes a checkpoint, drawn as a diamond, and the object melts into the new element as the page scrolls past it. Two are set already — scroll and the knot becomes a word, then a capsule.",
+  },
+  {
+    title: "Tie it to the page, then save",
+    body: "In Pin, click a heading: that point is now reached when the heading is at that height, so editing the copy above it cannot knock the timing out. Route around content draws a path through the empty space for you. Then press Save and look at the file at the bottom of this page — that JSON is everything.",
   },
 ]
 

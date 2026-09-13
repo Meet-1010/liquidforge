@@ -5,7 +5,9 @@ import { LiquidSpot } from "liquidforge"
 import { LiquidEditor, type SaveOutcome } from "liquidforge/editor"
 import type { PlacementFile } from "liquidforge/placement"
 
-const STORAGE_KEY = "liquidforge:place-demo"
+// Versioned: the default placement gained checkpoints, and a save from before
+// them would hide the part of the demo worth seeing.
+const STORAGE_KEY = "liquidforge:place-demo:v2"
 
 /**
  * The editor, running on a page anyone can open.
