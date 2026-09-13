@@ -37,7 +37,7 @@ function Studio() {
   // A remix or a cross opened from the gallery names its parents in the link;
   // they ride along to the composer so the post credits them. Before this, a
   // remix's parent was dropped at the Studio and never reached the post.
-  const lineage = ["from", "with"]
+  const lineage = ["from", "with", "daily"]
     .map((key) => {
       const value = params.get(key)
       return value ? `&${key}=${encodeURIComponent(value)}` : ""

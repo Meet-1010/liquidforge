@@ -1,6 +1,7 @@
 import { PRESETS } from "liquidforge/presets"
 import type { ObjectSource } from "liquidforge/presets"
 import type { Look } from "./types"
+import { answersDaily } from "../daily"
 
 /**
  * What a submission is allowed to be.
@@ -28,6 +29,7 @@ export interface ValidationResult {
     look?: Look
     parentId?: string
     secondParentId?: string
+    daily?: string
   }
 }
 
@@ -63,7 +65,17 @@ export function validateSubmission(input: unknown): ValidationResult {
   const second = postId(body.secondParentId)
   const secondParentId = second && second !== parentId ? second : undefined
 
-  return { ok: true, value: { title, author, url, object, preset, look, parentId, secondParentId } }
+  // A daily tag is a claim — "this is today's object" — so it is checked rather
+  // than stored as sent: the right day, and that day's object.
+  let daily: string | undefined
+  if (body.daily !== undefined && body.daily !== null && body.daily !== "") {
+    if (typeof body.daily !== "string" || !answersDaily(body.daily, object)) {
+      return { ok: false, error: "That isn't today's object any more — post it without the daily tag" }
+    }
+    daily = body.daily
+  }
+
+  return { ok: true, value: { title, author, url, object, preset, look, parentId, secondParentId, daily } }
 }
 
 const POST_ID = /^[a-z0-9][a-z0-9-]{0,79}$/

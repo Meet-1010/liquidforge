@@ -8,6 +8,7 @@ import { litter } from "liquidforge/breed"
 import type { ObjectSource } from "liquidforge"
 import { LazyPreview } from "@/components/lazy-preview"
 import { presetForPost, studioLinkFor } from "@/lib/community"
+import { dailyKey, dailyPick } from "@/lib/daily"
 import type { Look } from "@/lib/store/types"
 import { SiteNav } from "@/components/site-nav"
 import community from "@/data/community.json"
@@ -24,6 +25,7 @@ interface Entry {
   /** Set when it was bred from two. */
   secondParentId?: string
   look?: Look
+  daily?: string
 }
 
 /**
@@ -61,6 +63,12 @@ function Gallery() {
   // oldest go, so choosing never needs an explicit "unselect" first.
   const [parents, setParents] = useState<string[]>([])
   const [breeding, setBreeding] = useState(false)
+  const [onlyToday, setOnlyToday] = useState(false)
+  // Worked out after mount: the server renders in its own clock, and a prompt
+  // that changes during hydration across midnight UTC is a mismatch waiting to
+  // happen.
+  const [today, setToday] = useState<ReturnType<typeof dailyPick> | null>(null)
+  useEffect(() => setToday(dailyPick(dailyKey())), [])
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries])
   const pickParent = (id: string) =>
     setParents((current) =>
@@ -131,8 +139,25 @@ function Gallery() {
           </div>
         </header>
 
+        {today && (
+          <TodaysObject
+            pick={today}
+            count={entries.filter((entry) => entry.daily === today.key).length}
+            onlyToday={onlyToday}
+            onToggle={() => setOnlyToday((value) => !value)}
+          />
+        )}
+
+        {onlyToday && today && !entries.some((entry) => entry.daily === today.key) && (
+          <p className="mb-6 font-mono text-[12px] text-bone/45">
+            Nobody has posted today&apos;s yet. The first one is yours.
+          </p>
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {entries.map((entry) => {
+          {entries
+            .filter((entry) => !onlyToday || (today && entry.daily === today.key))
+            .map((entry) => {
             if (!PRESETS[entry.preset]) return null
             const preset = presetForPost(entry)
             const href = studioLinkFor(preset, entry.object, entry.preset)
@@ -214,6 +239,11 @@ function Gallery() {
                     </span>
                   )}
                 </div>
+                {entry.daily && (
+                  <p className="truncate border-t border-rule px-3 py-1.5 font-mono text-[10px] text-bone/35">
+                    Today&apos;s object · {entry.daily}
+                  </p>
+                )}
                 {bredFrom && (
                   <p className="truncate border-t border-rule px-3 py-1.5 font-mono text-[10px] text-bone/35">
                     Bred from {bredFrom[0]} × {bredFrom[1]}
@@ -262,6 +292,70 @@ function Gallery() {
         />
       )}
     </>
+  )
+}
+
+/**
+ * The daily prompt, at the top of the gallery.
+ *
+ * The object is fixed and the look is not — the button opens it in the Studio
+ * with a starting colourway, and whatever material it leaves with is the
+ * answer. The count and the filter are what make it a shared thing rather than
+ * a suggestion: you can see what everyone else did with the same shape.
+ */
+function TodaysObject({
+  pick,
+  count,
+  onlyToday,
+  onToggle,
+}: {
+  pick: ReturnType<typeof dailyPick>
+  count: number
+  onlyToday: boolean
+  onToggle: () => void
+}) {
+  const preset = PRESETS[pick.preset]
+  if (!preset) return null
+  const date = new Date(`${pick.key}T00:00:00Z`).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  })
+
+  return (
+    <section className="mb-8 grid overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="m-1.5 overflow-hidden rounded-[var(--radius-md)]">
+        <LazyPreview preset={preset} object={pick.object} height={220} />
+      </div>
+      <div className="flex flex-col justify-center gap-3 px-4 py-4 sm:px-6">
+        <p className="label">Today&apos;s object · {date}</p>
+        <h2 className="display m-0 text-[clamp(1.6rem,3.6vw,2.4rem)]">{pick.title}</h2>
+        <p className="max-w-md text-[13px] leading-relaxed text-bone-dim">
+          Everyone gets the same object today. Give it any material, any colour, any motion, and post
+          it — tomorrow there is a new one.
+        </p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Link
+            href={studioLinkFor(preset, pick.object, pick.preset, { daily: pick.key })}
+            className="inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
+          >
+            Make today&apos;s
+          </Link>
+          <button
+            type="button"
+            aria-pressed={onlyToday}
+            onClick={onToggle}
+            className={`rounded-[var(--radius-pill)] border px-4 py-2 font-mono text-[11px] transition-colors ${
+              onlyToday
+                ? "border-bone bg-bone text-ink"
+                : "border-rule text-bone/70 hover:border-rule-bright hover:text-bone"
+            }`}
+          >
+            {onlyToday ? "Showing today's" : `See today's${count > 0 ? ` (${count})` : ""}`}
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
 

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { LiquidCanvas, presetName, resolvePreset } from "liquidforge"
 import { configFromPreset, decodeState, type LiquidConfig } from "liquidforge/codegen"
 import { canSubmit, postToCommunity } from "@/lib/community"
+import { answersDaily } from "@/lib/daily"
 import { SiteNav } from "@/components/site-nav"
 import { Button, TextInput } from "@/components/ui"
 
@@ -67,6 +68,10 @@ function Composer() {
 
   const parentId = params.get("from") ?? undefined
   const secondParentId = params.get("with") ?? undefined
+  // Opened from today's object but the object was changed on the way: post it
+  // as an ordinary post rather than have the server refuse the tag.
+  const requestedDaily = params.get("daily") ?? undefined
+  const daily = requestedDaily && answersDaily(requestedDaily, config.object) ? requestedDaily : undefined
   const postable = canSubmit(config) && title.trim().length >= 2
 
   const publish = async () => {
@@ -77,7 +82,7 @@ function Composer() {
     } catch {
       // Not important enough to stop a post over.
     }
-    const result = await postToCommunity(config, { title, author, url: link }, { parentId, secondParentId })
+    const result = await postToCommunity(config, { title, author, url: link }, { parentId, secondParentId, daily })
     if (result.ok) {
       // Straight to the gallery, where it is already there.
       router.push(`/community?new=${encodeURIComponent(result.id ?? "")}`)
@@ -104,6 +109,7 @@ function Composer() {
           <p className="mt-3 font-mono text-[11px] text-muted">
             {preset.label} · {presetName(config.preset)} · {config.object.type}
             {parentId && (secondParentId ? " · bred from two posts" : " · remix")}
+            {daily && ` · today's object, ${daily}`}
           </p>
         </div>
 
@@ -130,6 +136,12 @@ function Composer() {
             placeholder="https://your-site.com — optional"
           />
 
+          {requestedDaily && !daily && (
+            <p className="font-mono text-[11px] leading-relaxed text-bone/45">
+              This started as today&apos;s object, but the object has changed since, so it posts as an
+              ordinary post rather than into today&apos;s set.
+            </p>
+          )}
           {!canSubmit(config) && (
             <p className="font-mono text-[11px] leading-relaxed text-bone/45">
               This object was built from a file on your machine, so it cannot travel in a post.

@@ -62,6 +62,11 @@ const statements = [
   `alter table community_posts add column if not exists look jsonb`,
   `create index if not exists community_posts_second_parent_idx
      on community_posts (second_parent_id)`,
+  // Today's object: the UTC day a post answers, so the gallery can show a day's
+  // worth side by side.
+  `alter table community_posts add column if not exists daily text`,
+  `create index if not exists community_posts_daily_idx
+     on community_posts (daily, created_at desc) where daily is not null`,
 ]
 
 for (const statement of statements) {

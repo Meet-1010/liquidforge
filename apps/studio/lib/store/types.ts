@@ -35,6 +35,8 @@ export interface Post {
   /** The other parent, when this was bred from two posts. */
   secondParentId?: string
   look?: Look
+  /** The UTC day whose object this answers, when it was made from today's object. */
+  daily?: string
 }
 
 export interface NewPost {
@@ -47,6 +49,7 @@ export interface NewPost {
   parentId?: string
   secondParentId?: string
   look?: Look
+  daily?: string
 }
 
 /**

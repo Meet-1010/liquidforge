@@ -47,7 +47,7 @@ export function communityEntry(config: LiquidConfig, submission: Submission) {
 export async function postToCommunity(
   config: LiquidConfig,
   submission: Submission,
-  parents: { parentId?: string; secondParentId?: string } = {},
+  parents: { parentId?: string; secondParentId?: string; daily?: string } = {},
 ): Promise<{ ok: boolean; message: string; id?: string }> {
   const entry = communityEntry(config, submission)
   const look = lookOf(config)
@@ -64,6 +64,7 @@ export async function postToCommunity(
         ...(look ? { look } : {}),
         parentId: parents.parentId,
         secondParentId: parents.secondParentId,
+        daily: parents.daily,
       }),
     })
     const data = (await response.json().catch(() => ({}))) as {
@@ -157,7 +158,7 @@ export function studioLinkFor(
   preset: LiquidPreset,
   object: ObjectSource,
   basePresetId: string,
-  parents: { from?: string; with?: string } = {},
+  parents: { from?: string; with?: string; daily?: string } = {},
 ): string {
   const params = new URLSearchParams()
   const config: LiquidConfig = {
@@ -171,5 +172,6 @@ export function studioLinkFor(
   params.set("c", encodeState(config))
   if (parents.from) params.set("from", parents.from)
   if (parents.with) params.set("with", parents.with)
+  if (parents.daily) params.set("daily", parents.daily)
   return `/studio?${params.toString()}`
 }

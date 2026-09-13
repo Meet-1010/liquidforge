@@ -23,7 +23,8 @@ import type { CommunityStore, NewPost, Post } from "./types"
  *   submitter_key text not null,
  *   parent_id     text references community_posts(id) on delete set null,
  *   second_parent_id text references community_posts(id) on delete set null,
- *   look          jsonb
+ *   look          jsonb,
+ *   daily         text
  * );
  * create index if not exists community_posts_status_idx
  *   on community_posts (status, created_at desc);
@@ -51,6 +52,7 @@ interface Row {
   // existed returns rows without them, and the gallery should still read.
   second_parent_id?: string | null
   look?: Post["look"] | null
+  daily?: string | null
 }
 
 const toPost = (row: Row): Post => ({
@@ -66,6 +68,7 @@ const toPost = (row: Row): Post => ({
   ...(row.parent_id ? { parentId: row.parent_id } : {}),
   ...(row.second_parent_id ? { secondParentId: row.second_parent_id } : {}),
   ...(row.look ? { look: row.look } : {}),
+  ...(row.daily ? { daily: row.daily } : {}),
 })
 
 export class PostgresStore implements CommunityStore {
@@ -98,11 +101,11 @@ export class PostgresStore implements CommunityStore {
 
     const rows = await this.sql<Row>`
       insert into community_posts
-        (id, title, author, url, object, preset, status, submitter_key, parent_id, second_parent_id, look)
+        (id, title, author, url, object, preset, status, submitter_key, parent_id, second_parent_id, look, daily)
       values (${id}, ${post.title}, ${post.author}, ${post.url},
               ${JSON.stringify(post.object)}::jsonb, ${post.preset}, 'published',
               ${post.submitterKey}, ${post.parentId ?? null}, ${post.secondParentId ?? null},
-              ${post.look ? JSON.stringify(post.look) : null}::jsonb)
+              ${post.look ? JSON.stringify(post.look) : null}::jsonb, ${post.daily ?? null})
       returning *
     `
     return toPost(rows[0])
