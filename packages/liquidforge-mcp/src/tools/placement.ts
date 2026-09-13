@@ -51,6 +51,7 @@ Args:
   - object (object, required): { type, and the fields that type needs } — same shape as liquidforge_generate_component
   - id (string, optional): key for this object in the placements file (default: 'hero'). Letters, digits, - and _ only.
   - framework ('next' | 'vite'): which save route to show (default: 'next')
+  - checkpoints (array, optional): [{ at: 0.4, object?: {...}, preset?: 'magma-2' }] — moments down the scroll where the object melts into a different shape or look. Use for "change the product as they scroll", "morph between our three features".
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
 
 Returns:
@@ -70,6 +71,17 @@ Examples:
           .optional()
           .describe("Key for this object in liquidforge.placements.json (default: 'hero')"),
         framework: z.enum(["next", "vite"]).optional().describe("Which save route to show (default: 'next')"),
+        checkpoints: z
+          .array(
+            z.object({
+              at: z.number().min(0).max(1).describe("Scroll progress 0–1 where the object changes"),
+              object: ObjectSchema.optional(),
+              preset: z.string().optional().describe("Colourway id from this moment on"),
+            }),
+          )
+          .max(12)
+          .optional()
+          .describe("Moments down the scroll where the object melts into something else"),
         response_format: ResponseFormat,
       },
       annotations: {
@@ -79,15 +91,21 @@ Examples:
         openWorldHint: false,
       },
     },
-    async ({ preset, object, id = "hero", framework = "next", response_format }) => {
+    async ({ preset, object, id = "hero", framework = "next", checkpoints, response_format }) => {
       if (!PRESETS[preset]) {
         return fail(
           `Unknown preset "${preset}". Use liquidforge_list_collections for ids, or liquidforge_recommend_preset to choose one.`,
         )
       }
 
+      const unknown = (checkpoints ?? []).map((c) => c.preset).filter((id): id is string => Boolean(id) && !PRESETS[id!])
+      if (unknown.length) return fail(`Unknown checkpoint preset "${unknown[0]}". Use liquidforge_list_collections for ids.`)
       const config = configFromPreset(preset, object as ObjectSource)
-      const setup = generatePlacementSetup(config, { id, framework })
+      const setup = generatePlacementSetup(config, {
+        id,
+        framework,
+        checkpoints: (checkpoints ?? []).map((c) => ({ at: c.at, object: c.object as ObjectSource | undefined, preset: c.preset })),
+      })
       const install = "npm install liquidforge three  (and @types/three in a TypeScript project)"
 
       return reply(setup, { setup, preset, id, framework, install }, response_format)

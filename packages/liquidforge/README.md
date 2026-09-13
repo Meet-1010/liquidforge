@@ -136,7 +136,7 @@ animate.
 
 ## Presets
 
-Ninety colourways across ten families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
+Ninety-nine colourways across eleven families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
 
 Each family is a different *technique*, not a different palette. If a look can be reached by recolouring an existing family, it is a colourway rather than a family.
 

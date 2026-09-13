@@ -26,11 +26,34 @@ export function reply(
   structured: Record<string, unknown>,
   format: "markdown" | "json",
 ): ToolResult {
-  const text = format === "json" ? JSON.stringify(structured, null, 2) : markdown
   return {
-    content: [{ type: "text", text: truncate(text) }],
+    content: [{ type: "text", text: format === "json" ? jsonText(structured) : truncate(markdown) }],
     structuredContent: structured,
   }
+}
+
+/**
+ * JSON that is still JSON when it is too long.
+ *
+ * Truncating the string and appending a note — what `truncate` does for
+ * markdown — turns JSON into something no parser will read, and an agent that
+ * asked for JSON has no way to recover from that. It surfaced the day the
+ * catalogue grew past the limit: every client asking for the colourways as
+ * JSON started getting a syntax error. So: indented if it fits, compact if
+ * that fits, and otherwise a small valid object that says what happened.
+ */
+function jsonText(structured: Record<string, unknown>): string {
+  const pretty = JSON.stringify(structured, null, 2)
+  if (pretty.length <= CHARACTER_LIMIT) return pretty
+  const compact = JSON.stringify(structured)
+  if (compact.length <= CHARACTER_LIMIT) return compact
+  return JSON.stringify({
+    truncated: true,
+    characters: compact.length,
+    limit: CHARACTER_LIMIT,
+    message:
+      "This response is too large to send as text. Ask for one collection or one topic at a time. The full result is also in structuredContent.",
+  })
 }
 
 export function fail(message: string): ToolResult {

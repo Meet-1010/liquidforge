@@ -186,7 +186,7 @@ export default function Home() {
         <section className="border-b border-rule py-16">
           <p className="label mb-4">04 — Material</p>
           <h2 className="display max-w-2xl text-[clamp(1.8rem,4.5vw,3rem)]">
-            Ten families. Ninety colourways.
+            Eleven families. Ninety-nine colourways.
           </h2>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
             Chrome, oil slick, glass, molten, matte pearl, lacquer, velvet, holographic foil,

@@ -75,7 +75,7 @@ try {
 
   const listed = await request("tools/list", {})
   const names = (listed.result?.tools ?? []).map((tool) => tool.name)
-  check("tools/list returns all nine", names.length === 9, names.join(", "))
+  check("tools/list returns all eleven", names.length === 11, names.join(", "))
 
   const started = await request("tools/call", {
     name: "liquidforge_get_started",
@@ -101,7 +101,7 @@ try {
   })
   const parsed = JSON.parse(collections.result.content[0].text)
   const total = parsed.collections.reduce((sum, entry) => sum + entry.colourways.length, 0)
-  check("list_collections returns 90 colourways", total === 90, String(total))
+  check("list_collections returns 99 colourways", total === 99, String(total))
 
   const inspected = await request("tools/call", {
     name: "liquidforge_inspect_preset",
@@ -253,6 +253,67 @@ try {
     arguments: { topic: "placement" },
   })
   check("get_docs placement warns about the underscore folder", /underscore/i.test(placementDocs.result.content[0].text))
+
+  const withCheckpoints = await request("tools/call", {
+    name: "liquidforge_generate_placement",
+    arguments: {
+      preset: "mercury-3",
+      object: { type: "shape", shape: "torusknot" },
+      checkpoints: [
+        { at: 0.4, object: { type: "shape", shape: "capsule" }, preset: "magma-2" },
+        { at: 0.75, preset: "aurora-1" },
+      ],
+      response_format: "json",
+    },
+  })
+  const cpSetup = JSON.parse(withCheckpoints.result.content[0].text).setup
+  check("generate_placement writes checkpoints into the route", cpSetup.includes('"at": 0.4') && cpSetup.includes('"capsule"') && cpSetup.includes('"magma-2"') && cpSetup.includes('"aurora-1"'))
+
+  const badCheckpoint = await request("tools/call", {
+    name: "liquidforge_generate_placement",
+    arguments: { preset: "mercury-3", object: { type: "shape", shape: "sphere" }, checkpoints: [{ at: 0.5, preset: "nope-9" }] },
+  })
+  check("generate_placement rejects an unknown checkpoint preset", badCheckpoint.result?.isError === true)
+
+  // A proposal is written to disk, so do it somewhere disposable and read it back.
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const { join } = await import("node:path")
+  const scratch = mkdtempSync(join(tmpdir(), "lf-propose-"))
+  try {
+    const proposed = await request("tools/call", {
+      name: "liquidforge_propose_placement",
+      arguments: {
+        id: "hero",
+        preset: "velvet-2",
+        object: { type: "text", value: "HI" },
+        checkpoints: [{ at: 0.5, preset: "halo-3" }],
+        note: "Velvet, because the brief says couture.",
+        placements_file: join(scratch, "liquidforge.placements.json"),
+        response_format: "json",
+      },
+    })
+    const written = JSON.parse(proposed.result.content[0].text).proposal
+    const onDisk = JSON.parse(readFileSync(written, "utf8"))
+    check("propose_placement writes a proposal beside the placements file", written.endsWith("liquidforge.proposal.json") && onDisk.id === "hero")
+    check("the proposal asks the editor to route it, and keeps the checkpoint", onDisk.route === "whitespace" && onDisk.placement.path.points.some((p) => p.preset === "halo-3"))
+    check("the proposal carries the agent's note for the banner", onDisk.note.startsWith("Velvet"))
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+
+  const bred = await request("tools/call", {
+    name: "liquidforge_breed_presets",
+    arguments: { a: "mercury-3", b: "magma-1", count: 3, seed: 42, response_format: "json" },
+  })
+  const litter = JSON.parse(bred.result.content[0].text)
+  check("breed_presets returns the litter it was asked for", litter.children.length === 3 && litter.seed === 42)
+  check("each child comes with a component", litter.children.every((c) => c.component.includes("<LiquidHero")))
+  const again = await request("tools/call", {
+    name: "liquidforge_breed_presets",
+    arguments: { a: "mercury-3", b: "magma-1", count: 3, seed: 42, response_format: "json" },
+  })
+  check("the same seed breeds the same litter", again.result.content[0].text === bred.result.content[0].text)
 
   const startedAgain = await request("tools/call", { name: "liquidforge_get_started", arguments: {} })
   check("get_started tells TypeScript users about @types/three", startedAgain.result.content[0].text.includes("@types/three"))

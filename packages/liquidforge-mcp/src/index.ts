@@ -19,6 +19,8 @@ import { registerRecommendTool } from "./tools/recommend.js"
 import { registerGenerateTool } from "./tools/generate.js"
 import { registerAssetTools } from "./tools/assets.js"
 import { registerPlacementTool } from "./tools/placement.js"
+import { registerProposeTool } from "./tools/propose.js"
+import { registerBreedTool } from "./tools/breed.js"
 import { configureNodeCatalog } from "./catalog-node.js"
 
 const HELP = `
@@ -34,7 +36,7 @@ const HELP = `
   Tools
     liquidforge_get_started           Learn the library — start here
     liquidforge_get_docs              Documentation by topic, including the gotchas
-    liquidforge_list_collections      Ten families, 90 colourways, with palettes
+    liquidforge_list_collections      Eleven families, 99 colourways, with palettes
     liquidforge_inspect_preset        One colourway's exact numbers
     liquidforge_recommend_preset      Pick a colourway for a described site
     liquidforge_generate_component    Turn an explicit config into paste-ready TSX
@@ -96,6 +98,8 @@ async function main(): Promise<void> {
   registerGenerateTool(server)
   registerAssetTools(server)
   registerPlacementTool(server)
+  registerProposeTool(server)
+  registerBreedTool(server)
 
   await server.connect(new StdioServerTransport())
   console.error(`${SERVER_NAME} v${SERVER_VERSION} ready on stdio`)

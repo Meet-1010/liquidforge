@@ -18,7 +18,7 @@ export const FAMILY_INDEX: Record<MaterialFamily, number> = {
 /**
  * The look.
  *
- * One shader, ten families, selected by `#define` so a preset compiles down to
+ * One shader, eleven families, selected by `#define` so a preset compiles down to
  * exactly the branch it uses and nothing else. They share the expensive parts:
  * the advected hue field, the analytic studio environment, and the colour ramp.
  *

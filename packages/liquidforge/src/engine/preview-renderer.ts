@@ -15,7 +15,7 @@ export interface CaptureRequest {
 /**
  * One WebGL context, shared by every still on the page.
  *
- * A gallery of 90 colourways cannot have 90 live contexts: Chrome does not
+ * A gallery of 99 colourways cannot have 90 live contexts: Chrome does not
  * refuse them past its limit, it hands one over and silently kills an older
  * one, so the page tears itself down as you scroll. But a card showing a flat
  * colour swatch is not a preview of anything.

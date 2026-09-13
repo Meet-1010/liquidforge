@@ -46,6 +46,8 @@ Examples:
         { name: "liquidforge_recommend_preset", use_when: "You know what the site is and want a colourway chosen for it" },
         { name: "liquidforge_generate_component", use_when: "You already know the props and want paste-ready TSX" },
         { name: "liquidforge_generate_placement", use_when: "They have a site already and want an object placed on it — dragged into position, drifting as the page scrolls" },
+        { name: "liquidforge_propose_placement", use_when: "You are placing an object on a page you cannot see — leave it as a draft the user approves in the editor" },
+        { name: "liquidforge_breed_presets", use_when: "They like two colourways and want something between or beyond them" },
         { name: "liquidforge_search_models", use_when: "The hero needs a real object rather than a word or a shape" },
         { name: "liquidforge_get_model_import", use_when: "You picked a catalogue result and need a loadable URL" },
       ]
@@ -93,7 +95,7 @@ Topics:
   - api — every prop on <LiquidHero> and <LiquidCanvas>, and the headless engine
   - objects — the five object sources and what each is good for
   - assets — the five open catalogues, and what makes a good object for this material
-  - presets — the ten families and when to reach for each
+  - presets — the eleven families and when to reach for each
   - blend — the mix-blend-mode stacking-context trap. READ THIS before using \`blend\`
   - shader — how the material works and the four things that silently break it
   - performance — the quality tiers and what actually costs frames
@@ -134,7 +136,7 @@ Examples:
       title: "List the material collections",
       description: `Every family and colourway, with palettes and the numbers that define them.
 
-90 colourways across 10 families. Pass \`collection\` to get one family's nine in full; omit it for a summary of all ten.
+99 colourways across 11 families. Pass \`collection\` to get one family's nine in full; omit it for a summary of all ten.
 
 Args:
   - collection (string, optional): 'mercury' | 'aurora' | 'prism' | 'magma' | 'pearl'

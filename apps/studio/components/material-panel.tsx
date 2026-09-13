@@ -56,7 +56,7 @@ export function MaterialPanel({
   return (
     <>
       <Panel title="Material">
-        {/* A grid rather than a segmented control: ten families do not fit on
+        {/* A grid rather than a segmented control: eleven families do not fit on
             one row, and wrapping a segmented control looks like a mistake. */}
         <div className="grid grid-cols-3 gap-1.5">
           {FAMILIES.map((entry) => (

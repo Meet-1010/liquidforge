@@ -314,6 +314,12 @@ export interface PlacementSetupOptions {
   id?: string
   /** Which save route to show. @default "next" */
   framework?: "next" | "vite"
+  /**
+   * Moments down the scroll where the object becomes something else. Each is
+   * written as a point on the route with that moment, object and look, so the
+   * file needs no further editing to melt from one into the next.
+   */
+  checkpoints?: Array<{ at: number; object?: ObjectSource; preset?: string }>
 }
 
 /**
@@ -333,16 +339,45 @@ export function generatePlacementSetup(
   config: LiquidConfig,
   options: PlacementSetupOptions = {},
 ): string {
-  const { id = "hero", framework = "next" } = options
+  const { id = "hero", framework = "next", checkpoints = [] } = options
   const base = PRESETS[config.preset] ?? PRESETS[DEFAULT_PRESET_ID]
+
+  const moments = checkpoints
+    .filter((checkpoint) => Number.isFinite(checkpoint.at))
+    .map((checkpoint) => ({ ...checkpoint, at: Math.max(0.02, Math.min(0.98, checkpoint.at)) }))
+    .sort((a, b) => a.at - b.at)
+
+  /*
+   * With checkpoints, the route is a gentle S down the right of the screen with
+   * one point per checkpoint — somewhere sensible to start from, which the
+   * editor's Route around content can then fit to the real page.
+   */
+  const scrollRoute = moments.length
+    ? {
+        ease: 0.1,
+        morph: 0.06,
+        points: [
+          { x: 0.74, y: 0.34, size: 0.3 },
+          ...moments.map((moment, i) => ({
+            x: i % 2 === 0 ? 0.3 : 0.74,
+            y: 0.34 + 0.3 * moment.at,
+            at: Math.round(moment.at * 1000) / 1000,
+            ...(moment.object ? { object: moment.object } : {}),
+            ...(moment.preset ? { preset: moment.preset } : {}),
+          })),
+          { x: 0.5, y: 0.5, size: 0.26 },
+        ],
+      }
+    : undefined
 
   const placement = {
     [id]: {
       frame: "viewport",
-      origin: { x: 0.72, y: 0.38, size: 0.32 },
+      origin: { x: 0.74, y: 0.34, size: 0.3 },
       layer: 0,
       object: config.object,
       preset: config.preset,
+      ...(scrollRoute ? { path: scrollRoute } : {}),
     },
   }
 
@@ -427,8 +462,11 @@ import { LiquidEditor } from "liquidforge/editor"
 )}
 
 Open your page and press Cmd+Shift+E, or click the "lf" button in the corner.
-Drag it where you want. Draw the route it takes as the page scrolls. Set how
-big it is at each point. Save.
+Drag it where you want, or press Route around content to have the route drawn
+through the empty space between your text. Select any point and choose a
+different element or look to make it a checkpoint — scrolling past it melts
+the object into that. Pin a point to an element so the moment follows your copy.
+Narrow the window to place it separately for tablet and phone. Save.
 
 
 # 6 · When you are finished

@@ -25,7 +25,7 @@ Two things make it different from the many liquid-chrome repos on GitHub:
 1. **It is a package, not a boilerplate.** No fork, no "now replace model.glb
    with your own" — the object is forged in the browser from a word, an SVG, a
    PNG or a parametric shape.
-2. **The material system is the product.** Ten families, nine colourways each,
+2. **The material system is the product.** Eleven families, nine colourways each,
    shipped as data rather than as a shader you are expected to edit.
 
 Peer dependencies are \`react\` and \`three\` and nothing else. The environment
@@ -173,7 +173,7 @@ production. Download the file and serve it yourself.`,
 
   presets: `# Presets
 
-90 colourways across ten families. A preset is data — a palette and about
+99 colourways across eleven families. A preset is data — a palette and about
 twenty numbers — so it can be edited, serialised, and inlined into a component.
 
 Each family is a different *technique*, not a different palette. Mercury mirrors
@@ -435,6 +435,32 @@ is doing.
   place, draw the route it takes as the page scrolls, set size per point. Dev
   only. Summoned with Cmd+Shift+E.
 - A dev route from \`liquidforge/dev\` writes the file when the editor saves.
+
+## Checkpoints — changing the object as the page scrolls
+
+Any point on the route can set \`object\` and/or \`preset\`. That point is a
+checkpoint: as the scroll passes it, the look is bred from the old colourway
+into the new one, and if the object changes the surface boils up, swaps shape at
+the peak, and settles. \`path.morph\` is how much scroll either side the melt
+takes (default 0.06). \`at\` pins a point to a scroll moment (0–1); without it,
+points are spaced by distance. Pass \`checkpoints\` to
+\`liquidforge_generate_placement\` to write them for the user.
+
+## Pins, breakpoints, routing
+
+- \`anchor: { selector: "#pricing" }\` on a point ties its moment to an element,
+  so rewriting copy above it does not break the timing.
+- \`breakpoints: { tablet, phone }\` replace the route (and optionally object
+  and look) below 1024px and 640px.
+- In the editor, *Route around content* draws the route through the empty space
+  between the page's real text and images.
+
+## Placing on a page you cannot see
+
+You cannot see the page, so do not guess coordinates into the user's file. Use
+\`liquidforge_propose_placement\`: it leaves a draft beside the placements file,
+and the editor opens on it, routes it around the real content, and writes it
+only when the user presses Save.
 
 The part to tell the user plainly: the editor holds no state. Delete it and the
 dev route when they are done, and the object stays exactly where it was, because

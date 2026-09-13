@@ -114,7 +114,7 @@ const STEPS = [
   },
   {
     title: "Put it somewhere",
-    body: "In Place, drag the object. Pick a shape and one of the ninety colourways from the Element row while you are there — what it is and where it goes are the same decision, so they sit in the same bar.",
+    body: "In Place, drag the object. Pick a shape and one of the ninety-nine colourways from the Element row while you are there — what it is and where it goes are the same decision, so they sit in the same bar.",
   },
   {
     title: "Draw where it goes as you scroll",
