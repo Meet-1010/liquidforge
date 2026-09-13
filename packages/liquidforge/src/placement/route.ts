@@ -51,6 +51,16 @@ export interface RouteInput {
   margin?: number
   /** How strongly the route prefers not to move, relative to clearance. @default 1.4 */
   stillness?: number
+  /**
+   * How much the object should travel when the page leaves it room to.
+   *
+   * With 0 the route only avoids content, and on a page with a wide empty
+   * margin that correctly means never moving — which is a still object, not a
+   * route. Above 0 the object is drawn down the free space and back as the page
+   * scrolls, wherever the content allows it.
+   * @default 0
+   */
+  roam?: number
 }
 
 export interface RouteResult {
@@ -70,6 +80,7 @@ export function routeThroughWhitespace(input: RouteInput): RouteResult {
     grid = 32,
     margin = 16,
     stillness = 1.4,
+    roam = 0,
   } = input
 
   const vw = Math.max(1, viewport.w)
@@ -162,11 +173,16 @@ export function routeThroughWhitespace(input: RouteInput): RouteResult {
   }
 
   // Viterbi: the cheapest sequence, one candidate per moment.
-  const reward = (candidate: Candidate) => Math.min(candidate.clearance, wantedRadius) / Math.max(1, wantedRadius)
+  // Roaming pulls the object toward a height that sinks down the screen and
+  // rises again across the scroll, so a route with room to move uses it.
+  const drift = (m: number) => 0.28 + 0.44 * (0.5 - 0.5 * Math.cos((moments === 1 ? 0 : m / (moments - 1)) * Math.PI * 2))
+  const clearanceReward = (candidate: Candidate) => Math.min(candidate.clearance, wantedRadius) / Math.max(1, wantedRadius)
+  const reward = (candidate: Candidate, m = 0) =>
+    clearanceReward(candidate) - (roam > 0 ? roam * Math.abs(candidate.y / vh - drift(m)) * 1.1 : 0)
   const cost: number[][] = perMoment.map((list) => new Array(list.length).fill(Infinity))
   const back: number[][] = perMoment.map((list) => new Array(list.length).fill(-1))
   perMoment[0].forEach((candidate, i) => {
-    cost[0][i] = -reward(candidate)
+    cost[0][i] = -reward(candidate, 0)
   })
   for (let m = 1; m < moments; m++) {
     perMoment[m].forEach((candidate, i) => {
@@ -180,7 +196,7 @@ export function routeThroughWhitespace(input: RouteInput): RouteResult {
           from = j
         }
       })
-      cost[m][i] = best - reward(candidate)
+      cost[m][i] = best - reward(candidate, m)
       back[m][i] = from
     })
   }
@@ -213,7 +229,38 @@ export function routeThroughWhitespace(input: RouteInput): RouteResult {
     }
   })
 
-  return { points, fit }
+  return collapse(points, fit)
+}
+
+/**
+ * Drop repeated points, keeping the start and end of every hold.
+ *
+ * A route that parks for six moments used to be six identical points on one
+ * pixel: a stack of handles nobody could pick apart. The first moment of a
+ * hold and its last are both kept, so the object still waits exactly as long.
+ */
+function collapse(points: PlacementPoint[], fit: number[]): RouteResult {
+  if (points.length <= 2) return { points, fit }
+  const same = (a: PlacementPoint, b: PlacementPoint) =>
+    Math.abs(a.x - b.x) < 0.005 && Math.abs(a.y - b.y) < 0.005 && Math.abs((a.size ?? 0) - (b.size ?? 0)) < 0.005
+  const keptPoints: PlacementPoint[] = [points[0]]
+  const keptFit: number[] = [fit[0]]
+  let pending: number | null = null
+  for (let i = 1; i < points.length; i++) {
+    const last = keptPoints[keptPoints.length - 1]
+    if (same(points[i], last) && i < points.length - 1) {
+      pending = i
+      continue
+    }
+    if (pending !== null && !same(points[i], last)) {
+      keptPoints.push(points[pending])
+      keptFit.push(fit[pending])
+    }
+    pending = null
+    keptPoints.push(points[i])
+    keptFit.push(fit[i])
+  }
+  return { points: keptPoints, fit: keptFit }
 }
 
 function round(value: number): number {

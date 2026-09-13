@@ -83,5 +83,20 @@ for (let y = 120; y < documentHeight - 80; y += 32) column.push({ x: 384, y, w: 
   ok("a page that does not scroll gets one point", points.length === 1 && points[0].at === 0)
 }
 
+// A page with a wide empty margin: without roam the object parks, and the
+// repeated points collapse instead of stacking a dozen handles on one pixel.
+{
+  const { points } = routeThroughWhitespace({ content: column, viewport, documentHeight, size: 0.18 })
+  ok("a parked route collapses to its start and end", points.length === 2 && points[0].at === 0 && points[1].at === 1, `${points.length} points`)
+}
+{
+  const { points } = routeThroughWhitespace({ content: column, viewport, documentHeight, size: 0.18, roam: 0.7 })
+  const ys = points.map((p) => p.y)
+  const span = Math.max(...ys) - Math.min(...ys)
+  ok("with roam, it travels through the room it has", span > 0.2 && points.length > 3, `vertical travel ${span.toFixed(2)} over ${points.length} points`)
+  const radius = (p) => (p.size * viewport.w) / 2
+  ok("and still stays out of the text while it does", points.every((p) => p.x * viewport.w + radius(p) <= 385 || p.x * viewport.w - radius(p) >= 895))
+}
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

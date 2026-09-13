@@ -6,6 +6,11 @@ export {
   handlePlacementsSave,
   liquidforgePlacements,
   cleanPlacementFile,
+  cleanProposal,
+  writeProposal,
+  readProposal,
+  clearProposal,
+  type PlacementProposal,
   type PlacementsRouteOptions,
   type RouteResult,
 } from "./placements-route"

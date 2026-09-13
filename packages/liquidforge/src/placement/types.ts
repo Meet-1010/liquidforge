@@ -196,7 +196,10 @@ export function resolveBreakpoint(placement: Placement, width: number): Placemen
   const override =
     placement.breakpoints[name] ?? (name === "phone" ? placement.breakpoints.tablet : undefined)
   if (!override) return placement
-  return { ...placement, ...override, breakpoints: placement.breakpoints }
+  // Only what the override actually sets. Spreading it whole would copy an
+  // absent `origin` in as `undefined` and erase the one being inherited.
+  const set = Object.fromEntries(Object.entries(override).filter(([, value]) => value !== undefined))
+  return { ...placement, ...set, breakpoints: placement.breakpoints }
 }
 
 /** What the sidecar file holds: one placement per `id` on the page. */

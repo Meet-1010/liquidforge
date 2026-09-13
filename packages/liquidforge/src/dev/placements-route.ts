@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, isAbsolute, resolve } from "node:path"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { dirname, isAbsolute, join, resolve } from "node:path"
 import { PLACEMENTS_ENDPOINT, type Placement, type PlacementFile, type PlacementPoint } from "../placement/types"
 import type { ObjectSource } from "../types"
 
@@ -57,8 +57,29 @@ function cleanPoint(input: unknown): PlacementPoint | null {
   // should produce a big object, not a failed save.
   if (finite(source.size)) point.size = round(Math.max(0.001, Math.min(8, source.size)))
   if (finite(source.spin)) point.spin = round(source.spin)
+  if (finite(source.at)) point.at = round(Math.max(0, Math.min(1, source.at)))
+
+  const anchor = source.anchor as Record<string, unknown> | undefined
+  if (anchor && typeof anchor === "object" && typeof anchor.selector === "string") {
+    const selector = anchor.selector.trim().slice(0, 200)
+    // A selector goes into querySelector in someone's browser; it may not carry
+    // markup, and an empty one would match nothing forever.
+    if (selector && !/[<>{}]/.test(selector)) {
+      point.anchor = { selector }
+      if (finite(anchor.ay)) point.anchor.ay = round(Math.max(0, Math.min(1, anchor.ay)))
+      if (anchor.followX === true) point.anchor.followX = true
+      if (finite(anchor.ax)) point.anchor.ax = round(Math.max(0, Math.min(1, anchor.ax)))
+    }
+  }
+
+  const object = cleanObject(source.object)
+  if (object) point.object = object
+  if (typeof source.preset === "string" && PRESET_ID.test(source.preset)) point.preset = source.preset
   return point
 }
+
+/** Preset ids are `<collection>-<n>`; anything else is not one. */
+const PRESET_ID = /^[a-z]{3,20}-[1-9][0-9]?$/
 
 /** Four decimals is about a tenth of a pixel on a 5K display, and it halves the file. */
 function round(value: number): number {
@@ -115,6 +136,23 @@ function cleanObject(input: unknown): ObjectSource | null {
   }
 }
 
+function cleanPath(input: unknown): Placement["path"] | undefined {
+  if (typeof input !== "object" || input === null) return undefined
+  const path = input as Record<string, unknown>
+  if (!Array.isArray(path.points)) return undefined
+  // A drawn route is a few dozen points; a thousand is a bug or an attack.
+  const points = path.points
+    .slice(0, 1000)
+    .map(cleanPoint)
+    .filter((point): point is PlacementPoint => point !== null)
+  if (points.length === 0) return undefined
+  const out: NonNullable<Placement["path"]> = { points }
+  if (finite(path.ease)) out.ease = round(Math.max(0.01, Math.min(1, path.ease)))
+  if (finite(path.morph)) out.morph = round(Math.max(0.005, Math.min(0.3, path.morph)))
+  if (path.smooth === false) out.smooth = false
+  return out
+}
+
 function cleanPlacement(input: unknown): Placement | null {
   if (typeof input !== "object" || input === null) return null
   const source = input as Record<string, unknown>
@@ -126,28 +164,34 @@ function cleanPlacement(input: unknown): Placement | null {
 
   const object = cleanObject(source.object)
   if (object) placement.object = object
-  // Preset ids are `<collection>-<n>`; anything else is not one.
-  if (typeof source.preset === "string" && /^[a-z]{3,20}-[1-9][0-9]?$/.test(source.preset)) {
-    placement.preset = source.preset
+  if (typeof source.preset === "string" && PRESET_ID.test(source.preset)) placement.preset = source.preset
+
+  const breakpoints = source.breakpoints as Record<string, unknown> | undefined
+  if (breakpoints && typeof breakpoints === "object") {
+    const cleaned: NonNullable<Placement["breakpoints"]> = {}
+    for (const name of ["tablet", "phone"] as const) {
+      const override = breakpoints[name] as Record<string, unknown> | undefined
+      if (!override || typeof override !== "object") continue
+      const entry: Record<string, unknown> = {}
+      const o = cleanPoint(override.origin)
+      if (o) entry.origin = o
+      const p = cleanPath(override.path)
+      if (p) entry.path = p
+      const obj = cleanObject(override.object)
+      if (obj) entry.object = obj
+      if (typeof override.preset === "string" && PRESET_ID.test(override.preset)) entry.preset = override.preset
+      if (override.frame === "viewport" || override.frame === "section") entry.frame = override.frame
+      if (Object.keys(entry).length > 0) cleaned[name] = entry
+    }
+    if (Object.keys(cleaned).length > 0) placement.breakpoints = cleaned
   }
 
   if (source.frame === "viewport" || source.frame === "section") placement.frame = source.frame
   if (finite(source.layer)) placement.layer = Math.trunc(source.layer)
   if (typeof source.interactive === "boolean") placement.interactive = source.interactive
 
-  const path = source.path
-  if (typeof path === "object" && path !== null) {
-    const raw = (path as Record<string, unknown>).points
-    if (Array.isArray(raw)) {
-      const points = raw.map(cleanPoint).filter((point): point is PlacementPoint => point !== null)
-      if (points.length > 0) {
-        placement.path = { points }
-        const ease = (path as Record<string, unknown>).ease
-        if (finite(ease)) placement.path.ease = round(Math.max(0.01, Math.min(1, ease)))
-        if ((path as Record<string, unknown>).smooth === false) placement.path.smooth = false
-      }
-    }
-  }
+  const path = cleanPath(source.path)
+  if (path) placement.path = path
 
   return placement
 }
@@ -202,6 +246,70 @@ export async function handlePlacementsSave(
   }
 }
 
+/* ---------- proposals ---------- */
+
+/**
+ * A placement an agent has suggested, waiting for a person.
+ *
+ * The agent cannot see the page, and the file should only change when someone
+ * has looked. So an agent writes a proposal beside the placements file; the
+ * editor, next time it opens on that page, picks it up as an unsaved draft
+ * with a banner — routing it through the page's empty space first, if asked,
+ * because that needs the real layout — and it becomes the placement only when
+ * the person presses save.
+ */
+export interface PlacementProposal {
+  id: string
+  placement: Placement
+  route?: "whitespace"
+  note?: string
+}
+
+function proposalPath(options: PlacementsRouteOptions): string {
+  const file = options.file ?? DEFAULT_FILE
+  const target = isAbsolute(file) ? file : resolve(process.cwd(), file)
+  return join(dirname(target), "liquidforge.proposal.json")
+}
+
+export function cleanProposal(input: unknown): PlacementProposal | null {
+  if (typeof input !== "object" || input === null) return null
+  const source = input as Record<string, unknown>
+  if (typeof source.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(source.id)) return null
+  const placement = cleanPlacement(source.placement)
+  if (!placement) return null
+  const proposal: PlacementProposal = { id: source.id, placement }
+  if (source.route === "whitespace") proposal.route = "whitespace"
+  if (typeof source.note === "string" && source.note.trim()) proposal.note = source.note.trim().slice(0, 240)
+  return proposal
+}
+
+/** Write a proposal for the editor to pick up. Used by the MCP server. */
+export async function writeProposal(proposal: PlacementProposal, options: PlacementsRouteOptions = {}): Promise<string> {
+  const cleaned = cleanProposal(proposal)
+  if (!cleaned) throw new Error("liquidforge: that proposal is not a valid placement")
+  const target = proposalPath(options)
+  await mkdir(dirname(target), { recursive: true })
+  await writeFile(target, `${JSON.stringify(cleaned, null, 2)}\n`, "utf8")
+  return target
+}
+
+export async function readProposal(options: PlacementsRouteOptions = {}): Promise<PlacementProposal | null> {
+  const target = proposalPath(options)
+  if (!existsSync(target)) return null
+  try {
+    return cleanProposal(JSON.parse(await readFile(target, "utf8")))
+  } catch {
+    return null
+  }
+}
+
+export async function clearProposal(options: PlacementsRouteOptions = {}): Promise<void> {
+  await rm(proposalPath(options), { force: true })
+}
+
+const devOnly = (options: PlacementsRouteOptions) =>
+  process.env.NODE_ENV === "production" && !options.allowInProduction
+
 /**
  * A Next.js App Router route, complete.
  *
@@ -212,6 +320,19 @@ export async function handlePlacementsSave(
  */
 export function createPlacementsRoute(options: PlacementsRouteOptions = {}) {
   return {
+    /** `?proposal=1` — the agent's pending proposal, if there is one. */
+    async GET(request: Request): Promise<Response> {
+      if (devOnly(options)) return Response.json({ error: "Disabled in production." }, { status: 403 })
+      if (!new URL(request.url).searchParams.has("proposal")) return Response.json({ error: "Nothing here." }, { status: 404 })
+      return Response.json({ proposal: await readProposal(options) })
+    },
+    /** `?proposal=1` — dismiss it, once saved or discarded. */
+    async DELETE(request: Request): Promise<Response> {
+      if (devOnly(options)) return Response.json({ error: "Disabled in production." }, { status: 403 })
+      if (!new URL(request.url).searchParams.has("proposal")) return Response.json({ error: "Nothing here." }, { status: 404 })
+      await clearProposal(options)
+      return Response.json({ cleared: true })
+    },
     async POST(request: Request): Promise<Response> {
       let body: unknown
       try {
@@ -250,7 +371,25 @@ export function liquidforgePlacements(options: PlacementsRouteOptions = {}) {
       }
     }) {
       server.middlewares.use((request, response, next) => {
-        if (request.url !== endpoint || request.method !== "POST") return next()
+        const [pathname, query = ""] = (request.url ?? "").split("?")
+        if (pathname !== endpoint) return next()
+
+        const send = (status: number, body: unknown) => {
+          response.statusCode = status
+          response.setHeader("content-type", "application/json")
+          response.end(JSON.stringify(body))
+        }
+        if (query.includes("proposal")) {
+          if (request.method === "GET") {
+            void readProposal(options).then((proposal) => send(200, { proposal }))
+            return
+          }
+          if (request.method === "DELETE") {
+            void clearProposal(options).then(() => send(200, { cleared: true }))
+            return
+          }
+        }
+        if (request.method !== "POST") return next()
 
         const chunks: Buffer[] = []
         request.on("data", (chunk) => chunks.push(chunk as Buffer))
