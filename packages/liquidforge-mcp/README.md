@@ -61,7 +61,7 @@ npm test --workspace=liquidforge-mcp
 | `liquidforge_list_collections` | Eleven families, 99 colourways, with palettes |
 | `liquidforge_inspect_preset` | One colourway's exact numbers |
 | `liquidforge_recommend_preset` | Pick a family and colourway for a described site |
-| `liquidforge_generate_component` | Turn an explicit config into paste-ready TSX |
+| `liquidforge_generate_component` | Turn an explicit config into paste-ready TSX — or a Webflow, Framer or plain HTML embed with `target` |
 | `liquidforge_generate_placement` | Put an object on a site that already exists: placement file, component, dev save route and the in-place editor, with what to delete afterwards |
 | `liquidforge_propose_placement` | Leave a placement as a draft the user approves in the in-place editor — routed around the page's real content, written only on Save |
 | `liquidforge_breed_presets` | Cross two colourways into a litter of children, deterministic by seed |

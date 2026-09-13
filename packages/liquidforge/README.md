@@ -48,7 +48,7 @@ Any of these; they all arrive as one mesh, fitted into the same box, so the mate
 | `svg` | `src` or `markup` | contours extruded directly |
 | `image` | `src` | contour-traced to a silhouette, then extruded. Logos and icons — a photograph has no outline to find |
 | `shape` | `sphere` `torus` `torusknot` `capsule` `icosahedron` `rounded-box` | parametric, no assets |
-| `model` | a `.glb` URL | every mesh baked into one surface. Materials are dropped; animation is kept |
+| `model` | a `.glb` URL | every mesh baked into one surface. Animation is kept; materials are dropped unless the family is **Original** |
 
 ```tsx
 <LiquidCanvas object={{ type: "text", value: "SHIP IT", depth: 0.5 }} />
@@ -99,9 +99,10 @@ Practical limits, all handled rather than hit:
 - Over ~90k triangles the cursor probe falls back to the bounding sphere
   instead of raycasting the mesh, because a per-frame raycast at that size
   costs more than the frame has.
-- Textures are never downloaded. Only positions survive, so image requests are
-  redirected to a blank pixel — which saves megabytes on a Poly Haven asset and
-  removes the 404s from models whose textures sit beside the file.
+- Textures are only downloaded for the **Original** family, which is the one
+  that shows them. Every other family keeps positions alone, so image requests
+  are redirected to a blank pixel — which saves megabytes on a Poly Haven asset
+  and removes the 404s from models whose textures sit beside the file.
 - Draco and Meshopt geometry, and KTX2 textures, need decoders this package
   does not bundle. Re-export uncompressed.
 
@@ -152,6 +153,7 @@ Each family is a different *technique*, not a different palette. If a look can b
 | **Halo** | holographic foil | streetwear, drops, merch. Loud and prismatic |
 | **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
+| **Original** | the object's own textures and colours, made liquid | a model, logo or illustration that already looks right — you want it to move, not to become chrome |
 
 Each colourway declares the ground it expects: `dark`, `mid`, `light` or
 `transparent`. **Pearl** and **Jade** are lit for a light page. **Obsidian**, **Velvet** and
@@ -218,6 +220,93 @@ The Studio has all eight in its export, and `/showcase` renders four of them as
 pretend websites so you can see a colourway somewhere other than full-bleed on
 black. That is the placement most people never use, and a palette that looks
 expensive at full size often turns to mud at 36px.
+
+---
+
+## On a site you already have
+
+A hero owns a band of the layout. `LiquidSpot` owns nothing: it floats over the
+page you already built, somewhere you put it with the in-place editor, and can
+travel a route as the page scrolls.
+
+```tsx
+import { LiquidSpot } from "liquidforge"
+import { LiquidEditor } from "liquidforge/editor"
+import placements from "./liquidforge.placements.json"
+
+<LiquidSpot id="hero" placement={placements.hero} />
+{process.env.NODE_ENV === "development" && <LiquidEditor placements={placements} />}
+```
+
+Press ⌘⇧E on your own page and:
+
+- **Place** — drag the object where it goes and pick what it is.
+- **Path** — draw the route it takes as the page scrolls, or press *Route around
+  content* to have one drawn through the page's empty space.
+- **Size** — set how big it is at each point.
+- **Checkpoints** — select a point and give it a different element or look. The
+  object melts into it as the page scrolls past, and back on the way up.
+- **Pin** — tie a point to a heading or section, so it is reached when that
+  element is at that height. Edit the copy above it and the timing follows.
+- **Breakpoints** — tablet and phone can each have their own placement; they
+  inherit the desktop one until you change something.
+
+Save writes `liquidforge.placements.json` into your project through a
+development-only route (`createPlacementsRoute` from `liquidforge/dev` for
+Next.js, the `liquidforgePlacements()` plugin for Vite). The editor holds no
+state of its own, so deleting it keeps everything; putting it back later opens
+on exactly what is on screen. `npx liquidforge` and the Studio's *Place it* tab
+print the whole setup, and the MCP server can leave a proposed placement for
+you to accept or discard in the editor.
+
+---
+
+## Breeding
+
+Two looks can have children. `breed` crosses them gene by gene — each number
+from one parent, the other, or between — nudges each by an amount scaled to that
+gene's range, crosses the palette in OKLab, and takes the silhouette and the
+family whole from one parent each. The same seed always gives the same child.
+
+```ts
+import { breed, litter, blendPresets } from "liquidforge/breed"
+import { PRESETS } from "liquidforge"
+
+const a = { preset: PRESETS["mercury-3"], object: { type: "text", value: "OIL" } }
+const b = { preset: PRESETS["velvet-1"], object: { type: "shape", shape: "torus" } }
+
+const six = litter(a, b, 6, 42, { mutation: 0.15 })   // Child[]
+const halfway = blendPresets(a.preset, b.preset, 0.5) // what a checkpoint melts through
+```
+
+The Studio's gallery breeds any two posts, and a post made from a child credits
+both parents.
+
+---
+
+## Posters, loops and phones
+
+**Poster.** The shader compiles and the mesh builds before the first frame, which
+is the slow part of a hero. Give it a still and the page paints that at once, then
+crossfades to the live surface when the browser is idle:
+
+```tsx
+<LiquidHero object={{ type: "text", value: "SHIP IT" }} preset="mercury-3" poster="/hero-poster.webp" />
+```
+
+`engine.posterBlob(width, height)` renders that still, and the Studio's export
+downloads one to match the component it gives you.
+
+**Loops.** `engine.renderFrames({ seconds, fps, width, height }, onFrame)`
+renders a closed loop one exact frame at a time and hands each canvas to you —
+encode them with WebCodecs and a slow machine takes longer instead of dropping
+frames. The Studio does exactly that to download a 4K H.264 MP4.
+`engine.recordLoop()` is the real-time `MediaRecorder` version, for when an MP4
+encoder is not available.
+
+**Phones.** A touch screen has no cursor, so by default (`deviceMotion: "auto"`)
+tilting the phone steers the light and the well instead. iOS asks for permission
+on the first tap.
 
 ---
 
@@ -311,7 +400,25 @@ Everything `<LiquidCanvas />` takes, plus:
 
 ### Without React
 
-`LiquidEngine` owns the whole render loop and has no React in it:
+On Webflow, Framer, WordPress or a plain HTML page, use the custom element. One
+script tag, three.js included:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/liquidforge@0.1/dist/element.global.js" defer></script>
+<liquid-forge text="SHIP IT" preset="mercury-3" style="display:block;height:480px"></liquid-forge>
+```
+
+The object is one of `text`, `shape`, `model`, `svg` or `image` (or an `object`
+attribute holding the JSON). The look is `preset`, plus `family`, `palette`
+(comma-separated), and `surface` / `shading` as JSON of just the numbers you
+changed. Then `transparent`, `background`, `quality`, `auto-rotate`,
+`draggable="false"` and `poster`. Change an attribute and the surface updates in
+place; `element.engine` is the engine underneath. With a bundler,
+`import "liquidforge/element"` registers the same element against your copy of
+three. The Studio's export writes the Webflow embed, a Framer code component,
+or plain HTML for any look, and so does `generateEmbed` in `liquidforge/codegen`.
+
+Under the element, `LiquidEngine` owns the whole render loop and has no React in it:
 
 ```ts
 import { LiquidEngine, forgeGeometry, PRESETS } from "liquidforge"
@@ -332,7 +439,7 @@ npx liquidforge add material    # just the shader and the render loop
 npx liquidforge add forge       # just the object generators
 ```
 
-Copies the real source into your project. The shader is in `material/glsl/`; `fragment.ts` is where a new family goes, as a `#define` branch alongside the five that ship.
+Copies the real source into your project. The shader is in `material/glsl/`; `fragment.ts` is where a new family goes, as a `#define` branch alongside the eleven that ship.
 
 ---
 

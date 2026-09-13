@@ -590,7 +590,7 @@ export default defineConfig({
       : `// app/api/liquidforge/placements/route.ts
 import { createPlacementsRoute } from "liquidforge/dev"
 
-export const { POST } = createPlacementsRoute()
+export const { GET, DELETE, POST } = createPlacementsRoute()
 export const dynamic = "force-dynamic"`
 
   return `# 1 · Install
