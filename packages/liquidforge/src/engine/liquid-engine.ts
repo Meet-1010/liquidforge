@@ -201,6 +201,7 @@ export class LiquidEngine {
   private readonly pointer = new Vector2(0, 0)
   /** A pointer driven by code — a tracked hand, a stream event — instead of the mouse. */
   private pointerOverride: Vector2 | null = null
+  private pressOverride: number | null = null
   private environment: { texture: CanvasTexture; mix: number } | null = null
   private readonly gravityTarget = new Vector3()
   private readonly gravity = new Vector3()
@@ -1368,7 +1369,8 @@ export class LiquidEngine {
       this.splashEnergy = 0
       u.uMutation.value = this.mutation
     }
-    this.press += ((over ? 1 : 0) - this.press) * 0.14
+    const pressing = this.pressOverride ?? 1
+    this.press += ((over ? pressing : 0) - this.press) * 0.14
     u.uPress.value = Math.min(1, this.press + this.clickPulse * 0.45)
 
     // Audio rides on top of the pointer: it adds energy where the surface
@@ -1725,6 +1727,18 @@ export class LiquidEngine {
     }
     this.pointerOverride = (this.pointerOverride ?? new Vector2()).set(point.x, point.y)
     this.pointerSeen = true
+  }
+
+  /**
+   * How firmly the pointer presses, from code: a tracked hand's palm, a pinch.
+   *
+   * 1 is the ordinary dent under a cursor, and anything between 0 and 1 a
+   * lighter touch. Negative pulls the surface out toward the pointer instead —
+   * down to -1.6, a strand drawn out of the liquid. Null goes back to the
+   * pointer's own behaviour, where being over the object is a full press.
+   */
+  setPressOverride(value: number | null): void {
+    this.pressOverride = value === null ? null : Math.max(-1.6, Math.min(1, value))
   }
 
   /**

@@ -34,6 +34,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "words and six shapes only for now; very different outlines, like a long word into a sphere, pass through a brief blend of both.",
   },
   {
+    slug: "hands",
+    title: "Push it with your hand",
+    pitch: "Allow the camera and your hand becomes the cursor: push the surface with an open palm, pinch to pull a strand out of it. Nothing leaves your device.",
+    section: "clip",
+    rough: "one hand at a time, and it needs decent light; the first start downloads about 20 MB of tracking model and code.",
+  },
+  {
     slug: "pour",
     title: "Pour it",
     pitch: "Tilt your phone and the liquid sloshes to the low side. Tip it far enough and it pours off the object, runs down the screen and pools at the bottom.",
