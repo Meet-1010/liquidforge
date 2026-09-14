@@ -93,6 +93,8 @@ export function createLiquidMaterial(
       uEnvMap: { value: null as Texture | null },
       uEnvMix: { value: 0 },
       uSpikes: { value: preset.surface.spikes ?? 0 },
+      uMagnet: { value: new Vector3(0, 0, 1) },
+      uMagnetPull: { value: 0 },
 
       uAtlas: { value: withSurface ? (appearance?.texture ?? null) : null },
       uAtlasRects: { value: atlasRects(withSurface ? appearance?.rects : undefined) },

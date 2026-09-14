@@ -9,6 +9,11 @@ export interface SurfaceHit {
   normal: Vector3
   /** True when the ray actually met the object rather than parking on its rim. */
   over: boolean
+  /**
+   * How far outside the object's bounding sphere the cursor's ray passes, in
+   * radii: 0 when it passes through it, 1 a full radius clear of the rim.
+   */
+  gap: number
 }
 
 /**
@@ -37,6 +42,7 @@ export class SurfaceProbe {
   readonly point = new Vector3(0, 0, 1)
   readonly normal = new Vector3(0, 0, 1)
   over = false
+  gap = 0
 
   /**
    * The flat projection, kept only to be shown failing.
@@ -55,6 +61,7 @@ export class SurfaceProbe {
     this.point.set(x, y, z).normalize().multiplyScalar(radius)
     this.normal.copy(this.point).normalize()
     this.over = r2 < 1
+    this.gap = Math.max(0, Math.sqrt(r2) - 1)
     return this
   }
 
@@ -87,6 +94,7 @@ export class SurfaceProbe {
         if (first.face) this.normal.copy(first.face.normal).normalize()
         else this.normal.copy(this.point).normalize()
         this.over = true
+        this.gap = 0
         return this
       }
     }
@@ -123,6 +131,7 @@ export class SurfaceProbe {
       // is standing in for the mesh. On the miss path the ray has already been
       // shown not to touch anything.
       this.over = mode === "sphere"
+      this.gap = 0
       return this
     }
 
@@ -138,6 +147,7 @@ export class SurfaceProbe {
       .add(centre)
     this.normal.copy(this.point).sub(centre).normalize()
     this.over = false
+    this.gap = Math.sqrt(Math.max(0, c + radius * radius - b * b)) / radius - 1
     return this
   }
 }

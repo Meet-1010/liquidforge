@@ -23,7 +23,7 @@ import {
 } from "../material/liquid-material"
 import { backgroundColor } from "../material/environment"
 import { computeNormals, prepareGeometry } from "./prepare-geometry"
-import { SurfaceProbe, type ProbeMode } from "./pointer"
+import { SurfaceProbe, type ProbeMode, type SurfaceHit } from "./pointer"
 import { Trail } from "./trail"
 import { resolveQuality } from "./quality"
 import type { LiquidRig } from "../forge/rig"
@@ -729,8 +729,9 @@ export class LiquidEngine {
     const follow = lead === aHandle ? bHandle : aHandle
     const from = lead.material.uniforms
     const into = follow.material.uniforms
-    for (const name of ["uTime", "uPress", "uMutation", "uRadius", "uSlosh"]) into[name].value = from[name].value
+    for (const name of ["uTime", "uPress", "uMutation", "uRadius", "uSlosh", "uMagnetPull"]) into[name].value = from[name].value
     ;(into.uGravity.value as Vector3).copy(from.uGravity.value as Vector3)
+    ;(into.uMagnet.value as Vector3).copy(from.uMagnet.value as Vector3)
     ;(into.uPtr.value as Vector3).copy(from.uPtr.value as Vector3)
     ;(into.uPtrN.value as Vector3).copy(from.uPtrN.value as Vector3)
     ;(into.uPointer.value as Vector2).copy(from.uPointer.value as Vector2)
@@ -1355,6 +1356,9 @@ export class LiquidEngine {
     const over = hit.over && this.pointerSeen
     ;(u.uPtr.value as Vector3).copy(hit.point)
     ;(u.uPtrN.value as Vector3).copy(hit.normal)
+    this.updateMagnet(hit, Math.min(deltaMs, 100) / 1000, mesh)
+    ;(u.uMagnet.value as Vector3).copy(this.magnet)
+    u.uMagnetPull.value = this.magnetPull
 
     this.clickPulse *= 0.9
     if (this.splashEnergy > 0.002) {
@@ -1812,6 +1816,52 @@ export class LiquidEngine {
     this.clickPulse = Math.max(this.clickPulse, strength)
     this.splashEnergy = Math.min(1.5, this.splashEnergy + strength)
     if (!this.running) this.renderOnce()
+  }
+
+  /**
+   * Where ferrofluid's spikes are drawn toward, and how hard.
+   *
+   * A magnet held under a dish of ferrofluid is felt before it arrives: the
+   * spikes turn toward it as it approaches and follow it around, a beat behind.
+   * So this reaches a little past the object's silhouette, fading with distance,
+   * and eases after the cursor instead of jumping to it — around the object's
+   * centre rather than through it, so crossing from one side to the other sweeps
+   * the spikes over the surface instead of collapsing them in the middle.
+   */
+  private readonly magnet = new Vector3(0, 0, 1)
+  private magnetPull = 0
+  private readonly magnetFrom = new Vector3()
+  private readonly magnetTo = new Vector3()
+
+  private updateMagnet(hit: SurfaceHit, dt: number, mesh: Mesh): void {
+    const reach = 1.1
+    const closeness = this.pointerSeen ? 1 - Math.min(1, Math.max(0, hit.gap / reach)) : 0
+    const target = closeness * closeness * (3 - 2 * closeness)
+    if (this.reduced) {
+      this.magnet.copy(hit.point)
+      this.magnetPull = target
+      return
+    }
+    this.magnetPull += (target - this.magnetPull) * (1 - Math.exp(-dt * 2.6))
+
+    const centre = mesh.geometry.boundingSphere?.center
+    const from = this.magnetFrom.copy(this.magnet)
+    const to = this.magnetTo.copy(hit.point)
+    if (centre) {
+      from.sub(centre)
+      to.sub(centre)
+    }
+    const fromLength = from.length() || 1
+    const toLength = to.length() || 1
+    from.divideScalar(fromLength)
+    to.divideScalar(toLength)
+    const k = 1 - Math.exp(-dt * 3.2)
+    from.lerp(to, k)
+    // Exactly opposite, the two directions average to nothing; step sideways.
+    if (from.lengthSq() < 1e-6) from.set(to.z, to.x, to.y)
+    from.normalize().multiplyScalar(fromLength + (toLength - fromLength) * k)
+    if (centre) from.add(centre)
+    this.magnet.copy(from)
   }
 
   private readonly splashPoint = new Vector3()
