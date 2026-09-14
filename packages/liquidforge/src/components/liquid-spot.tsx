@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { LiquidCanvas, type LiquidCanvasProps } from "./liquid-canvas"
-import type { LiquidEngine } from "../engine/liquid-engine"
+import { PRIMARY_FORM, type LiquidEngine, type Look } from "../engine/liquid-engine"
 import { useReducedMotion } from "../hooks/use-reduced-motion"
 import { checkpointAt, pointAt, samplePath, type SampledPath } from "../placement/path"
 import { resolveAnchors } from "../placement/anchors"
@@ -12,7 +12,7 @@ import { breakpointFor, DEFAULT_PLACEMENT, resolveBreakpoint, type Placement, ty
 import { blendPresets } from "../breed"
 import { forgeGeometry } from "../forge"
 import { resolvePreset } from "../presets"
-import type { ObjectSource } from "../types"
+import type { LiquidPreset, ObjectSource } from "../types"
 
 export interface LiquidSpotProps extends LiquidCanvasProps {
   /**
@@ -52,6 +52,7 @@ export function LiquidSpot({
   // of the layout and can reasonably paint a ground.
   transparent = true,
   onEngine,
+  onReady,
   fallback,
   ...canvasProps
 }: LiquidSpotProps) {
@@ -151,42 +152,37 @@ export function LiquidSpot({
     placement.preset ?? (typeof canvasProps.preset === "string" ? canvasProps.preset : undefined)
   const hasCheckpoints = Boolean(path?.points.some((point) => point.object || point.preset))
 
-  // Only crossing a checkpoint re-renders; everything between is imperative.
-  const [settled, setSettled] = useState<{ objectFrom: number; preset: string | undefined }>({
-    objectFrom: -1,
-    preset: basePreset,
-  })
-  const settledRef = useRef(settled)
-  settledRef.current = settled
+  /*
+   * Checkpoints never re-render anything.
+   *
+   * The canvas is given the placement's own object and look once. Every other
+   * object on the route is forged in the background and handed to the engine as
+   * a prepared form, and the paint loop moves between forms with `setLook` — a
+   * morph, a bred colourway and, for the few frames where both are visible, a
+   * crossfade of the two pictures. The object used to be swapped by re-rendering
+   * the canvas with a new `object` prop at the peak of a melt, which rebuilt the
+   * mesh, reframed the camera and recompiled the shader in a single frame: the
+   * snap this replaces.
+   */
+  const baseKey = JSON.stringify(baseObject ?? null)
+  const formKeyOf = useCallback(
+    (object: ObjectSource | undefined) => {
+      const key = JSON.stringify(object ?? null)
+      return key === baseKey ? PRIMARY_FORM : `checkpoint:${key}`
+    },
+    [baseKey],
+  )
   const lastLook = useRef("")
   const lastMutation = useRef(-1)
+  const [formsEpoch, setFormsEpoch] = useState(0)
 
-  // An edit to the placement — a new base look, a redrawn route — starts the
-  // checkpoint bookkeeping over; the next frame works out where the scroll is.
+  // An edit to the placement — a new base look, a redrawn route — makes the next
+  // frame write its look again rather than trusting the last one.
   const pathKey = JSON.stringify(path?.points ?? null)
   useEffect(() => {
-    const reset = { objectFrom: -1, preset: basePreset }
-    settledRef.current = reset
-    setSettled(reset)
     lastLook.current = ""
     lastMutation.current = -1
   }, [basePreset, pathKey])
-
-  const currentObject =
-    settled.objectFrom >= 0 ? (path?.points[settled.objectFrom]?.object ?? baseObject) : baseObject
-
-  // Warm the forge for every checkpoint's object up front, so the swap at the
-  // peak of a melt is a cache hit rather than a download that lands late.
-  const checkpointObjectsKey = JSON.stringify(path?.points.map((point) => point.object ?? null) ?? [])
-  useEffect(() => {
-    if (!hasCheckpoints || typeof window === "undefined") return
-    for (const point of path?.points ?? []) {
-      if (point.object && (point.object.type === "model" || point.object.type === "svg")) {
-        forgeGeometry(point.object).then((geometry) => geometry.dispose()).catch(() => {})
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkpointObjectsKey, hasCheckpoints])
 
   const handleEngine = useCallback(
     (engine: LiquidEngine | null) => {
@@ -195,6 +191,73 @@ export function LiquidSpot({
     },
     [onEngine],
   )
+
+  const handleReady = useCallback(
+    (info: { animations: string[] }) => {
+      // The primary shape was just rebuilt; forms aimed at the old one, and the
+      // look written over it, are both stale.
+      lastLook.current = ""
+      setFormsEpoch((value) => value + 1)
+      onReady?.(info)
+    },
+    [onReady],
+  )
+
+  // Forge every checkpoint's object and register it as a form, then build every
+  // material and morph target the route will ask for.
+  useEffect(() => {
+    const engine = engineRef.current
+    if (!engine || !hasCheckpoints || !path || formsEpoch === 0) return
+    let cancelled = false
+
+    const presets = [basePreset, ...path.points.map((point) => point.preset)].filter(Boolean) as string[]
+    const keepsSurface = presets.some((id) => resolvePreset(id).family === "original")
+    const objects = new Map<string, ObjectSource>()
+    for (const point of path.points) {
+      if (point.object && formKeyOf(point.object) !== PRIMARY_FORM) objects.set(formKeyOf(point.object), point.object)
+    }
+
+    const registered = [...objects.entries()].map(([key, object]) =>
+      forgeGeometry(object, undefined, {
+        appearance: keepsSurface && (object.type === "model" || object.type === "image" || object.type === "svg"),
+      })
+        .then((geometry) => {
+          if (cancelled || engineRef.current !== engine) return geometry.dispose()
+          engine.registerForm(key, geometry, {
+            forceSphereProbe: object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron"),
+          })
+          geometry.dispose()
+        })
+        .catch(() => {
+          // A checkpoint object that cannot be forged leaves its moment on the
+          // placement's own object, which is better than no object at all.
+        }),
+    )
+
+    void Promise.all(registered).then(() => {
+      if (cancelled || engineRef.current !== engine || !sampled || !effectivePath) return
+      const looks: Look[] = []
+      const pairs: Array<[string, string]> = []
+      let previous = PRIMARY_FORM
+      let previousPreset = basePreset
+      for (const point of path.points) {
+        if (!point.object && !point.preset) continue
+        const form = point.object ? formKeyOf(point.object) : previous
+        const preset = point.preset ?? previousPreset
+        looks.push({ form, preset: resolvePreset(preset) }, { form: previous, preset: resolvePreset(preset) }, { form, preset: resolvePreset(previousPreset) })
+        if (form !== previous) pairs.push([previous, form])
+        previous = form
+        previousPreset = preset
+      }
+      void engine.warm(looks, pairs)
+      lastLook.current = ""
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formsEpoch, pathKey, hasCheckpoints, basePreset, formKeyOf])
 
   /*
    * Scroll position, the eased position chasing it, and the last thing written
@@ -236,29 +299,31 @@ export function LiquidSpot({
           const state = checkpointAt(effectivePath, sampled, eased.current, { object: baseObject, preset: basePreset }, path?.morph)
           const engine = engineRef.current
 
-          // The object and the settled look change by re-render, and only when
-          // a checkpoint is actually crossed.
-          const settledPreset = state.blend > 0 ? settledRef.current.preset : state.presetTo
-          if (state.objectFrom !== settledRef.current.objectFrom || (state.blend === 0 && settledPreset !== settledRef.current.preset)) {
-            const next = { objectFrom: state.objectFrom, preset: state.blend === 0 ? state.presetTo : settledRef.current.preset }
-            settledRef.current = next
-            setSettled(next)
-          }
-
           if (engine) {
             if (Math.abs(state.mutation - lastMutation.current) > 0.002) {
               lastMutation.current = state.mutation
               engine.setMutation(reducedMotion ? 0 : state.mutation)
             }
-            const look = `${state.presetFrom}|${state.presetTo}|${state.blend.toFixed(3)}`
-            if (look !== lastLook.current && state.presetTo) {
+            const fromForm = formKeyOf(state.from.object)
+            const toForm = state.to ? formKeyOf(state.to.object) : ""
+            const look = `${fromForm}|${state.from.preset}|${toForm}|${state.to?.preset}|${state.t.toFixed(4)}`
+            if (look !== lastLook.current) {
               lastLook.current = look
-              const to = resolvePreset(state.presetTo)
-              engine.setPresetLive(
-                state.blend > 0 && state.presetFrom && state.presetFrom !== state.presetTo
-                  ? blendPresets(resolvePreset(state.presetFrom), to, state.blend)
-                  : to,
-              )
+              const fromPreset = resolvePreset(state.from.preset)
+              if (!state.to) {
+                engine.setLook({ form: fromForm, preset: fromPreset })
+              } else {
+                const toPreset = resolvePreset(state.to.preset)
+                // One set of bred numbers for both sides; each keeps its own family,
+                // so the shader never has to change in the middle of the scroll.
+                const bred: LiquidPreset =
+                  state.from.preset !== state.to.preset ? blendPresets(fromPreset, toPreset, state.t) : toPreset
+                engine.setLook(
+                  { form: fromForm, preset: { ...bred, family: fromPreset.family } },
+                  { form: toForm, preset: { ...bred, family: toPreset.family } },
+                  state.t,
+                )
+              }
             }
           }
         }
@@ -304,7 +369,7 @@ export function LiquidSpot({
       observer.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame, effectivePath, placement, sampled, reducedMotion, scrub, hasCheckpoints, basePreset, JSON.stringify(baseObject)])
+  }, [frame, effectivePath, placement, sampled, reducedMotion, scrub, hasCheckpoints, basePreset, baseKey, formKeyOf])
 
   // Scroll → target progress.
   useEffect(() => {
@@ -365,12 +430,11 @@ export function LiquidSpot({
           /* The file wins over the props: whatever the editor last saved is
              what renders, so a spot that has been placed needs no props here
              beyond its id. At a checkpoint, the checkpoint's object wins. */
-          object={currentObject ?? canvasProps.object}
-          preset={settled.preset ?? basePreset ?? canvasProps.preset}
+          object={baseObject ?? canvasProps.object}
+          preset={basePreset ?? canvasProps.preset}
           transparent={transparent}
           onEngine={handleEngine}
-          // A floating object must not flash a loading label mid-scroll when a
-          // checkpoint swaps it: the old mesh stays up until the new one is ready.
+          onReady={handleReady}
           fallback={fallback ?? <span />}
           style={{ width: "100%", height: "100%", minHeight: 0 }}
         />

@@ -72,11 +72,19 @@ function mixPalettes(a: string[], b: string[], t: number): string[] {
   return Array.from({ length }, (_, i) => mixHex(a[i % a.length], b[i % b.length], t))
 }
 
+/**
+ * What the shader uses for a number a colourway leaves out. Blending from a
+ * missing value has to start here, not at zero: an index of refraction that
+ * slides in from 0 instead of 1.45 is a lens flipping inside out for the first
+ * frame of the blend.
+ */
+const IMPLIED: Record<string, number> = { transmission: 0, ior: 1.45, thinFilm: 0, emissive: 0 }
+
 function mixNumbers<T extends object>(a: T, b: T, t: number): T {
   const out = { ...a } as Record<string, unknown>
   for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    const av = (a as Record<string, unknown>)[key]
-    const bv = (b as Record<string, unknown>)[key]
+    const av = (a as Record<string, unknown>)[key] ?? IMPLIED[key]
+    const bv = (b as Record<string, unknown>)[key] ?? IMPLIED[key]
     if (typeof av === "number" && typeof bv === "number") out[key] = lerp(av, bv, t)
     else if (typeof bv === "number" && av === undefined) out[key] = lerp(0, bv, t)
     else if (typeof av === "number" && bv === undefined) out[key] = lerp(av, 0, t)
@@ -99,7 +107,11 @@ export function blendPresets(a: LiquidPreset, b: LiquidPreset, t: number): Liqui
   return {
     ...(k < 0.5 ? a : b),
     id: `${a.id}~${b.id}`,
-    palette: mixPalettes(a.palette, b.palette, k),
+    // Same number of colours: breed them stop by stop, in OKLab. Different
+    // numbers: keep both ramps whole and let the shader cross between them.
+    ...(a.palette.length === b.palette.length
+      ? { palette: mixPalettes(a.palette, b.palette, k), paletteBlend: undefined }
+      : { palette: a.palette, paletteBlend: { palette: b.palette, amount: k } }),
     surface: mixNumbers<SurfaceOptions>(a.surface, b.surface, k),
     shading: mixNumbers<ShadingOptions>(a.shading, b.shading, k),
   }

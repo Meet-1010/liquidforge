@@ -150,6 +150,14 @@ export interface LiquidPreset {
   label: string
   /** Hue ramp, cycled around the light axis. 2–8 colours. */
   palette: string[]
+  /**
+   * Set by `blendPresets` when two colourways with different numbers of colours
+   * are partway through becoming one another: the shader evaluates both ramps
+   * and mixes them by `amount`. Averaging the colours stop by stop cannot do this
+   * — a four-colour ramp and a five-colour ramp put their stops in different
+   * places, so the moment the count changed, every band on the surface jumped.
+   */
+  paletteBlend?: { palette: string[]; amount: number }
   surface: SurfaceOptions
   shading: ShadingOptions
   /**

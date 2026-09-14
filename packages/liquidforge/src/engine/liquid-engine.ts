@@ -24,7 +24,8 @@ import { SurfaceProbe, type ProbeMode } from "./pointer"
 import { Trail } from "./trail"
 import { resolveQuality } from "./quality"
 import type { LiquidRig } from "../forge/rig"
-import type { ControlOptions, DiagnosticOptions, LiquidPreset, MotionOptions, Quality } from "../types"
+import type { ControlOptions, DiagnosticOptions, LiquidPreset, MaterialFamily, MotionOptions, Quality } from "../types"
+import { buildRadialMap, Crossfade, envelopeError, morphAttributes, type MorphAttributes, type RadialMap } from "./morph"
 
 /**
  * Above this, a per-frame raycast costs more than the frame has to spare, so
@@ -33,6 +34,54 @@ import type { ControlOptions, DiagnosticOptions, LiquidPreset, MotionOptions, Qu
  * this dense.
  */
 const RAYCAST_TRIANGLE_LIMIT = 90_000
+
+/** The shape `setGeometry` builds. Every other form is registered by key. */
+export const PRIMARY_FORM = "primary"
+
+/** A shape the object can take and a look to take it in. */
+export interface Look {
+  form: string
+  preset: LiquidPreset
+}
+
+/**
+ * One shape, prepared and kept.
+ *
+ * A form is everything expensive about an object — the tessellated geometry, its
+ * own surface texture, the radial map a transition aims at, a material per family
+ * it has been shown in — built once, so becoming it again costs a few uniform
+ * writes rather than a forge and a shader compile in the middle of a scroll.
+ */
+interface Form {
+  key: string
+  mesh: Mesh
+  /** Same geometry, second material: a family change on one shape crossfades through this. */
+  twin: Mesh | null
+  radius: number
+  extents: Vector3
+  appearance: MaterialAppearance | null
+  rig: LiquidRig | null
+  probeMode: ProbeMode
+  radial: RadialMap | null
+  /** How far the shape sits inside its own radial envelope; see `envelopeError`. */
+  fold: number
+  aims: Map<string, MorphAttributes>
+  handles: Map<MaterialFamily, LiquidMaterialHandle>
+}
+
+interface Transition {
+  a: Mesh
+  aHandle: LiquidMaterialHandle
+  b: Mesh
+  bHandle: LiquidMaterialHandle
+  /** How much of the picture is the second side, 0–1. */
+  fade: number
+}
+
+const smoothstep = (edge0: number, edge1: number, x: number) => {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
 
 export interface LiquidEngineOptions {
   /**
@@ -151,6 +200,11 @@ export class LiquidEngine {
   private rig: LiquidRig | null = null
   /** The current object's own surface, for the original family. */
   private appearance: MaterialAppearance | null = null
+  private readonly forms = new Map<string, Form>()
+  private active: Form | null = null
+  private transition: Transition | null = null
+  private readonly crossfade = new Crossfade()
+  private readonly bufferSize = new Vector2()
   private mutation = 0
   private readonly extents = new Vector3(1, 1, 1)
 
@@ -252,13 +306,205 @@ export class LiquidEngine {
    * on the next swap or on `dispose()`, but the geometry handed in is not.
    */
   setGeometry(geometry: BufferGeometry, options: { forceSphereProbe?: boolean } = {}): void {
+    this.transition = null
+    const form = this.buildForm(PRIMARY_FORM, geometry, options)
+    const handle = this.handleFor(form, this.preset.family)
+    handle.apply(this.preset)
+    this.showOnly(form, handle)
+    this.applyDiagnostic()
+    this.trail.clear()
+    this.frameCamera()
+    this.renderOnce()
+  }
+
+  /**
+   * Prepare another shape the object can become, without showing it.
+   *
+   * A scroll checkpoint registers each of its objects up front, so that reaching
+   * one is a morph between two things already on the GPU rather than a forge and
+   * a pop. Replacing a key that is on screen swaps it in place.
+   */
+  registerForm(key: string, geometry: BufferGeometry, options: { forceSphereProbe?: boolean } = {}): void {
+    const wasActive = this.active?.key === key
+    const form = this.buildForm(key, geometry, options)
+    if (wasActive) {
+      this.transition = null
+      const handle = this.handleFor(form, this.preset.family)
+      handle.apply(this.preset)
+      this.showOnly(form, handle)
+      this.frameCamera()
+      this.renderOnce()
+    }
+  }
+
+  hasForm(key: string): boolean {
+    return this.forms.has(key)
+  }
+
+  /** Drop every registered shape except the primary one. */
+  releaseForms(): void {
+    for (const form of [...this.forms.values()]) {
+      if (form.key === PRIMARY_FORM) continue
+      if (this.active === form) {
+        const primary = this.forms.get(PRIMARY_FORM)
+        if (primary) {
+          this.transition = null
+          const handle = this.handleFor(primary, this.preset.family)
+          this.showOnly(primary, handle)
+        }
+      }
+      this.disposeForm(form)
+    }
+  }
+
+  /**
+   * Build everything a look will need before it is needed: the material for
+   * each family on each shape, compiled off the main thread where the browser
+   * allows, and the morph targets between shapes that follow one another.
+   *
+   * Without this the first frame of a transition compiles a shader, which is a
+   * stall of a tenth of a second or more — exactly the snap a transition exists
+   * to avoid.
+   */
+  async warm(looks: Look[], pairs: Array<[string, string]> = []): Promise<void> {
+    const scene = new Scene()
+    for (const look of looks) {
+      const form = this.forms.get(look.form)
+      if (!form) continue
+      const handle = this.handleFor(form, look.preset.family)
+      scene.add(new Mesh(form.mesh.geometry, handle.material))
+    }
+    for (const [from, to] of pairs) {
+      const a = this.forms.get(from)
+      const b = this.forms.get(to)
+      if (a && b && a !== b) {
+        this.aimFor(a, b)
+        this.aimFor(b, a)
+      }
+    }
+    try {
+      await this.renderer.compileAsync(scene, this.camera)
+      if (pairs.length > 0 || looks.some((look) => look.preset.family !== this.preset.family)) {
+        await this.crossfade.warm(this.renderer, scene, this.camera)
+      }
+    } catch {
+      // A browser without parallel compile compiles on first draw instead.
+    }
+  }
+
+  /**
+   * Be `from`, or `to`, or anywhere between.
+   *
+   * `t` is how far along the transition is — 0 is entirely `from`, 1 entirely
+   * `to` — and can move in either direction, since scrolling back up has to undo
+   * a transformation as smoothly as scrolling down made it. Between the two:
+   *
+   * - the shapes morph toward each other along their radial maps, so the old one
+   *   arrives at the new silhouette and the new one leaves the old;
+   * - each side keeps its own material, so a change of family is never a
+   *   recompile mid-scroll;
+   * - and for the stretch where both are visible, the two finished pictures are
+   *   mixed, which is the only kind of handover with no frame where one is
+   *   swapped for the other.
+   */
+  setLook(from: Look, to: Look | null = null, t = 0): void {
+    const a = this.forms.get(from.form) ?? this.forms.get(PRIMARY_FORM)
+    if (!a) return
+    const b = to ? (this.forms.get(to.form) ?? this.forms.get(PRIMARY_FORM) ?? a) : null
+    const k = Math.max(0, Math.min(1, t))
+
+    if (!b || !to || k <= 0 || k >= 1) {
+      const [form, look] = !b || !to || k <= 0 ? [a, from] : [b, to]
+      this.transition = null
+      this.preset = look.preset
+      const handle = this.handleFor(form, look.preset.family)
+      handle.apply(look.preset)
+      handle.material.uniforms.uMorph.value = 0
+      this.showOnly(form, handle)
+      this.applyClearColor()
+      this.frameCamera()
+      return
+    }
+
+    const sameForm = a === b
+    const aHandle = this.handleFor(a, from.preset.family)
+    aHandle.apply(from.preset)
+
+    // One shape, one family: nothing to hand over. The caller has already bred
+    // the numbers, so this is a uniform write like any slider.
+    if (sameForm && from.preset.family === to.preset.family) {
+      this.transition = null
+      this.preset = k < 0.5 ? from.preset : to.preset
+      aHandle.apply(this.preset)
+      aHandle.material.uniforms.uMorph.value = 0
+      this.showOnly(a, aHandle)
+      this.applyClearColor()
+      return
+    }
+
+    let bMesh: Mesh
+    let bHandle: LiquidMaterialHandle
+    if (sameForm) {
+      bHandle = this.handleFor(b, to.preset.family)
+      if (!b.twin) {
+        b.twin = new Mesh(b.mesh.geometry, bHandle.material)
+        b.twin.visible = false
+        this.scene.add(b.twin)
+      }
+      bMesh = b.twin
+      aHandle.material.uniforms.uMorph.value = 0
+      bHandle.material.uniforms.uMorph.value = 0
+    } else {
+      bHandle = this.handleFor(b, to.preset.family)
+      bMesh = b.mesh
+      this.bindAim(a, b)
+      this.bindAim(b, a)
+      aHandle.material.uniforms.uMorph.value = k
+      bHandle.material.uniforms.uMorph.value = 1 - k
+    }
+    bHandle.apply(to.preset)
+    a.mesh.material = aHandle.material
+    bMesh.material = bHandle.material
+
+    // The dominant side takes the pointer, the rig and the per-frame uniforms;
+    // the other is synced from it before each draw.
+    const dominant = k < 0.5 ? a : b
+    this.preset = k < 0.5 ? from.preset : to.preset
+    this.adopt(dominant, k < 0.5 ? aHandle : bHandle, k < 0.5 ? a.mesh : bMesh)
+
+    this.radius = a.radius + (b.radius - a.radius) * k
+    this.extents.copy(a.extents).lerp(b.extents, k)
+    aHandle.material.uniforms.uRadius.value = this.radius
+    bHandle.material.uniforms.uRadius.value = this.radius
+
+    // A new family on the same shape changes nothing but the material, so it
+    // fades the whole way. A new shape hands over in a short stretch placed
+    // where the two morphing meshes are closest: late when leaving a shape that
+    // folds in on itself, early when arriving at one.
+    let fade: number
+    if (sameForm) {
+      fade = smoothstep(0, 1, k)
+    } else {
+      const centre = Math.max(0.4, Math.min(0.6, 0.5 + ((a.fold - b.fold) / (a.fold + b.fold + 1e-3)) * 0.1))
+      fade = smoothstep(centre - 0.28, centre + 0.28, k)
+    }
+    this.transition = { a: a.mesh, aHandle, b: bMesh, bHandle, fade }
+    this.applyClearColor()
+    this.frameCamera()
+  }
+
+  private buildForm(key: string, geometry: BufferGeometry, options: { forceSphereProbe?: boolean }): Form {
     const prepared = prepareGeometry(geometry, {
       maxEdge: this.profile.maxEdge,
       vertexBudget: this.profile.vertexBudget,
     })
 
-    this.disposeMesh()
+    const previous = this.forms.get(key)
+    if (previous) this.disposeForm(previous)
+    // Every morph aimed at the old version of this shape is aimed at the wrong one.
+    for (const other of this.forms.values()) other.aims.delete(key)
 
+    let appearance: MaterialAppearance | null = null
     if (prepared.appearance) {
       let texture: CanvasTexture | null = null
       if (prepared.appearance.atlas) {
@@ -275,17 +521,26 @@ export class LiquidEngine {
         texture.magFilter = LinearFilter
         texture.needsUpdate = true
       }
-      this.appearance = { texture, rects: prepared.appearance.rects }
+      appearance = { texture, rects: prepared.appearance.rects }
     }
 
-    this.radius = prepared.radius
-    this.extents.copy(prepared.extents)
-    this.handle = createLiquidMaterial(this.preset, this.profile.trail, this.appearance)
-    this.mesh = new Mesh(prepared.geometry, this.handle.material)
-    this.scene.add(this.mesh)
-
-    this.probeMode =
-      options.forceSphereProbe || prepared.triangles > RAYCAST_TRIANGLE_LIMIT ? "sphere" : "mesh"
+    const form: Form = {
+      key,
+      mesh: new Mesh(prepared.geometry),
+      twin: null,
+      radius: prepared.radius,
+      extents: prepared.extents.clone(),
+      appearance,
+      rig: null,
+      probeMode:
+        options.forceSphereProbe || prepared.triangles > RAYCAST_TRIANGLE_LIMIT ? "sphere" : "mesh",
+      radial: null,
+      fold: 0,
+      aims: new Map(),
+      handles: new Map(),
+    }
+    form.mesh.visible = false
+    this.scene.add(form.mesh)
 
     // An animated source rewrites its own positions each frame. It reuses the
     // weld groups computed above rather than re-bucketing, which is what makes
@@ -297,15 +552,157 @@ export class LiquidEngine {
       rig.bind(prepared.geometry, (positions) =>
         computeNormals(positions, prepared.weld, normal, flowNormal),
       )
-      this.rig = rig
+      form.rig = rig
       rig.play(this.motion.animation ?? true)
     }
 
-    this.bind(this.handle, prepared.radius)
-    this.applyDiagnostic()
-    this.trail.clear()
-    this.frameCamera()
-    this.renderOnce()
+    this.forms.set(key, form)
+    return form
+  }
+
+  /** The material for a family on a shape, built once and kept. */
+  private handleFor(form: Form, family: MaterialFamily): LiquidMaterialHandle {
+    let handle = form.handles.get(family)
+    if (!handle) {
+      handle = createLiquidMaterial({ ...this.preset, family }, this.profile.trail, form.appearance)
+      this.bind(handle, form.radius)
+      form.handles.set(family, handle)
+      const u = handle.material.uniforms
+      u.uRebuildNormals.value = this.diagnostic.rebuildNormals === false ? 0 : 1
+      u.uWeldSeams.value = this.diagnostic.weldSeams === false ? 0 : 1
+    }
+    return handle
+  }
+
+  private aimFor(form: Form, target: Form): MorphAttributes {
+    let aim = form.aims.get(target.key)
+    if (!aim) {
+      this.radialOf(target)
+      this.radialOf(form)
+      aim = morphAttributes(form.mesh.geometry, target.radial!)
+      form.aims.set(target.key, aim)
+    }
+    return aim
+  }
+
+  private radialOf(form: Form): RadialMap {
+    if (!form.radial) {
+      form.radial = buildRadialMap(form.mesh.geometry)
+      form.fold = envelopeError(form.mesh.geometry, form.radial, form.radius)
+    }
+    return form.radial
+  }
+
+  private bindAim(form: Form, target: Form): void {
+    const aim = this.aimFor(form, target)
+    const geometry = form.mesh.geometry
+    if (geometry.getAttribute("morphPos") !== aim.position) geometry.setAttribute("morphPos", aim.position)
+    if (geometry.getAttribute("morphNrm") !== aim.normal) geometry.setAttribute("morphNrm", aim.normal)
+  }
+
+  /** Show exactly one mesh, and make it the one everything else reads. */
+  private showOnly(form: Form, handle: LiquidMaterialHandle): void {
+    for (const other of this.forms.values()) {
+      other.mesh.visible = false
+      if (other.twin) other.twin.visible = false
+    }
+    form.mesh.material = handle.material
+    form.mesh.visible = true
+    // A material last used halfway through a transition still holds that
+    // morph; shown on its own, it must be the shape it is.
+    handle.material.uniforms.uMorph.value = 0
+    this.adopt(form, handle, form.mesh)
+    this.radius = form.radius
+    this.extents.copy(form.extents)
+    handle.material.uniforms.uRadius.value = form.radius
+  }
+
+  private adopt(form: Form, handle: LiquidMaterialHandle, mesh: Mesh): void {
+    this.active = form
+    this.mesh = mesh
+    this.handle = handle
+    this.appearance = form.appearance
+    this.rig = form.rig
+    this.probeMode = form.probeMode
+    handle.material.uniforms.uMutation.value = this.mutation
+  }
+
+  private disposeForm(form: Form): void {
+    this.scene.remove(form.mesh)
+    if (form.twin) this.scene.remove(form.twin)
+    form.rig?.dispose()
+    form.appearance?.texture?.dispose()
+    form.mesh.geometry.dispose()
+    for (const handle of form.handles.values()) handle.dispose()
+    this.forms.delete(form.key)
+    if (this.active === form) {
+      this.active = null
+      this.mesh = null
+      this.handle = null
+      this.rig = null
+      this.appearance = null
+      this.transition = null
+    }
+  }
+
+  /**
+   * Copy the per-frame state the dominant side was given onto the other, then
+   * draw — one render, or two mixed.
+   */
+  private draw(): void {
+    const transition = this.transition
+    if (!transition) {
+      this.renderer.render(this.scene, this.camera)
+      return
+    }
+
+    const { a, b, aHandle, bHandle, fade } = transition
+    const lead = this.handle === aHandle ? aHandle : bHandle
+    const follow = lead === aHandle ? bHandle : aHandle
+    const from = lead.material.uniforms
+    const into = follow.material.uniforms
+    for (const name of ["uTime", "uPress", "uMutation", "uRadius"]) into[name].value = from[name].value
+    ;(into.uPtr.value as Vector3).copy(from.uPtr.value as Vector3)
+    ;(into.uPtrN.value as Vector3).copy(from.uPtrN.value as Vector3)
+    ;(into.uPointer.value as Vector2).copy(from.uPointer.value as Vector2)
+    const leadMesh = lead === aHandle ? a : b
+    const followMesh = lead === aHandle ? b : a
+    followMesh.rotation.copy(leadMesh.rotation)
+    followMesh.updateMatrixWorld(true)
+    followMesh.modelViewMatrix.multiplyMatrices(this.camera.matrixWorldInverse, followMesh.matrixWorld)
+    ;(into.uNormalMatrix.value as Matrix3).getNormalMatrix(followMesh.modelViewMatrix)
+
+    for (const form of this.forms.values()) {
+      form.mesh.visible = false
+      if (form.twin) form.twin.visible = false
+    }
+
+    if (fade <= 0.001 || fade >= 0.999) {
+      ;(fade <= 0.001 ? a : b).visible = true
+      this.renderer.render(this.scene, this.camera)
+      return
+    }
+
+    const size = this.renderer.getDrawingBufferSize(this.bufferSize)
+    this.crossfade.render(
+      this.renderer,
+      size.x,
+      size.y,
+      () => {
+        a.visible = true
+        b.visible = false
+        this.renderer.render(this.scene, this.camera)
+      },
+      () => {
+        a.visible = false
+        b.visible = true
+        this.renderer.render(this.scene, this.camera)
+      },
+      fade,
+    )
+    a.visible = false
+    b.visible = false
+    ;(fade < 0.5 ? a : b).visible = true
   }
 
   /**
@@ -379,15 +776,15 @@ export class LiquidEngine {
 
     if (!this.handle || !this.mesh) return
 
-    // Family is a compile-time branch, not a uniform, so it needs a new
-    // material. Everything else moves live, which is what keeps the Studio's
-    // sliders from stuttering on every drag.
-    if (familyChanged) {
-      const next = createLiquidMaterial(preset, this.profile.trail, this.appearance)
-      this.bind(next, this.radius)
-      this.mesh.material = next.material
-      this.handle.dispose()
-      this.handle = next
+    // Family is a compile-time branch, not a uniform, so it needs a different
+    // material — kept per shape, so going back to a family already seen is free.
+    // Everything else moves live, which is what keeps the Studio's sliders from
+    // stuttering on every drag.
+    if (familyChanged && this.active) {
+      this.transition = null
+      const next = this.handleFor(this.active, preset.family)
+      next.apply(preset)
+      this.showOnly(this.active, next)
       this.applyDiagnostic()
     } else {
       applyPreset(this.handle.material, preset)
@@ -406,6 +803,10 @@ export class LiquidEngine {
     this.mutation = Math.max(0, Math.min(1, value))
     const u = this.handle?.material.uniforms
     if (u?.uMutation) u.uMutation.value = this.mutation
+    if (this.transition) {
+      this.transition.aHandle.material.uniforms.uMutation.value = this.mutation
+      this.transition.bHandle.material.uniforms.uMutation.value = this.mutation
+    }
     if (!this.running) this.renderOnce()
   }
 
@@ -431,10 +832,13 @@ export class LiquidEngine {
   }
 
   private applyDiagnostic(): void {
-    const u = this.handle?.material.uniforms
-    if (!u) return
-    u.uRebuildNormals.value = this.diagnostic.rebuildNormals === false ? 0 : 1
-    u.uWeldSeams.value = this.diagnostic.weldSeams === false ? 0 : 1
+    for (const form of this.forms.values()) {
+      for (const handle of form.handles.values()) {
+        const u = handle.material.uniforms
+        u.uRebuildNormals.value = this.diagnostic.rebuildNormals === false ? 0 : 1
+        u.uWeldSeams.value = this.diagnostic.weldSeams === false ? 0 : 1
+      }
+    }
   }
 
   /** Multiplier on the auto-framed camera distance. 1 is the framed default. */
@@ -857,7 +1261,7 @@ export class LiquidEngine {
     this.normalMatrix.getNormalMatrix(mesh.modelViewMatrix)
     ;(u.uNormalMatrix.value as Matrix3).copy(this.normalMatrix)
 
-    this.renderer.render(this.scene, this.camera)
+    this.draw()
   }
 
   /**
@@ -962,7 +1366,7 @@ export class LiquidEngine {
     mesh.modelViewMatrix.multiplyMatrices(this.camera.matrixWorldInverse, mesh.matrixWorld)
     this.normalMatrix.getNormalMatrix(mesh.modelViewMatrix)
     ;(handle.material.uniforms.uNormalMatrix.value as Matrix3).copy(this.normalMatrix)
-    this.renderer.render(this.scene, this.camera)
+    this.draw()
   }
 
   // -- teardown --------------------------------------------------------------
@@ -1184,17 +1588,14 @@ export class LiquidEngine {
   }
 
   private disposeMesh(): void {
-    this.rig?.dispose()
-    this.rig = null
-    this.appearance?.texture?.dispose()
-    this.appearance = null
-    if (this.mesh) {
-      this.scene.remove(this.mesh)
-      this.mesh.geometry.dispose()
-      this.mesh = null
-    }
-    this.handle?.dispose()
+    for (const form of [...this.forms.values()]) this.disposeForm(form)
+    this.transition = null
+    this.crossfade.release()
+    this.active = null
+    this.mesh = null
     this.handle = null
+    this.rig = null
+    this.appearance = null
   }
 
   dispose(): void {
@@ -1202,6 +1603,7 @@ export class LiquidEngine {
     for (const off of this.detach) off()
     this.detach = []
     this.disposeMesh()
+    this.crossfade.dispose()
     // Frees the WebGL context outright; browsers cap concurrent contexts at
     // around 16 and silently blank the oldest, which is what a gallery of live
     // previews would otherwise walk into.

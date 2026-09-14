@@ -116,7 +116,20 @@ const base = { object: { type: "shape", shape: "torusknot" }, preset: "mercury-3
 const early = checkpointAt(cpPath, cpS, 0.2, base)
 ok("before a checkpoint, the placement's own object and look", early.object.shape === "torusknot" && early.presetTo === "mercury-3" && early.mutation === 0)
 const peak = checkpointAt(cpPath, cpS, 0.5, base)
-ok("on the checkpoint the melt peaks", near(peak.mutation, 1, 0.001), `mutation=${peak.mutation.toFixed(3)}`)
+ok("on the checkpoint the simmer peaks, and gently", peak.mutation > 0.3 && peak.mutation < 0.6 && checkpointAt(cpPath, cpS, 0.47, base).mutation < peak.mutation, `mutation=${peak.mutation.toFixed(3)}`)
+ok("mid-window the transition runs from the old side to the new", peak.from.object.shape === "torusknot" && peak.to.object.shape === "capsule" && near(peak.t, 0.5, 0.001), `t=${peak.t}`)
+const tAt = (progress) => checkpointAt(cpPath, cpS, progress, base).t
+ok("the transition eases in and out, never jumps", tAt(0.44) === 0 && tAt(0.441) < 0.01 && tAt(0.559) > 0.99 && [0.45, 0.47, 0.49, 0.51, 0.53, 0.55].every((x, i, xs) => i === 0 || tAt(x) > tAt(xs[i - 1])))
+ok("outside every window nothing is transitioning", checkpointAt(cpPath, cpS, 0.3, base).to === null && checkpointAt(cpPath, cpS, 0.7, base).to === null && checkpointAt(cpPath, cpS, 0.7, base).from.object.shape === "capsule")
+const scrubback = [0.9, 0.55, 0.5, 0.45, 0.2].map((x) => checkpointAt(cpPath, cpS, x, base))
+ok("scrolling back up undoes it through the same states", scrubback[0].from.object.shape === "capsule" && near(scrubback[1].t, tAt(0.55), 1e-9) && scrubback[4].from.object.shape === "torusknot")
+const close = { points: [{ x: 0, y: 0 }, { x: 0.3, y: 0, at: 0.5, preset: "aurora-1" }, { x: 0.6, y: 0, at: 0.52, preset: "magma-1" }, { x: 1, y: 0 }], smooth: false }
+const closeS = samplePath(close)
+const first = checkpointAt(close, closeS, 0.505, base, 0.06)
+const second = checkpointAt(close, closeS, 0.515, base, 0.06)
+ok("close checkpoints narrow their windows instead of overlapping",
+   first.from.preset === "mercury-3" && first.to?.preset === "aurora-1" && second.from.preset === "aurora-1" && second.to?.preset === "magma-1",
+   `${first.from.preset}→${first.to?.preset} then ${second.from.preset}→${second.to?.preset}`)
 const justBefore = checkpointAt(cpPath, cpS, 0.49, base)
 const justAfter = checkpointAt(cpPath, cpS, 0.51, base)
 ok("the object swaps exactly as the checkpoint is crossed", justBefore.object.shape === "torusknot" && justAfter.object.shape === "capsule")

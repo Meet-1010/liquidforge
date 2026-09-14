@@ -229,29 +229,56 @@ export function pointAt(sampled: SampledPath, progress: number): ResolvedPoint |
 /* ------------------------------------------------------------------ */
 
 /** What the object is and how it looks, at one moment of the scroll. */
-export interface CheckpointState {
-  /** The object on screen. */
+/** One side of a transition: an object, which checkpoint it came from, and a look. */
+export interface CheckpointSide {
   object: ObjectSource | undefined
-  /** Index of the checkpoint whose object is on screen; -1 for the placement's own. */
+  /** Index of the checkpoint that set this object; -1 for the placement's own. */
+  objectIndex: number
+  preset: string | undefined
+}
+
+export interface CheckpointState {
+  /** The object that has been reached — the placement's own until the first checkpoint is crossed. */
+  object: ObjectSource | undefined
+  /** Index of the checkpoint whose object that is; -1 for the placement's own. */
   objectFrom: number
   /** The look being blended from, and toward. Equal outside a transition. */
   presetFrom: string | undefined
   presetTo: string | undefined
   /** 0 at `presetFrom`, 1 at `presetTo`. */
   blend: number
-  /** 0–1, how hard the surface is boiling. Peaks exactly on a checkpoint. */
+  /** 0–1, how hard the surface is simmering. Peaks exactly on a checkpoint. */
   mutation: number
+  /** What it is — or, mid-transition, what it is becoming from. */
+  from: CheckpointSide
+  /** What it is becoming, while a transition is in progress; otherwise null. */
+  to: CheckpointSide | null
+  /** Eased progress through that transition, 0–1. Zero with no transition. */
+  t: number
 }
 
 /**
- * The checkpoint side of a path: which object, which look, how molten.
+ * How hard the surface simmers at the very middle of a change of shape.
+ *
+ * It used to boil flat out, because it had to: the object was swapped in one
+ * frame at the peak, and the boil was the only thing hiding the cut. The swap is
+ * a morph now, so the simmer only has to smooth over the last small difference
+ * between two meshes meeting at the same silhouette — and a surface that visibly
+ * boils is exactly the kind of transformation people notice.
+ */
+const SHAPE_SIMMER = 0.45
+const LOOK_SIMMER = 0.2
+
+/**
+ * The checkpoint side of a path: which object, which look, and how far between.
  *
  * A point that sets `object` or `preset` is a checkpoint: from that moment on,
  * that is what the object is. Around each one there is a window of scroll —
- * `window` either side — in which the look is bred from the old colourway into
- * the new one, and, if the object itself changes, the surface boils up to a
- * peak on the checkpoint where the swap happens, then settles. Outside every
- * window nothing is transitioning and `blend` and `mutation` are both zero.
+ * `window` either side — across which it *becomes* that: the shapes morph, the
+ * colourways breed, and `t` runs 0 to 1 through the window with an ease at both
+ * ends. Windows are narrowed where two checkpoints sit close together, so one
+ * transition always finishes before the next begins. Outside every window
+ * nothing is transitioning: `to` is null and `t`, `blend` and `mutation` are zero.
  */
 export function checkpointAt(
   path: PlacementPath,
@@ -262,51 +289,73 @@ export function checkpointAt(
 ): CheckpointState {
   const p = Math.max(0, Math.min(1, progress))
   const points = path.points
-  let object = base.object
-  let objectFrom = -1
-  let preset = base.preset
-  let presetFrom = base.preset
-  let presetTo = base.preset
-  let blend = 0
-  let mutation = 0
   const w = Math.max(0.005, window)
+
+  const moments: number[] = []
+  points.forEach((point, i) => {
+    if (point.object !== undefined || point.preset !== undefined) moments.push(sampled.ats[i] ?? 0)
+  })
+
+  let current: CheckpointSide = { object: base.object, objectIndex: -1, preset: base.preset }
+  let seen = 0
 
   for (let i = 0; i < points.length; i++) {
     const point = points[i]
-    const changesObject = point.object !== undefined
-    const changesPreset = point.preset !== undefined && point.preset !== preset
-    if (!changesObject && !changesPreset) continue
+    if (point.object === undefined && point.preset === undefined) continue
     const at = sampled.ats[i] ?? 0
-    const distance = Math.abs(p - at)
+    const previous = moments[seen - 1]
+    const following = moments[seen + 1]
+    seen++
 
-    if (distance < w) {
-      const closeness = 1 - distance / w
-      // A shape change melts fully; a colourway change only simmers, which is
-      // enough to read as the material turning over rather than being recoloured.
-      mutation = Math.max(mutation, changesObject ? closeness : closeness * 0.35)
-      if (changesPreset) {
-        presetFrom = preset
-        presetTo = point.preset
-        const t = (p - (at - w)) / (2 * w)
-        blend = t * t * (3 - 2 * t)
+    const changesObject = point.object !== undefined
+    const changesPreset = point.preset !== undefined && point.preset !== current.preset
+    if (!changesObject && !changesPreset) continue
+
+    const next: CheckpointSide = {
+      object: changesObject ? point.object : current.object,
+      objectIndex: changesObject ? i : current.objectIndex,
+      preset: point.preset ?? current.preset,
+    }
+
+    // Half the gap to each neighbour at most, so windows never overlap.
+    let reach = w
+    if (previous !== undefined) reach = Math.min(reach, Math.max(0.001, (at - previous) / 2))
+    if (following !== undefined) reach = Math.min(reach, Math.max(0.001, (following - at) / 2))
+
+    if (p < at - reach) break
+
+    if (p <= at + reach) {
+      const raw = (p - (at - reach)) / (2 * reach)
+      const t = raw * raw * (3 - 2 * raw)
+      const closeness = 1 - Math.abs(p - at) / reach
+      const crossed = p >= at
+      return {
+        object: crossed ? next.object : current.object,
+        objectFrom: crossed ? next.objectIndex : current.objectIndex,
+        presetFrom: changesPreset ? current.preset : next.preset,
+        presetTo: next.preset,
+        blend: changesPreset ? t : 0,
+        mutation: closeness * (changesObject ? SHAPE_SIMMER : LOOK_SIMMER),
+        from: current,
+        to: next,
+        t,
       }
     }
 
-    if (p >= at) {
-      if (changesObject) {
-        object = point.object
-        objectFrom = i
-      }
-      if (point.preset !== undefined) preset = point.preset
-      if (distance >= w) {
-        presetFrom = preset
-        presetTo = preset
-        blend = 0
-      }
-    }
+    current = next
   }
 
-  return { object, objectFrom, presetFrom, presetTo, blend, mutation }
+  return {
+    object: current.object,
+    objectFrom: current.objectIndex,
+    presetFrom: current.preset,
+    presetTo: current.preset,
+    blend: 0,
+    mutation: 0,
+    from: current,
+    to: null,
+    t: 0,
+  }
 }
 
 /** An SVG `d` for drawing the path — used by the editor, and by nothing else. */

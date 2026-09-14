@@ -52,6 +52,11 @@ ${ADVECT_GLSL}
 uniform vec2  uPointer;
 uniform vec3  uPalette[8];
 uniform int   uPaletteCount;
+// A second ramp, mixed in while one colourway is becoming another with a
+// different number of colours. Zero mix outside a blend, and then never read.
+uniform vec3  uPaletteTo[8];
+uniform int   uPaletteToCount;
+uniform float uPaletteMix;
 
 uniform float uMetalness;
 uniform float uRoughness;
@@ -102,14 +107,14 @@ vec3 lf_surface(){
 }
 #else
 /** A word or a primitive has no surface of its own; the colourway lends one. */
-vec3 lf_surface(){ return uPalette[0]; }
+vec3 lf_surface(){ return mix(uPalette[0], uPaletteTo[0], uPaletteMix); }
 #endif
 
 vec3 lf_rotY(vec3 v, float a){ float c=cos(a), s=sin(a); return vec3(c*v.x+s*v.z, v.y, -s*v.x+c*v.z); }
 vec3 lf_rotX(vec3 v, float a){ float c=cos(a), s=sin(a); return vec3(v.x, c*v.y-s*v.z, s*v.y+c*v.z); }
 
 /** Palette as a colour wheel — wraps, for hue that cycles around the light axis. */
-vec3 lf_palette(float t){
+vec3 lf_wheelA(float t){
   float n = float(uPaletteCount);
   float s = fract(t) * n;
   float i0 = floor(s);
@@ -126,8 +131,28 @@ vec3 lf_palette(float t){
   return mix(c0, c1, f);
 }
 
+vec3 lf_wheelB(float t){
+  float n = float(uPaletteToCount);
+  float s = fract(t) * n;
+  float i0 = floor(s);
+  float i1 = mod(i0 + 1.0, n);
+  float f = smoothstep(0.0, 1.0, fract(s));
+  vec3 c0 = uPaletteTo[0];
+  vec3 c1 = uPaletteTo[0];
+  for (int k = 0; k < 8; k++) {
+    if (float(k) == i0) c0 = uPaletteTo[k];
+    if (float(k) == i1) c1 = uPaletteTo[k];
+  }
+  return mix(c0, c1, f);
+}
+
+vec3 lf_palette(float t){
+  if (uPaletteMix <= 0.0) return lf_wheelA(t);
+  return mix(lf_wheelA(t), lf_wheelB(t), uPaletteMix);
+}
+
 /** Palette as a gradient — clamps, for heat and depth ramps. */
-vec3 lf_ramp(float t){
+vec3 lf_rampA(float t){
   float n = float(uPaletteCount) - 1.0;
   float s = clamp(t, 0.0, 1.0) * n;
   float i0 = floor(s);
@@ -140,6 +165,26 @@ vec3 lf_ramp(float t){
     if (float(k) == i1) c1 = uPalette[k];
   }
   return mix(c0, c1, f);
+}
+
+vec3 lf_rampB(float t){
+  float n = float(uPaletteToCount) - 1.0;
+  float s = clamp(t, 0.0, 1.0) * n;
+  float i0 = floor(s);
+  float i1 = min(i0 + 1.0, n);
+  float f = smoothstep(0.0, 1.0, fract(s));
+  vec3 c0 = uPaletteTo[0];
+  vec3 c1 = uPaletteTo[0];
+  for (int k = 0; k < 8; k++) {
+    if (float(k) == i0) c0 = uPaletteTo[k];
+    if (float(k) == i1) c1 = uPaletteTo[k];
+  }
+  return mix(c0, c1, f);
+}
+
+vec3 lf_ramp(float t){
+  if (uPaletteMix <= 0.0) return lf_rampA(t);
+  return mix(lf_rampA(t), lf_rampB(t), uPaletteMix);
 }
 
 /**

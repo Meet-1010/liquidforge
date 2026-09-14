@@ -87,6 +87,7 @@ export function createLiquidMaterial(
       uRippleTight: { value: preset.surface.rippleTightness },
       uAdvection: { value: preset.surface.advection },
       uMutation: { value: 0 },
+      uMorph: { value: 0 },
 
       uAtlas: { value: withSurface ? (appearance?.texture ?? null) : null },
       uAtlasRects: { value: atlasRects(withSurface ? appearance?.rects : undefined) },
@@ -101,6 +102,9 @@ export function createLiquidMaterial(
       uPointer: { value: new Vector2(0, 0) },
       uPalette: { value: paletteVectors(preset.palette) },
       uPaletteCount: { value: Math.max(2, Math.min(MAX_PALETTE, preset.palette.length)) },
+      uPaletteTo: { value: paletteVectors(preset.palette) },
+      uPaletteToCount: { value: Math.max(2, Math.min(MAX_PALETTE, preset.palette.length)) },
+      uPaletteMix: { value: 0 },
 
       uMetalness: { value: preset.shading.metalness },
       uRoughness: { value: preset.shading.roughness },
@@ -163,6 +167,13 @@ export function applyPreset(material: ShaderMaterial, preset: LiquidPreset): voi
   const target = u.uPalette.value as Color[]
   for (let i = 0; i < MAX_PALETTE; i++) target[i].copy(colors[i])
   u.uPaletteCount.value = Math.max(2, Math.min(MAX_PALETTE, preset.palette.length))
+
+  const blend = preset.paletteBlend
+  const toColors = paletteVectors(blend?.palette ?? preset.palette)
+  const toTarget = u.uPaletteTo.value as Color[]
+  for (let i = 0; i < MAX_PALETTE; i++) toTarget[i].copy(toColors[i])
+  u.uPaletteToCount.value = Math.max(2, Math.min(MAX_PALETTE, (blend?.palette ?? preset.palette).length))
+  u.uPaletteMix.value = blend ? Math.max(0, Math.min(1, blend.amount)) : 0
 
   const env = studioColors(preset)
   ;(u.uEnvTop.value as Color).copy(env.top)
