@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { PRESETS, presetName } from "liquidforge"
@@ -9,6 +9,7 @@ import type { ObjectSource } from "liquidforge"
 import { LazyPreview } from "@/components/lazy-preview"
 import { presetForPost, studioLinkFor } from "@/lib/community"
 import { dailyKey, dailyPick } from "@/lib/daily"
+import { SteerBar, useFlip, useSteer } from "@/components/steer"
 import type { Look } from "@/lib/store/types"
 import { SiteNav } from "@/components/site-nav"
 import community from "@/data/community.json"
@@ -64,6 +65,8 @@ function Gallery() {
   const [parents, setParents] = useState<string[]>([])
   const [breeding, setBreeding] = useState(false)
   const [onlyToday, setOnlyToday] = useState(false)
+  const steering = useSteer()
+  const grid = useRef<HTMLDivElement>(null)
   // Worked out after mount: the server renders in its own clock, and a prompt
   // that changes during hydration across midnight UTC is a mismatch waiting to
   // happen.
@@ -101,6 +104,9 @@ function Gallery() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const visibleEntries = entries.filter((entry) => !onlyToday || (today && entry.daily === today.key))
+  useFlip(grid, `${steering.live.energy !== 0 || steering.live.warmth !== 0}|${steering.order(visibleEntries, (entry) => (PRESETS[entry.preset] ? presetForPost(entry) : undefined)).map((entry) => entry.id).join(",")}`)
 
   return (
     <>
@@ -154,12 +160,15 @@ function Gallery() {
           </p>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {entries
-            .filter((entry) => !onlyToday || (today && entry.daily === today.key))
+        <SteerBar state={steering.live} onChange={steering.setLive} count={visibleEntries.length} />
+
+        <div ref={grid} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {steering
+            .order(visibleEntries, (entry) => (PRESETS[entry.preset] ? presetForPost(entry) : undefined))
             .map((entry) => {
             if (!PRESETS[entry.preset]) return null
-            const preset = presetForPost(entry)
+            const own = presetForPost(entry)
+            const preset = steering.look(own)
             const href = studioLinkFor(preset, entry.object, entry.preset)
             const parentIndex = parents.indexOf(entry.id)
             const parent = entry.parentId && !entry.secondParentId ? byId.get(entry.parentId) : undefined
@@ -170,12 +179,13 @@ function Gallery() {
             return (
               <article
                 key={entry.id}
+                data-flip={entry.id}
                 className={`overflow-hidden rounded-[var(--radius-lg)] border bg-ink-2 ${
                   entry.id === justPosted || parentIndex >= 0 ? "border-bone" : "border-rule"
                 }`}
               >
                 <div className="relative m-1.5 overflow-hidden rounded-[var(--radius-md)]">
-                  <LazyPreview preset={preset} object={entry.object} height={200} />
+                  <LazyPreview preset={preset} object={entry.object} height={200} filter={steering.filter()} />
                   {parentIndex >= 0 && (
                     <span className="pointer-events-none absolute top-2 left-2 rounded-[var(--radius-pill)] bg-bone px-2 py-0.5 font-mono text-[10px] text-ink">
                       Parent {parentIndex === 0 ? "A" : "B"}
@@ -247,7 +257,7 @@ function Gallery() {
                 )}
                 {parent && PRESETS[parent.preset] && (
                   <p className="border-t border-rule px-3 py-1.5 font-mono text-[10px] leading-relaxed text-bone/45">
-                    {describeChange(presetForPost(parent), preset, { than: parent.title })}
+                    {describeChange(presetForPost(parent), own, { than: parent.title })}
                   </p>
                 )}
                 {bredFrom && (

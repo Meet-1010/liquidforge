@@ -1,12 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { COLLECTIONS, PRESETS, presetName } from "liquidforge"
+import { useRef, useState } from "react"
+import { COLLECTIONS, PRESETS, presetName, type LiquidPreset } from "liquidforge"
 import { configFromPreset, shareUrl } from "liquidforge/codegen"
 import type { ObjectSource } from "liquidforge"
 import { LazyPreview } from "@/components/lazy-preview"
 import { SiteNav } from "@/components/site-nav"
+import { SteerBar, useFlip, useSteer } from "@/components/steer"
 
 /**
  * The collection gallery.
@@ -26,6 +27,51 @@ const OBJECTS: Array<{ id: string; label: string; source: ObjectSource }> = [
 export default function PresetsPage() {
   const [objectId, setObjectId] = useState("sphere")
   const object = OBJECTS.find((entry) => entry.id === objectId)?.source ?? OBJECTS[0].source
+  const steering = useSteer()
+  const grid = useRef<HTMLDivElement>(null)
+  const all = COLLECTIONS.flatMap((collection) =>
+    collection.colourways.map((_, index) => PRESETS[`${collection.name.toLowerCase()}-${index + 1}`]).filter(Boolean),
+  ) as LiquidPreset[]
+  const steered = steering.live.energy !== 0 || steering.live.warmth !== 0
+  const ordered = steering.order(all, (preset) => preset)
+  useFlip(grid, `${steered}|${ordered.map((preset) => preset.id).join(",")}`)
+  const filter = steering.filter()
+
+  /*
+   * The card is not a link. Every preview is a real object you can grab and
+   * turn, and a drag that ends on an anchor navigates away — so the surface
+   * takes the gesture and the label row underneath carries the link.
+   */
+  const card = (preset: LiquidPreset) => {
+    const look = steering.look(preset)
+    const config = steering.active
+      ? { ...configFromPreset(preset.id, object), palette: look.palette, surface: look.surface, shading: look.shading }
+      : configFromPreset(preset.id, object)
+    const href = shareUrl(config, "/studio") ?? "/studio"
+    return (
+      <div
+        key={preset.id}
+        data-flip={preset.id}
+        className="group overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 transition-colors hover:border-rule-bright"
+      >
+        <div className="m-1.5 overflow-hidden rounded-[var(--radius-md)]">
+          <LazyPreview preset={look} object={object} height={190} filter={filter} />
+        </div>
+        <div className="flex items-baseline justify-between gap-2 px-3 pt-1 pb-3">
+          <Link href={href} className="font-mono text-[11px] text-bone/75 hover:text-bone">
+            {preset.label}
+            <span className="ml-1.5 text-muted group-hover:text-bone/60">{presetName(preset.id)}</span>
+          </Link>
+          <Link
+            href={href}
+            className="shrink-0 font-mono text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-bone"
+          >
+            Open
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -61,59 +107,30 @@ export default function PresetsPage() {
           ))}
         </div>
 
-        {COLLECTIONS.map((collection) => (
-          <section key={collection.name} className="mb-16">
-            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-3">
-              <h2 className="font-mono text-[13px] tracking-tight text-bone">
-                {collection.name}
-              </h2>
-              <p className="font-mono text-[11px] text-muted">{collection.blurb}</p>
-            </div>
+        <SteerBar state={steering.live} onChange={steering.setLive} count={all.length} />
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {collection.colourways.map((colourway, index) => {
-                const id = `${collection.name.toLowerCase()}-${index + 1}`
-                const preset = PRESETS[id]
-                if (!preset) return null
-                const href = shareUrl(configFromPreset(id, object), "/studio") ?? "/studio"
-
-                return (
-                  /*
-                   * The card is not a link. Every preview is a real object you
-                   * can grab and turn, and a drag that ends on an anchor
-                   * navigates away — so the surface takes the gesture and the
-                   * label row underneath carries the link.
-                   */
-                  <div
-                    key={id}
-                    className="group overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink-2 transition-colors hover:border-rule-bright"
-                  >
-                    <div className="m-1.5 overflow-hidden rounded-[var(--radius-md)]">
-                      <LazyPreview preset={preset} object={object} height={190} />
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2 px-3 pt-1 pb-3">
-                      <Link
-                        href={href}
-                        className="font-mono text-[11px] text-bone/75 hover:text-bone"
-                      >
-                        {preset.label}
-                        <span className="ml-1.5 text-muted group-hover:text-bone/60">
-                          {presetName(id)}
-                        </span>
-                      </Link>
-                      <Link
-                        href={href}
-                        className="shrink-0 font-mono text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-bone"
-                      >
-                        Open
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        ))}
+        <div ref={grid}>
+          {steered ? (
+            // Steering flattens the collections into one grid, sorted by how far
+            // each look already sits in the direction being dragged.
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{ordered.map(card)}</div>
+          ) : (
+            COLLECTIONS.map((collection) => (
+              <section key={collection.name} className="mb-16">
+                <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2 border-b border-rule pb-3">
+                  <h2 className="font-mono text-[13px] tracking-tight text-bone">{collection.name}</h2>
+                  <p className="font-mono text-[11px] text-muted">{collection.blurb}</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {collection.colourways.map((_, index) => {
+                    const preset = PRESETS[`${collection.name.toLowerCase()}-${index + 1}`]
+                    return preset ? card(preset) : null
+                  })}
+                </div>
+              </section>
+            ))
+          )}
+        </div>
       </main>
     </>
   )

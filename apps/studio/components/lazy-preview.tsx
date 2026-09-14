@@ -31,17 +31,28 @@ export function LazyPreview({
   height = 220,
   quality = "low",
   className,
+  filter,
 }: {
   preset: LiquidPreset
   object: ObjectSource
   height?: number
   quality?: Quality
   className?: string
+  /**
+   * A CSS filter over the still, for instant feedback while something upstream
+   * is still deciding what the look will be — a steering slider mid-drag —
+   * before the real still is painted.
+   */
+  filter?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stillRef = useRef<HTMLCanvasElement>(null)
   const [near, setNear] = useState(false)
-  const [captured, setCaptured] = useState(false)
+  // Which look the still on screen shows. A new look repaints it, and the old
+  // still stays up until the new one is ready rather than blinking to empty.
+  const lookKey = `${preset.id}|${JSON.stringify(object)}|${height}`
+  const [stillKey, setStillKey] = useState<string | null>(null)
+  const captured = stillKey !== null
   const [live, setLive] = useState(false)
 
   useEffect(() => {
@@ -60,10 +71,10 @@ export function LazyPreview({
     return () => observer.disconnect()
   }, [])
 
-  // The still is painted once and kept. Re-capturing on every scroll would
-  // queue 45 renders behind one another for no visible gain.
+  // The still is painted once per look and kept. Re-capturing on every scroll
+  // would queue a hundred renders behind one another for no visible gain.
   useEffect(() => {
-    if (!near || captured) return
+    if (!near || stillKey === lookKey) return
     const target = stillRef.current
     const element = containerRef.current
     if (!target || !element) return
@@ -73,14 +84,14 @@ export function LazyPreview({
     void sharedPreviewRenderer()
       .capture({ object, preset, width, height, target })
       .then((ok) => {
-        if (!cancelled && ok) setCaptured(true)
+        if (!cancelled && ok) setStillKey(lookKey)
       })
 
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [near, captured, height, preset.id, JSON.stringify(object)])
+  }, [near, stillKey, lookKey])
 
   const light = preset.background === "light"
   // Ask the library rather than hardcoding two tones: colourways now sit on a
@@ -108,8 +119,9 @@ export function LazyPreview({
           display: "block",
           width: "100%",
           height: "100%",
-          opacity: captured && !live ? 1 : captured ? 0 : 0,
-          transition: "opacity 200ms ease",
+          opacity: captured && !live ? 1 : 0,
+          filter,
+          transition: "opacity 200ms ease, filter 160ms linear",
         }}
       />
 
