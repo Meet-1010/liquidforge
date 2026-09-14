@@ -57,6 +57,8 @@ function cleanPoint(input: unknown): PlacementPoint | null {
   // should produce a big object, not a failed save.
   if (finite(source.size)) point.size = round(Math.max(0.001, Math.min(8, source.size)))
   if (finite(source.spin)) point.spin = round(source.spin)
+  if (finite(source.turn)) point.turn = round(Math.max(-8, Math.min(8, source.turn)))
+  if (finite(source.tilt)) point.tilt = round(Math.max(-8, Math.min(8, source.tilt)))
   if (finite(source.at)) point.at = round(Math.max(0, Math.min(1, source.at)))
 
   const anchor = source.anchor as Record<string, unknown> | undefined

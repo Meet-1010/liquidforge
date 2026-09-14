@@ -77,6 +77,8 @@ Examples:
               at: z.number().min(0).max(1).describe("Scroll progress 0–1 where the object changes"),
               object: ObjectSchema.optional(),
               preset: z.string().optional().describe("Colourway id from this moment on"),
+              turn: z.number().min(-8).max(8).optional().describe("Turn around the vertical axis from this moment on, in turns (0.25 shows its right side)"),
+              tilt: z.number().min(-0.5).max(0.5).optional().describe("Tip around the horizontal axis from this moment on, in turns (positive brings the top forward)"),
             }),
           )
           .max(12)
@@ -104,7 +106,7 @@ Examples:
       const setup = generatePlacementSetup(config, {
         id,
         framework,
-        checkpoints: (checkpoints ?? []).map((c) => ({ at: c.at, object: c.object as ObjectSource | undefined, preset: c.preset })),
+        checkpoints: (checkpoints ?? []).map((c) => ({ at: c.at, object: c.object as ObjectSource | undefined, preset: c.preset, turn: c.turn, tilt: c.tilt })),
       })
       const install = "npm install liquidforge three  (and @types/three in a TypeScript project)"
 

@@ -38,6 +38,8 @@ export interface ResolvedPoint {
   y: number
   size: number
   spin: number
+  turn: number
+  tilt: number
 }
 
 interface Segment {
@@ -63,17 +65,22 @@ export interface SampledPath {
 /**
  * Fill in the values a point inherited rather than declared.
  *
- * `size` and `spin` are optional on the wire so a path drawn without touching
- * them stays compact — a hundred-point path carries one size, not a hundred
- * copies of it. Here they are carried forward from the last point that set one.
+ * `size` and the three rotations are optional on the wire so a path drawn
+ * without touching them stays compact — a hundred-point path carries one size,
+ * not a hundred copies of it. Here they are carried forward from the last point
+ * that set one.
  */
 function inherit(points: PlacementPoint[]): ResolvedPoint[] {
   let size = points[0]?.size ?? 0.34
   let spin = points[0]?.spin ?? 0
+  let turn = points[0]?.turn ?? 0
+  let tilt = points[0]?.tilt ?? 0
   return points.map((point) => {
     if (point.size != null) size = point.size
     if (point.spin != null) spin = point.spin
-    return { x: point.x, y: point.y, size, spin }
+    if (point.turn != null) turn = point.turn
+    if (point.tilt != null) tilt = point.tilt
+    return { x: point.x, y: point.y, size, spin, turn, tilt }
   })
 }
 
@@ -158,12 +165,16 @@ export function samplePath(path: PlacementPath, pinned?: ReadonlyArray<number | 
             y: spline(p0.y, p1.y, p2.y, p3.y, t),
             size: spline(p0.size, p1.size, p2.size, p3.size, t),
             spin: spline(p0.spin, p1.spin, p2.spin, p3.spin, t),
+            turn: spline(p0.turn, p1.turn, p2.turn, p3.turn, t),
+            tilt: spline(p0.tilt, p1.tilt, p2.tilt, p3.tilt, t),
           }
         : {
             x: p1.x + (p2.x - p1.x) * t,
             y: p1.y + (p2.y - p1.y) * t,
             size: p1.size + (p2.size - p1.size) * t,
             spin: p1.spin + (p2.spin - p1.spin) * t,
+            turn: p1.turn + (p2.turn - p1.turn) * t,
+            tilt: p1.tilt + (p2.tilt - p1.tilt) * t,
           }
       const previous = samples[samples.length - 1]
       if (previous) length += Math.hypot(point.x - previous.x, point.y - previous.y)
@@ -202,6 +213,8 @@ function alongSegment(segment: Segment, fraction: number): ResolvedPoint {
     y: a.y + (b.y - a.y) * t,
     size: a.size + (b.size - a.size) * t,
     spin: a.spin + (b.spin - a.spin) * t,
+    turn: a.turn + (b.turn - a.turn) * t,
+    tilt: a.tilt + (b.tilt - a.tilt) * t,
   }
 }
 

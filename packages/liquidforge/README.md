@@ -245,6 +245,9 @@ Press ⌘⇧E on your own page and:
 - **Path** — draw the route it takes as the page scrolls, or press *Route around
   content* to have one drawn through the page's empty space.
 - **Size** — set how big it is at each point.
+- **Rotate** — pick a point and drag: left and right turn the object, up and
+  down tip it. Points carry their rotation forward, so scrolling between two
+  that differ turns the object in 3D as it travels.
 - **Checkpoints** — select a point and give it a different element or look. The
   object melts into it as the page scrolls past, and back on the way up.
 - **Pin** — tie a point to a heading or section, so it is reached when that

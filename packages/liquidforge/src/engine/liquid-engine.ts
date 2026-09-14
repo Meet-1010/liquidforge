@@ -890,6 +890,36 @@ export class LiquidEngine {
     return this.appearance !== null
   }
 
+  /** A rotation set from outside — a scroll path's turn and tilt — in radians. */
+  private readonly orientation = new Vector2(0, 0)
+
+  /**
+   * Turn the object in 3D from code, in radians: `tilt` around the horizontal
+   * axis (positive brings the top toward the viewer), `turn` around the vertical
+   * one. Added to the resting tilt, the idle spin and whatever the visitor has
+   * dragged, so a placement can rotate the object as the page scrolls without
+   * taking the gesture away.
+   */
+  setOrientation(tilt: number, turn: number): void {
+    if (this.orientation.x === tilt && this.orientation.y === turn) return
+    this.orientation.set(tilt, turn)
+    if (!this.running && this.mesh) {
+      this.applyRotation(this.mesh)
+      this.renderOnce()
+    }
+  }
+
+  private applyRotation(mesh: Mesh): void {
+    const [tiltX, tiltY] = this.motion.tilt ?? [0, 0]
+    const autoRotate = this.motion.autoRotate ?? 0
+    mesh.rotation.set(
+      tiltX + this.spin.y + this.orientation.x,
+      tiltY + this.spin.x + this.orientation.y + (autoRotate ? this.time * autoRotate : 0),
+      0,
+    )
+    mesh.updateMatrixWorld(true)
+  }
+
   setMotion(motion: MotionOptions): void {
     const changed = motion.animation !== this.motion.animation
     this.motion = motion
@@ -1324,14 +1354,7 @@ export class LiquidEngine {
 
     // Orientation is applied before the probe, because the probe transforms the
     // ray through the mesh's inverse world matrix.
-    const [tiltX, tiltY] = this.motion.tilt ?? [0, 0]
-    const autoRotate = this.motion.autoRotate ?? 0
-    mesh.rotation.set(
-      tiltX + this.spin.y,
-      tiltY + this.spin.x + (autoRotate ? this.time * autoRotate : 0),
-      0,
-    )
-    mesh.updateMatrixWorld(true)
+    this.applyRotation(mesh)
 
     if (this.sloshAmount > 0) {
       // A damped spring toward the target, so a quick tilt overshoots and

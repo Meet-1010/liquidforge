@@ -28,9 +28,21 @@ export interface PlacementPoint {
    */
   size?: number
   /**
-   * Rotation at this point, in turns (1 = full circle). Omitted means carry on.
+   * Rotation in the plane of the screen at this point, in turns (1 = full
+   * circle). Omitted means carry on.
    */
   spin?: number
+  /**
+   * Turn around the vertical axis at this point, in turns: 0.25 brings the
+   * object's right side round to face the reader. Scrolling between two points
+   * with different turns rotates the object in 3D. Omitted means carry on.
+   */
+  turn?: number
+  /**
+   * Tip around the horizontal axis at this point, in turns: positive brings the
+   * top toward the reader. Omitted means carry on.
+   */
+  tilt?: number
   /**
    * The scroll progress, 0–1, at which the object reaches this point.
    *

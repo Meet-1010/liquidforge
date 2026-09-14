@@ -44,6 +44,8 @@ import { DEFAULT_ENDPOINT, savePlacements } from "./save"
  * - **Path** — drag out the route it takes as the page scrolls, or let
  *   *Route around content* draw one through the page's empty space.
  * - **Size** — how big it is at the selected point.
+ * - **Rotate** — turn and tip it in 3D at the selected point; scrolling
+ *   between points with different rotations turns the object as it travels.
  * - **Pin** — tie the selected point to an element on the page.
  * - **Checkpoints** — select a point and give it a different element or look;
  *   scrolling past it melts the object into that.
@@ -51,7 +53,8 @@ import { DEFAULT_ENDPOINT, savePlacements } from "./save"
  *   placement, which starts from the desktop one.
  */
 
-type Mode = "place" | "path" | "size" | "pin"
+type Mode = "place" | "path" | "size" | "rotate" | "pin"
+type Rotation = { turn: number; tilt: number; spin: number }
 
 const INK = "#0c0c0f"
 const BONE = "#f2f0ec"
@@ -111,7 +114,15 @@ export function LiquidEditor({
 
   const rootRef = useRef<HTMLDivElement>(null)
   const drawing = useRef(false)
-  const dragging = useRef<{ kind: "point"; index: number } | { kind: "whole"; x: number; y: number } | null>(null)
+  const dragging = useRef<
+    | { kind: "point"; index: number }
+    | { kind: "whole"; x: number; y: number }
+    | { kind: "rotate"; index: number | null; clientX: number; clientY: number; turn: number; tilt: number }
+    | null
+  >(null)
+  // Set while a rotate drag is holding the preview at a point's moment, so
+  // letting go hands the scroll back.
+  const rotateScrub = useRef(false)
 
   const flash = useCallback((message: string, ms = 5000) => {
     setStatus(message)
@@ -350,6 +361,23 @@ export function LiquidEditor({
       /* the drag still works, it just will not follow the pointer off-window */
     }
 
+    if (mode === "rotate") {
+      const hit = nearestPoint(points, x, y, frameBox(), 14)
+      // With nothing picked, the start of the route: later points carry its
+      // rotation forward unless they set their own.
+      const index = hit ?? (placement.path ? (selected ?? 0) : null)
+      if (hit != null) setSelected(hit)
+      // Hold the preview at that point's moment for the length of the drag, so
+      // what turns is what the reader will see there.
+      if (index != null && sampled) {
+        rotateScrub.current = true
+        setScrubAt(sampled.ats[index] ?? 0)
+      }
+      const start = rotationAt(index)
+      dragging.current = { kind: "rotate", index, clientX: event.clientX, clientY: event.clientY, turn: start.turn, tilt: start.tilt }
+      return
+    }
+
     // Grabbing an existing path point always wins over starting something new.
     const hit = nearestPoint(points, x, y, frameBox(), 14)
     if (hit != null) {
@@ -412,6 +440,15 @@ export function LiquidEditor({
     const drag = dragging.current
     if (!drag) return
 
+    if (drag.kind === "rotate") {
+      // About a turn across a wide window: fine enough to set an angle by hand,
+      // quick enough to spin it round. Tipping stops at a half turn either way.
+      const turn = Math.round((drag.turn + (event.clientX - drag.clientX) / 960) * 1000) / 1000
+      const tilt = Math.round(Math.max(-0.5, Math.min(0.5, drag.tilt + (event.clientY - drag.clientY) / 960)) * 1000) / 1000
+      setRotation(drag.index, { turn, tilt })
+      return
+    }
+
     if (drag.kind === "point" && placement.path) {
       const next = placement.path.points.map((point, i) => (i === drag.index ? { ...point, x, y } : point))
       const patch: Placement = { ...placement, path: { ...placement.path, points: next } }
@@ -440,6 +477,10 @@ export function LiquidEditor({
   const endPointer = () => {
     drawing.current = false
     dragging.current = null
+    if (rotateScrub.current) {
+      rotateScrub.current = false
+      setScrubAt(null)
+    }
   }
 
   /* ---------- size ---------- */
@@ -455,6 +496,26 @@ export function LiquidEditor({
   const setSize = (value: number) => {
     if (selected != null && placement.path) updatePoint(selected, (point) => ({ ...point, size: value }))
     else update({ ...placement, origin: { ...placement.origin, size: value } })
+  }
+
+  /* ---------- rotation ---------- */
+
+  /** The rotation in force at a point: its own, or carried forward from an earlier one. */
+  const rotationAt = (index: number | null): Rotation => {
+    const pick = (key: keyof Rotation): number => {
+      if (!placement.path || index == null) return placement.origin[key] ?? 0
+      for (let i = index; i >= 0; i -= 1) {
+        const value = points[i]?.[key]
+        if (value != null) return value
+      }
+      return placement.origin[key] ?? 0
+    }
+    return { turn: pick("turn"), tilt: pick("tilt"), spin: pick("spin") }
+  }
+
+  const setRotation = (index: number | null, patch: Partial<Rotation>) => {
+    if (index != null && placement.path) updatePoint(index, (point) => ({ ...point, ...patch }))
+    else update({ ...placement, origin: { ...placement.origin, ...patch } })
   }
 
   /* ---------- the element: the placement's own, or a checkpoint's ---------- */
@@ -528,6 +589,7 @@ export function LiquidEditor({
       if (event.key === "1") setMode("place")
       if (event.key === "2") setMode("path")
       if (event.key === "3") setMode("size")
+      if (event.key === "4") setMode("rotate")
       if ((event.key === "s" || event.key === "S") && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         void save()
@@ -717,6 +779,8 @@ export function LiquidEditor({
         }}
         size={sizeOfSelected()}
         onSize={setSize}
+        rotation={rotationAt(placement.path ? (selected ?? 0) : null)}
+        onRotation={(patch) => setRotation(placement.path ? (selected ?? 0) : null, patch)}
         selected={selected}
         pointCount={points.length}
         ease={placement.path?.ease ?? 0.12}
@@ -789,7 +853,7 @@ const pillStyle: React.CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
 }
-const onStyle: React.CSSProperties = { ...pillStyle, background: BONE, color: INK, borderColor: BONE }
+const onStyle: React.CSSProperties = { ...pillStyle, background: BONE, color: INK, border: `1px solid ${BONE}` }
 const labelStyle: React.CSSProperties = { fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase", opacity: 0.45, whiteSpace: "nowrap" }
 
 interface ToolbarProps {
@@ -810,6 +874,8 @@ interface ToolbarProps {
   onMode: (mode: Mode) => void
   size: number
   onSize: (value: number) => void
+  rotation: Rotation
+  onRotation: (patch: Partial<Rotation>) => void
   selected: number | null
   pointCount: number
   ease: number
@@ -976,9 +1042,9 @@ function Toolbar(props: ToolbarProps) {
           </select>
         )}
 
-        {(["place", "path", "size", "pin"] as Mode[]).map((m) => (
+        {(["place", "path", "size", "rotate", "pin"] as Mode[]).map((m) => (
           <button key={m} type="button" style={props.mode === m ? onStyle : pillStyle} onClick={() => props.onMode(m)}>
-            {m === "place" ? "Place" : m === "path" ? "Path" : m === "size" ? "Size" : "Pin"}
+            {m === "place" ? "Place" : m === "path" ? "Path" : m === "size" ? "Size" : m === "rotate" ? "Rotate" : "Pin"}
           </button>
         ))}
 
@@ -1006,7 +1072,7 @@ function Toolbar(props: ToolbarProps) {
         <button type="button" style={pillStyle} onClick={props.onRevert} disabled={!props.dirty}>
           Revert
         </button>
-        <button type="button" style={props.dirty ? { ...onStyle, background: COPPER, borderColor: COPPER, color: INK } : pillStyle} onClick={props.onSave}>
+        <button type="button" style={props.dirty ? { ...onStyle, background: COPPER, border: `1px solid ${COPPER}`, color: INK } : pillStyle} onClick={props.onSave}>
           Save
         </button>
         <button type="button" style={pillStyle} onClick={props.onClose}>
@@ -1015,7 +1081,15 @@ function Toolbar(props: ToolbarProps) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <Range label={props.selected != null ? `Size · point ${props.selected + 1}` : "Size"} min={0.04} max={1.4} step={0.01} value={props.size} onChange={props.onSize} format={(value) => value.toFixed(2)} />
+        {props.mode === "rotate" ? (
+          <>
+            <Range label={props.selected != null ? `Turn · point ${props.selected + 1}` : "Turn"} min={-180} max={180} step={1} value={Math.round(props.rotation.turn * 360)} onChange={(value) => props.onRotation({ turn: value / 360 })} format={(value) => `${value}°`} />
+            <Range label="Tilt" min={-90} max={90} step={1} value={Math.round(props.rotation.tilt * 360)} onChange={(value) => props.onRotation({ tilt: value / 360 })} format={(value) => `${value}°`} />
+            <Range label="Spin" min={-180} max={180} step={1} value={Math.round(props.rotation.spin * 360)} onChange={(value) => props.onRotation({ spin: value / 360 })} format={(value) => `${value}°`} />
+          </>
+        ) : (
+          <Range label={props.selected != null ? `Size · point ${props.selected + 1}` : "Size"} min={0.04} max={1.4} step={0.01} value={props.size} onChange={props.onSize} format={(value) => value.toFixed(2)} />
+        )}
         {props.hasPath && <Range label="Lag" min={0.02} max={1} step={0.01} value={props.ease} onChange={props.onEase} format={(value) => value.toFixed(2)} />}
         {props.hasPath && (
           <Range label="Scrub" min={0} max={1} step={0.005} value={props.scrubAt ?? 0} onChange={props.onScrub} onRelease={() => props.onScrub(null)} format={(value) => `${Math.round(value * 100)}%`} />
@@ -1049,7 +1123,9 @@ function Toolbar(props: ToolbarProps) {
               ? "Drag to move it. Select a point on the route and choose a different element or look to make it a checkpoint. ⌘⇧E toggles, Esc closes."
               : props.mode === "path"
                 ? `Drag to draw the route it takes as the page scrolls, or use Route around content. Drag a handle to adjust, alt-click to delete.${props.pointCount ? ` ${props.pointCount} points.` : ""}`
-                : "Pick a handle on the route, then set the size it should be there.")}
+                : props.mode === "rotate"
+                  ? "Pick a point on the route, then drag anywhere: left and right turn the object, up and down tip it. Scroll between points to watch it rotate in 3D."
+                  : "Pick a handle on the route, then set the size it should be there.")}
       </div>
     </div>
   )

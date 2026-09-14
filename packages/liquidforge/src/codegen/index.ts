@@ -499,7 +499,7 @@ export interface PlacementSetupOptions {
    * written as a point on the route with that moment, object and look, so the
    * file needs no further editing to melt from one into the next.
    */
-  checkpoints?: Array<{ at: number; object?: ObjectSource; preset?: string }>
+  checkpoints?: Array<{ at: number; object?: ObjectSource; preset?: string; turn?: number; tilt?: number }>
 }
 
 /**
@@ -544,6 +544,8 @@ export function generatePlacementSetup(
             at: Math.round(moment.at * 1000) / 1000,
             ...(moment.object ? { object: moment.object } : {}),
             ...(moment.preset ? { preset: moment.preset } : {}),
+            ...(Number.isFinite(moment.turn) ? { turn: moment.turn } : {}),
+            ...(Number.isFinite(moment.tilt) ? { tilt: moment.tilt } : {}),
           })),
           { x: 0.5, y: 0.5, size: 0.26 },
         ],

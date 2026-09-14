@@ -138,5 +138,21 @@ ok("the look is bred across the window, not cut", justBefore.blend > 0.3 && just
 const late = checkpointAt(cpPath, cpS, 0.9, base)
 ok("after the window, settled on the new object and look", late.object.shape === "capsule" && late.presetFrom === "magma-1" && late.presetTo === "magma-1" && late.blend === 0 && late.mutation === 0)
 
+// Turning in 3D along the scroll: turn and tilt carry forward like size, and
+// interpolate between the points that set them.
+const turning = {
+  points: [
+    { x: 0, y: 0.5, turn: 0, tilt: 0.1 },
+    { x: 0.5, y: 0.5 },
+    { x: 1, y: 0.5, turn: 0.5 },
+  ],
+  smooth: false,
+}
+const turningS = samplePath(turning)
+ok("a point without a turn carries the last one forward", turningS.points[1].turn === 0 && turningS.points[1].tilt === 0.1)
+ok("turn interpolates along the route", near(pointAt(turningS, 0.75).turn, 0.25, 0.02), `${pointAt(turningS, 0.75).turn.toFixed(3)}`)
+ok("tilt holds where no later point changes it", near(pointAt(turningS, 0.9).tilt, 0.1, 0.001))
+ok("a path with no rotations resolves them to zero", samplePath(bunched).points.every((point) => point.turn === 0 && point.tilt === 0))
+
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

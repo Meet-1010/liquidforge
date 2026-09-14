@@ -439,7 +439,7 @@ is doing.
   the object and the colourway, as fractions of the frame — so it means the same
   thing on a phone as on a monitor. About two hundred bytes per object.
 - \`<LiquidEditor />\` from \`liquidforge/editor\` is the in-place editor: drag to
-  place, draw the route it takes as the page scrolls, set size per point. Dev
+  place, draw the route it takes as the page scrolls, set size and 3D rotation per point. Dev
   only. Summoned with Cmd+Shift+E.
 - A dev route from \`liquidforge/dev\` writes the file when the editor saves.
 
@@ -447,11 +447,17 @@ is doing.
 
 Any point on the route can set \`object\` and/or \`preset\`. That point is a
 checkpoint: as the scroll passes it, the look is bred from the old colourway
-into the new one, and if the object changes the surface boils up, swaps shape at
-the peak, and settles. \`path.morph\` is how much scroll either side the melt
+into the new one, and if the object changes it morphs into the new shape — no
+cut, no rebuild. \`path.morph\` is how much scroll either side the melt
 takes (default 0.06). \`at\` pins a point to a scroll moment (0–1); without it,
 points are spaced by distance. Pass \`checkpoints\` to
 \`liquidforge_generate_placement\` to write them for the user.
+
+Points also rotate the object. \`turn\` (around the vertical axis) and \`tilt\`
+(around the horizontal axis, positive brings the top forward) are in turns, as
+is \`spin\` (in the screen's plane). Each carries forward to later points until
+one sets it again, and scrolling between two points that differ turns the object
+in 3D: \`{ "x": 0.3, "y": 0.5, "turn": 0.25 }\` brings its right side round.
 
 ## Pins, breakpoints, routing
 

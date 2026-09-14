@@ -262,6 +262,9 @@ export function LiquidSpot({
       const x = spot.x * width - size / 2
       const y = spot.y * height - size / 2
       const spin = spot.spin ?? 0
+      // Turn and tilt are 3D, so they belong to the engine; spin stays a turn
+      // of the canvas in the page's plane.
+      engineRef.current?.setOrientation(((spot.tilt ?? 0) * Math.PI * 2), ((spot.turn ?? 0) * Math.PI * 2))
 
       box.style.width = `${size}px`
       box.style.height = `${size}px`
