@@ -36,11 +36,14 @@ export async function prepareSequence(
     isCancelled?: () => boolean
     /** Drop shapes registered for earlier versions of the sequence that it no longer uses. */
     prune?: boolean
+    /** Looks that are not named colourways — tuned or bred — by the id the sequence uses for them. */
+    presets?: Record<string, LiquidPreset>
   } = {},
 ): Promise<void> {
+  const lookFor = (id: string | undefined) => (id && options.presets?.[id]) || resolvePreset(id)
   const presets = [base.preset, ...sequence.map((step) => step.preset)].filter(Boolean) as string[]
-  const keepsSurface = presets.some((id) => resolvePreset(id).family === "original")
-  const dense = presets.some((id) => resolvePreset(id).family === "ferrofluid")
+  const keepsSurface = presets.some((id) => lookFor(id).family === "original")
+  const dense = presets.some((id) => lookFor(id).family === "ferrofluid")
 
   const objects = new Map<string, ObjectSource>()
   for (const step of sequence) {
@@ -82,7 +85,7 @@ export async function prepareSequence(
     if (!step.object && !step.preset) continue
     const form = step.object ? formKeyFor(step.object, base.object) : previous
     const preset = step.preset ?? previousPreset
-    looks.push({ form, preset: resolvePreset(preset) }, { form: previous, preset: resolvePreset(preset) }, { form, preset: resolvePreset(previousPreset) })
+    looks.push({ form, preset: lookFor(preset) }, { form: previous, preset: lookFor(preset) }, { form, preset: lookFor(previousPreset) })
     if (form !== previous) pairs.push([previous, form])
     previous = form
     previousPreset = preset
@@ -99,8 +102,9 @@ export function applyCheckpointState(
   engine: LiquidEngine,
   state: Pick<CheckpointState, "from" | "to" | "t" | "mutation">,
   base: { object?: ObjectSource },
-  options: { reducedMotion?: boolean; lastKey?: string } = {},
+  options: { reducedMotion?: boolean; lastKey?: string; presets?: Record<string, LiquidPreset> } = {},
 ): string {
+  const lookFor = (id: string | undefined) => (id && options.presets?.[id]) || resolvePreset(id)
   const fromForm = formKeyFor(state.from.object, base.object)
   const toForm = state.to ? formKeyFor(state.to.object, base.object) : ""
   const [lastLook = "", lastMutation = "-1"] = (options.lastKey ?? "").split("\u0000")
@@ -114,12 +118,12 @@ export function applyCheckpointState(
   const key = `${look}\u0000${mutationKey}`
   if (look === lastLook) return key
 
-  const fromPreset = resolvePreset(state.from.preset)
+  const fromPreset = lookFor(state.from.preset)
   if (!state.to) {
     engine.setLook({ form: fromForm, preset: fromPreset })
     return key
   }
-  const toPreset = resolvePreset(state.to.preset)
+  const toPreset = lookFor(state.to.preset)
   // One set of bred numbers for both sides; each keeps its own family, so the
   // shader never has to change mid-transition, and its own ground, which the
   // engine mixes rather than switching at the halfway point.

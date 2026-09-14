@@ -146,6 +146,20 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "browsers connect to each other directly, which comfortably holds dozens per room rather than thousands; a few strict office networks block direct connections.",
   },
   {
+    slug: "duet",
+    title: "Duets",
+    pitch: "Answer someone's post: your object melts into theirs and back, in one vertical clip, with the credit ready to paste.",
+    section: "together",
+    rough: "duets are made from gallery posts or a word of your own, and aren't posted back to the gallery yet.",
+  },
+  {
+    slug: "family",
+    title: "Family trees",
+    pitch: "Every look's ancestors and descendants, from the remixes and crosses in the gallery — and a weekly poster of the lines that grew most.",
+    section: "together",
+    rough: "the gallery is young, so most trees are a single post for now; the tree shows up to four generations each way.",
+  },
+  {
     slug: "mark",
     title: "The mark on every export",
     pitch: "A small Liquidforge mark on your clips and a badge for your site — free, optional, and never a paywall.",

@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings test/lineage.test.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "db:import": "node scripts/import-file-store.mjs"
   },
