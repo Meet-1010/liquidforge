@@ -160,3 +160,19 @@ input[type="color"]::-webkit-color-swatch {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The words on a page of the melt-between-pages demo arrive as the object melts. */
+@keyframes melt-copy {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    filter: blur(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes melt-copy {
+    from {
+      opacity: 0;
+    }
+  }
+}

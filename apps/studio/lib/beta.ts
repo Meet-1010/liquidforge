@@ -34,6 +34,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "words and six shapes only for now; very different outlines, like a long word into a sphere, pass through a brief blend of both.",
   },
   {
+    slug: "melt",
+    title: "Melt between pages",
+    pitch: "Click a link and the object doesn't cut away — it melts into the next page's object, in the next page's colours, while the address changes underneath.",
+    section: "clip",
+    rough: "works where the canvas lives in a layout that survives navigation (Next.js, Remix, SvelteKit); a full page reload still starts fresh.",
+  },
+  {
     slug: "visualizer",
     title: "Song to visualizer",
     pitch: "Drop in a track. Every kick splashes, hard hits make it boil, the cover art picks the colours — and the render lands on the beat exactly, with the song under it.",

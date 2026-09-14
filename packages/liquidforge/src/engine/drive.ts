@@ -97,7 +97,7 @@ export async function prepareSequence(
  */
 export function applyCheckpointState(
   engine: LiquidEngine,
-  state: CheckpointState,
+  state: Pick<CheckpointState, "from" | "to" | "t" | "mutation">,
   base: { object?: ObjectSource },
   options: { reducedMotion?: boolean; lastKey?: string } = {},
 ): string {

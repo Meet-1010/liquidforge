@@ -10,6 +10,7 @@ import {
   Mesh,
   PerspectiveCamera,
   Scene,
+  SRGBColorSpace,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -954,6 +955,8 @@ export class LiquidEngine {
 
   private readonly clearColour = new Color()
   private readonly mixColour = new Color()
+  private readonly rgbA = { r: 0, g: 0, b: 0 }
+  private readonly rgbB = { r: 0, g: 0, b: 0 }
 
   /**
    * Paint the ground. Between two looks it is mixed from both, so a colourway
@@ -977,7 +980,13 @@ export class LiquidEngine {
       const a = backgroundColor(from)
       const b = backgroundColor(to)
       if (a && b && a !== b) {
-        this.renderer.setClearColor(this.clearColour.set(a).lerp(this.mixColour.set(b), t), 1)
+        // Mixed in sRGB, the way CSS mixes a page's own background, so a page
+        // fading its ground alongside the canvas stays the same colour as it.
+        const from = this.clearColour.set(a).getRGB(this.rgbA, SRGBColorSpace)
+        const into = this.mixColour.set(b).getRGB(this.rgbB, SRGBColorSpace)
+        const k = Math.max(0, Math.min(1, t))
+        this.clearColour.setRGB(from.r + (into.r - from.r) * k, from.g + (into.g - from.g) * k, from.b + (into.b - from.b) * k, SRGBColorSpace)
+        this.renderer.setClearColor(this.clearColour, 1)
         return
       }
     }
