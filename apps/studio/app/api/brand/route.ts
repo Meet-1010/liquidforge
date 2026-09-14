@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server"
 import { recommend, readSite, stylesheetLinks } from "liquidforge/recommend"
+import { findHeadingFont, findLogo, inertPage } from "@/lib/brand"
 import { PAGE_LIMIT, SHEET_LIMIT, fetchText } from "@/lib/safe-fetch"
 
 /**
- * A colourway from someone's website.
+ * A brand from a homepage address.
  *
- * `GET /api/palette?url=https://example.com` fetches the page and up to six of
- * its stylesheets, reads the colours they declare, and returns a palette, the
- * ground the page sits on, and the closest built-in colourway to start from.
- *
- * It fetches a URL a stranger typed, from this server — so every address is
- * checked before a byte is requested, including the address each redirect
- * points at: only public http and https hosts, never this machine or anything
- * on a private network, with hard limits on time and size.
+ * `GET /api/brand?url=example.com` reads the page and its stylesheets once and
+ * returns everything the brand preview needs: the palette and ground, the
+ * closest colourway, the logo, the heading typeface, and the page itself with
+ * everything executable removed, for a sandboxed frame.
  */
 
 export const dynamic = "force-dynamic"
@@ -47,13 +44,13 @@ export async function GET(request: Request) {
         url: page.url,
         ...site,
         suggestion: { preset: suggestion.preset.id, family: suggestion.family, reason: suggestion.reason },
+        logo: findLogo(page.text, page.url),
+        font: findHeadingFont(page.text, sheets),
+        page: inertPage(page.text, page.url),
       },
       { headers: { "cache-control": "public, s-maxage=3600" } },
     )
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not read that site" },
-      { status: 422 },
-    )
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not read that site" }, { status: 422 })
   }
 }

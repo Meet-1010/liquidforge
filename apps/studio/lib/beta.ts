@@ -104,6 +104,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "icons are found by name, not generated, so unusual words may return nothing; outline-style icons extrude as thin frames.",
   },
   {
+    slug: "brand",
+    title: "Your brand, on your site, in one paste",
+    pitch: "Paste a homepage. It finds the logo and the brand colours, then shows that homepage with the liquid hero already on it — and the link is the before-and-after to send.",
+    section: "about-them",
+    rough: "the page is a copy with its scripts removed, so sites built entirely in JavaScript look sparse; logos drawn as images trace less cleanly than SVG ones.",
+  },
+  {
     slug: "profile-kit",
     title: "Every profile size, from a name",
     pitch: "Type a handle and get X, YouTube, LinkedIn, Twitch and Discord banners, an avatar and wallpapers — each rendered for its shape, in one zip.",
