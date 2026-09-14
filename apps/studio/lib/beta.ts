@@ -34,6 +34,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "words and six shapes only for now; very different outlines, like a long word into a sphere, pass through a brief blend of both.",
   },
   {
+    slug: "pour",
+    title: "Pour it",
+    pitch: "Tilt your phone and the liquid sloshes to the low side. Tip it far enough and it pours off the object, runs down the screen and pools at the bottom.",
+    section: "clip",
+    rough: "iPhones ask for motion access first; the drips are drawn flat over the page rather than in 3D, and the pool evaporates after a while.",
+  },
+  {
     slug: "melt",
     title: "Melt between pages",
     pitch: "Click a link and the object doesn't cut away — it melts into the next page's object, in the next page's colours, while the address changes underneath.",
