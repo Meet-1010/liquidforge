@@ -83,6 +83,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "4× supersampling with heavy blur multiplies render time twenty-fold; long 60 fps clips can take minutes.",
   },
   {
+    slug: "selfie",
+    title: "Chrome selfie",
+    pitch: "Your own face as a liquid-metal relief. Take another and the first melts into it — then render a vertical clip. The photo never leaves your phone.",
+    section: "about-them",
+    rough: "the first selfie downloads a 27–50 MB depth model; a busy background close behind you can join the relief, and it turns with your finger, not yet with your head.",
+  },
+  {
     slug: "doodle",
     title: "Doodle to chrome",
     pitch: "Draw anything with a finger. Lift it, and a second later the drawing is a liquid object you can touch — and film.",
