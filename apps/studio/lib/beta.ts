@@ -90,6 +90,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "stills only for now; platforms crop banners differently on phones, so very long names can be clipped.",
   },
   {
+    slug: "crowd",
+    title: "Crowd surface",
+    pitch: "Everyone on the page is a ripple. On launch day the liquid shows how many people are there by how much it moves — and every screenshot counts them.",
+    section: "together",
+    rough: "browsers connect to each other directly, which comfortably holds dozens per room rather than thousands; a few strict office networks block direct connections.",
+  },
+  {
     slug: "mark",
     title: "The mark on every export",
     pitch: "A small Liquidforge mark on your clips and a badge for your site — free, optional, and never a paywall.",

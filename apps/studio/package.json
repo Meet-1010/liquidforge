@@ -13,15 +13,16 @@
     "db:import": "node scripts/import-file-store.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@neondatabase/serverless": "^1.1.0",
     "liquidforge": "*",
+    "liquidforge-mcp": "*",
     "mediabunny": "^1.56.2",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.172.0",
-    "liquidforge-mcp": "*",
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
