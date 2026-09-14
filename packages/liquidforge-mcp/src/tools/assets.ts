@@ -50,6 +50,7 @@ Examples:
   - Use when: the user wants a real object rather than text or a primitive
   - Use when: they asked for "a skull", "a helmet", "a statue" in the hero
   - Don't use when: a word or a parametric shape would do (forge those, no download needed)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       inputSchema: {
         query: z.string().optional().describe("Search terms"),
         providers: z.array(z.enum(PROVIDER_IDS)).optional(),
@@ -134,6 +135,7 @@ Sketchfab has no direct URL — downloading needs an account — so that provide
 Examples:
   - Use when: the user picked a result from liquidforge_search_models
   - Don't use when: they have a .glb already (pass its path straight to the component)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
       inputSchema: {
         provider: z.enum(PROVIDER_IDS),
         id: z.string().describe("Catalogue id from liquidforge_search_models"),

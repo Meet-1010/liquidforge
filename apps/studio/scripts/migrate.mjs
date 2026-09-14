@@ -65,6 +65,18 @@ const statements = [
   // Today's object: the UTC day a post answers, so the gallery can show a day's
   // worth side by side.
   `alter table community_posts add column if not exists daily text`,
+  // The contact form: questions, bug reports and privacy requests. A salted
+  // hash of the sender's address for rate limiting, never the address.
+  `create table if not exists contact_messages (
+     id            bigserial primary key,
+     created_at    timestamptz not null default now(),
+     topic         text not null,
+     message       text not null,
+     reply_to      text,
+     submitter_key text not null
+   )`,
+  `create index if not exists contact_messages_submitter_idx
+     on contact_messages (submitter_key, created_at desc)`,
   `create index if not exists community_posts_daily_idx
      on community_posts (daily, created_at desc) where daily is not null`,
 ]

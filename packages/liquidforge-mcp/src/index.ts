@@ -11,29 +11,20 @@
  * JSON-RPC channel and every diagnostic goes to stderr.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { SERVER_NAME, SERVER_VERSION, REPO_URL } from "./constants.js"
-import { registerDocsTools } from "./tools/docs.js"
-import { registerRecommendTool } from "./tools/recommend.js"
-import { registerGenerateTool } from "./tools/generate.js"
-import { registerAssetTools } from "./tools/assets.js"
-import { registerPlacementTool } from "./tools/placement.js"
-import { registerProposeTool } from "./tools/propose.js"
-import { registerBreedTool } from "./tools/breed.js"
-import { registerPaletteTool } from "./tools/palette.js"
-import { registerRenderTool } from "./tools/render.js"
+import { SERVER_NAME, SERVER_VERSION, SITE_URL } from "./constants.js"
 import { configureNodeCatalog } from "./catalog-node.js"
+import { createLiquidforgeServer } from "./server.js"
 
 const HELP = `
   ${SERVER_NAME} v${SERVER_VERSION}
 
-  An MCP server for Liquidforge — liquid 3D hero sections for React.
+  An MCP server for Liquidforge — liquid 3D surfaces for React, Webflow, Framer and plain HTML.
 
   Usage
-    liquidforge-mcp                   Run the server over stdio (how a client starts it)
-    liquidforge-mcp --help            Show this
-    liquidforge-mcp --version         Print the version
+    npx liquidforge-mcp               Run the server over stdio (how a client starts it)
+    npx liquidforge-mcp --help        Show this
+    npx liquidforge-mcp --version     Print the version
 
   Tools
     liquidforge_get_started           Learn the library — start here
@@ -41,40 +32,28 @@ const HELP = `
     liquidforge_list_collections      Twelve families, 108 colourways, with palettes
     liquidforge_inspect_preset        One colourway's exact numbers
     liquidforge_recommend_preset      Pick a colourway for a described site
-    liquidforge_generate_component    Turn an explicit config into paste-ready TSX
+    liquidforge_palette_from_url      Take a colourway from a website's own CSS
+    liquidforge_generate_component    React, or a Webflow / Framer / HTML embed
+    liquidforge_render                See a look as a PNG, using a browser on this machine
     liquidforge_search_models         Search five open 3D catalogues, ~46,900 models
     liquidforge_get_model_import      Resolve a catalogue id to a loadable .glb URL
+    liquidforge_generate_placement    Float an object over an existing site, on a scroll path
+    liquidforge_propose_placement     Hand a placement to the in-place editor to approve
+    liquidforge_breed_presets         Cross two colourways into a litter
 
   Environment
-    LIQUIDFORGE_OBJAVERSE_INDEX       Path or URL for the Objaverse category index.
-                                      Defaults to the copy in the repository.
+    LIQUIDFORGE_BROWSER               Path to Chrome, Edge, Brave or Chromium for rendering
+    LIQUIDFORGE_OBJAVERSE_INDEX       Path or URL for the Objaverse category index
 
   Add it to a client
-    Not on npm yet, so point the client at this file by absolute path:
-    Claude Code   claude mcp add liquidforge -- node <repo>/packages/liquidforge-mcp/dist/index.js
-    Cursor        .cursor/mcp.json  -> { "mcpServers": { "liquidforge": { "command": "node", "args": ["<repo>/packages/liquidforge-mcp/dist/index.js"] } } }
-    Codex         ~/.codex/config.toml -> [mcp_servers.liquidforge] command = "node", args = ["<repo>/packages/liquidforge-mcp/dist/index.js"]
+    Claude Desktop  Install the desktop extension from ${SITE_URL}/mcp
+    Claude Code     claude mcp add liquidforge -- npx -y liquidforge-mcp
+    Cursor          .cursor/mcp.json -> { "mcpServers": { "liquidforge": { "command": "npx", "args": ["-y", "liquidforge-mcp"] } } }
+    Codex           ~/.codex/config.toml -> [mcp_servers.liquidforge] command = "npx", args = ["-y", "liquidforge-mcp"]
+    Any client      ${SITE_URL}/api/mcp  (hosted, no install; render and propose are local-only)
 
-  ${REPO_URL}
+  ${SITE_URL}
 `
-
-const INSTRUCTIONS = `Liquidforge renders any object — text, an SVG, a logo, a primitive, a .glb — as a live liquid chrome, glass or molten surface, as one React component.
-
-Call \`liquidforge_get_started\` before doing anything else with it. It explains the library, the two peer dependencies, and which tool to reach for next.
-
-Typical paths:
-- "add a liquid hero to my site", and you know what the site is -> \`liquidforge_recommend_preset\` (pass \`site_description\`, and \`brand_color\` and \`background\` if you can read them out of their CSS)
-- The user has named a colourway -> \`liquidforge_generate_component\`
-- You need one colourway's exact numbers before overriding a field -> \`liquidforge_inspect_preset\`
-- The hero needs a real object rather than a word or a shape -> \`liquidforge_search_models\`, then \`liquidforge_get_model_import\`
-
-Pick objects for **silhouette**. This material reflects an environment and carries almost no interior detail, so a shape recognisable from its outline survives and a cluttered scene does not. Animation never survives — every mesh is baked into one static surface. Report licences exactly as the catalogue states them; never infer one.
-
-Two things are worth reading before writing any of this by hand, because both fail silently:
-- \`liquidforge_get_docs\` topic **blend** — the mix-blend-mode headline breaks if any ancestor creates a stacking context, and renders flat white with no error
-- \`liquidforge_get_docs\` topic **shader** — displacing vertices without rebuilding normals makes the whole effect invisible
-
-Only the Pearl family is built for a light page. The other four are lit to sit on a dark ground.`
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
@@ -89,22 +68,7 @@ async function main(): Promise<void> {
   }
 
   configureNodeCatalog()
-
-  const server = new McpServer(
-    { name: SERVER_NAME, version: SERVER_VERSION },
-    { instructions: INSTRUCTIONS },
-  )
-
-  registerDocsTools(server)
-  registerRecommendTool(server)
-  registerGenerateTool(server)
-  registerAssetTools(server)
-  registerPlacementTool(server)
-  registerProposeTool(server)
-  registerBreedTool(server)
-  registerPaletteTool(server)
-  registerRenderTool(server)
-
+  const server = createLiquidforgeServer({ mode: "local" })
   await server.connect(new StdioServerTransport())
   console.error(`${SERVER_NAME} v${SERVER_VERSION} ready on stdio`)
 }

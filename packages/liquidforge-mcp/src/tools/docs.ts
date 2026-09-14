@@ -36,6 +36,7 @@ Examples:
   - Use when: the user mentions Liquidforge, a liquid or chrome hero, or you find \`liquidforge\` in their package.json
   - Use when: you need the peer dependency list before installing
   - Don't use when: you want a specific colourway recommended for a specific site (use liquidforge_recommend_preset)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: { response_format: ResponseFormat },
     },
     async ({ response_format }) => {
@@ -114,6 +115,7 @@ Examples:
   - Use when: the headline renders flat white instead of inverting (topic: 'blend')
   - Use when: the surface shows no relief however hard it is displaced (topic: 'shader')
   - Don't use when: you have not called liquidforge_get_started yet — it covers overview and install already`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         topic: z.enum(TOPIC_NAMES as [TopicName, ...TopicName[]]).describe("Which topic to return"),
         response_format: ResponseFormat,
@@ -154,6 +156,7 @@ Examples:
   - Use when: the user asks what colourways exist, or you want to offer a choice
   - Use when: you need a preset id to pass to liquidforge_generate_component
   - Don't use when: you want one chosen for a described site (use liquidforge_recommend_preset)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         collection: z
           .string()
@@ -233,6 +236,7 @@ Examples:
   - Use when: the user wants to copy a colourway's numbers into their own preset
   - Use when: you are about to override one field and need to see the rest
   - Don't use when: you want the whole catalogue (use liquidforge_list_collections)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         preset: z.string().describe("Colourway id, e.g. 'mercury-3'"),
         response_format: ResponseFormat,

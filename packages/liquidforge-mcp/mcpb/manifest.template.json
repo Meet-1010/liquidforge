@@ -1,0 +1,57 @@
+{
+  "manifest_version": "0.3",
+  "name": "liquidforge",
+  "display_name": "Liquidforge",
+  "version": "{{version}}",
+  "description": "Liquid 3D hero sections: pick, render and write chrome, glass and ferrofluid looks for React, Webflow, Framer and HTML.",
+  "long_description": "Liquidforge turns any object — a word, a logo, a shape or a 3D model — into a live liquid surface that reacts to the cursor: tinted chrome, glass, molten metal, iridescent oil, ferrofluid that spikes toward the pointer, or the object's own textures made liquid.\n\nThis extension teaches Claude the library and gives it tools to do the work: recommend a colourway for a described site, read a website's brand colours from its CSS, render a look to an image with the browser already on your computer so Claude can see it, search about 46,900 open 3D models, write the React component or a Webflow, Framer or plain HTML embed, place an object on an existing page along a scroll path, and breed two looks into new ones.\n\nEverything runs on your machine. Rendering uses a Chrome, Edge, Brave or Chromium you already have installed, headless.",
+  "author": {
+    "name": "Meet Chauhan",
+    "url": "https://liquidforge-pi.vercel.app"
+  },
+  "homepage": "https://liquidforge-pi.vercel.app/mcp",
+  "documentation": "https://liquidforge-pi.vercel.app/mcp",
+  "support": "https://liquidforge-pi.vercel.app/mcp#support",
+  "icon": "icon.png",
+  "keywords": ["design", "3d", "webgl", "react", "hero", "webflow", "framer", "shader", "animation"],
+  "license": "MIT",
+  "privacy_policies": ["https://liquidforge-pi.vercel.app/privacy"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/dist/index.js"],
+      "env": {
+        "LIQUIDFORGE_BROWSER": "${user_config.browser_path}"
+      }
+    }
+  },
+  "user_config": {
+    "browser_path": {
+      "type": "file",
+      "title": "Browser for rendering (optional)",
+      "description": "Liquidforge renders looks with a Chromium-based browser already on your computer and finds Chrome, Edge, Brave or Chromium by itself. Point this at one only if it can't.",
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "liquidforge_get_started", "description": "Learn the library and which tool to use next" },
+    { "name": "liquidforge_get_docs", "description": "Documentation by topic, including the failures that give no error" },
+    { "name": "liquidforge_list_collections", "description": "Twelve material families and 108 colourways, with palettes" },
+    { "name": "liquidforge_inspect_preset", "description": "One colourway's exact numbers" },
+    { "name": "liquidforge_recommend_preset", "description": "Pick a colourway for a described site" },
+    { "name": "liquidforge_palette_from_url", "description": "Read a website's brand colours from its CSS and turn them into a colourway" },
+    { "name": "liquidforge_generate_component", "description": "Write the React component, or a Webflow, Framer or HTML embed" },
+    { "name": "liquidforge_render", "description": "Render a look to a PNG with a browser on this computer, so Claude can see it" },
+    { "name": "liquidforge_search_models", "description": "Search five open 3D catalogues, about 46,900 models" },
+    { "name": "liquidforge_get_model_import", "description": "Resolve a catalogue model to a loadable .glb URL" },
+    { "name": "liquidforge_generate_placement", "description": "Float an object over an existing site, along a scroll path" },
+    { "name": "liquidforge_propose_placement", "description": "Leave a placement for the in-place editor to approve" },
+    { "name": "liquidforge_breed_presets", "description": "Cross two colourways into a litter of new ones" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18.18.0" }
+  }
+}

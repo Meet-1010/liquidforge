@@ -26,6 +26,10 @@ const librarySrc = path.resolve(__dirname, "../../packages/liquidforge/src")
  */
 const nextConfig: NextConfig = {
   transpilePackages: ["liquidforge"],
+  // The hosted MCP route never renders — that tool is local-only — but the
+  // server's source still mentions the headless browser library, which has no
+  // business being bundled into a function. Left external, it is never loaded.
+  serverExternalPackages: ["puppeteer-core"],
   turbopack: {
     resolveAlias: {
       liquidforge: path.join(librarySrc, "index.ts"),

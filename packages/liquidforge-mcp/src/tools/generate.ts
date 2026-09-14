@@ -61,6 +61,7 @@ Examples:
   - Use when: they ejected the source and need the import path changed
   - Use when: the site is Webflow, Framer, WordPress or plain HTML (set target)
   - Don't use when: you have not chosen a colourway yet (use liquidforge_recommend_preset)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         preset: z.string().describe("Colourway id, e.g. 'mercury-3'"),
         object: ObjectSchema,

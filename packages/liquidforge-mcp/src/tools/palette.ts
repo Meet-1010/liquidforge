@@ -14,20 +14,10 @@ import { readSite, recommend, stylesheetLinks } from "liquidforge/recommend"
 import { configFromPreset, generateCode } from "liquidforge/codegen"
 import type { ObjectSource } from "liquidforge/presets"
 import { ResponseFormat, fail, reply } from "../format.js"
+import { fetchText } from "../fetch-guard.js"
 
-const TIMEOUT_MS = 10_000
-
-async function fetchText(url: string, limit: number): Promise<{ text: string; url: string }> {
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    headers: { "user-agent": "Mozilla/5.0 (compatible; liquidforge-mcp)", accept: "text/html,text/css,*/*" },
-  })
-  if (!response.ok) throw new Error(`${url} answered ${response.status}`)
-  const text = await response.text()
-  return { text: text.slice(0, limit), url: response.url || url }
-}
-
-export function registerPaletteTool(server: McpServer): void {
+export function registerPaletteTool(server: McpServer, options: { publicOnly?: boolean } = {}): void {
+  const { publicOnly = false } = options
   server.registerTool(
     "liquidforge_palette_from_url",
     {
@@ -63,11 +53,11 @@ Examples:
       }
 
       try {
-        const page = await fetchText(target, 1_500_000)
+        const page = await fetchText(target, { limit: 1_500_000, publicOnly })
         const sheets = await Promise.all(
           stylesheetLinks(page.text, page.url)
             .slice(0, 6)
-            .map((href) => fetchText(href, 800_000).then((sheet) => sheet.text).catch(() => "")),
+            .map((href) => fetchText(href, { limit: 800_000, publicOnly }).then((sheet) => sheet.text).catch(() => "")),
         )
         const site = readSite(page.text, sheets)
         const suggestion = recommend({

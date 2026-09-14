@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.meet-1010/liquidforge",
+  "title": "Liquidforge",
+  "description": "Liquid 3D hero sections: recommend, render and write chrome, glass and ferrofluid looks for React, Webflow and Framer.",
+  "websiteUrl": "https://liquidforge-pi.vercel.app/mcp",
+  "icons": [
+    {
+      "src": "https://liquidforge-pi.vercel.app/icons/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    }
+  ],
+  "version": "0.2.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "liquidforge-mcp",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LIQUIDFORGE_BROWSER",
+          "description": "Path to a Chromium-based browser for liquidforge_render, when one is not found automatically",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://liquidforge-pi.vercel.app/api/mcp"
+    }
+  ]
+}

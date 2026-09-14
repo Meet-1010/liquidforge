@@ -1,6 +1,6 @@
 {
   "name": "liquidforge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Liquid 3D hero sections for React. One component turns text, an SVG, an image, a shape or a .glb into a living chrome, glass or molten surface that reacts to the cursor.",
   "keywords": [
     "liquid",

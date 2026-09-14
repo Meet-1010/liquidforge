@@ -41,6 +41,7 @@ Examples:
   - Use when: the user says "add a liquid hero to my site" and you know what the site is
   - Use when: you have read a brand colour out of their CSS and want it matched
   - Don't use when: they have already named a preset (use liquidforge_generate_component)`,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: {
         site_description: z.string().optional().describe("What the site is and how it should feel"),
         brand_color: z.string().optional().describe("Accent colour as hex, e.g. '#7a5cff'"),
