@@ -27,6 +27,13 @@ export const SECTIONS: Record<BetaSection, { title: string; blurb: string }> = {
 
 export const EXPERIMENTS: Experiment[] = [
   {
+    slug: "reflect",
+    title: "Your page, in the chrome",
+    pitch: "The object reflects the actual site around it. Scroll, and your headline, your photos and your buttons slide across its surface.",
+    section: "clip",
+    rough: "the reflection is a snapshot of the page, retaken when it changes, not live video of it; Chrome's trial of live HTML in canvas would make it live.",
+  },
+  {
     slug: "timeline",
     title: "A timeline of melts",
     pitch: "MELT, then DRIP at two seconds, then a ferrofluid knot at six. Set the moments and every change morphs — never a cut — in a clip ready to post.",
