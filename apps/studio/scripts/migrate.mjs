@@ -100,6 +100,29 @@ const statements = [
      on moving_links (submitter_key, created_at desc)`,
   `create index if not exists moving_links_viewed_idx
      on moving_links (last_viewed_at) where gif is not null`,
+  // Creator packs: a handle, claimed with an edit key that is stored only as a
+  // hash, and the looks published under it. Uses are counted when someone
+  // takes a look's code, which is the credit a pack earns.
+  `create table if not exists creator_packs (
+     handle        text primary key,
+     name          text not null,
+     key_hash      text not null,
+     created_at    timestamptz not null default now(),
+     submitter_key text not null
+   )`,
+  `create index if not exists creator_packs_submitter_idx
+     on creator_packs (submitter_key, created_at desc)`,
+  `create table if not exists pack_looks (
+     handle     text not null references creator_packs(handle) on delete cascade,
+     slug       text not null,
+     title      text not null,
+     preset     text not null,
+     look       jsonb not null,
+     uses       int not null default 0,
+     created_at timestamptz not null default now(),
+     updated_at timestamptz not null default now(),
+     primary key (handle, slug)
+   )`,
 ]
 
 for (const statement of statements) {

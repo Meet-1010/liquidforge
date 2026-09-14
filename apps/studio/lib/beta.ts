@@ -160,6 +160,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "the gallery is young, so most trees are a single post for now; the tree shows up to four generations each way.",
   },
   {
+    slug: "packs",
+    title: "Creator packs",
+    pitch: "Publish a named set of your colourways under your handle. Anyone can take a look's code in one click — and every time they do, it counts for you.",
+    section: "together",
+    rough: "the handle is protected by an edit key, not an account, so a lost key is a lost pack; the library can't load a look by @handle name yet, so the code inlines it.",
+  },
+  {
     slug: "mark",
     title: "The mark on every export",
     pitch: "A small Liquidforge mark on your clips and a badge for your site — free, optional, and never a paywall.",

@@ -119,7 +119,7 @@ const SHADING: Record<keyof Look["shading"], [number, number]> = {
  * takes the base colourway's value, so a look is always complete however little
  * of it was sent.
  */
-function validateLook(input: unknown, presetId: string): Look | null {
+export function validateLook(input: unknown, presetId: string): Look | null {
   if (typeof input !== "object" || input === null) return null
   const look = input as Record<string, unknown>
   const base = PRESETS[presetId]
