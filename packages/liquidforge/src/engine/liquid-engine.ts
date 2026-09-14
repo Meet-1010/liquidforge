@@ -1,8 +1,10 @@
 import {
   BufferGeometry,
   CanvasTexture,
+  Matrix4,
   Color,
   LinearFilter,
+  LinearMipmapLinearFilter,
   Matrix3,
   NoColorSpace,
   Mesh,
@@ -194,6 +196,14 @@ export class LiquidEngine {
   private probeMode: ProbeMode = "sphere"
 
   private readonly pointer = new Vector2(0, 0)
+  /** A pointer driven by code — a tracked hand, a stream event — instead of the mouse. */
+  private pointerOverride: Vector2 | null = null
+  private environment: { texture: CanvasTexture; mix: number } | null = null
+  private readonly gravityTarget = new Vector3()
+  private readonly gravity = new Vector3()
+  private readonly gravityVelocity = new Vector3()
+  private sloshAmount = 0
+  private readonly worldToObject = new Matrix4()
   private readonly smoothed = new Vector2(0, 0)
   private readonly normalMatrix = new Matrix3()
   private readonly spin = new Vector2(0, 0)
@@ -598,6 +608,8 @@ export class LiquidEngine {
     if (!handle) {
       handle = createLiquidMaterial({ ...this.preset, family }, this.profile.trail, form.appearance)
       this.bind(handle, form.radius)
+      this.bindEnvironment(handle)
+      handle.material.uniforms.uSlosh.value = this.sloshAmount
       form.handles.set(family, handle)
       const u = handle.material.uniforms
       u.uRebuildNormals.value = this.diagnostic.rebuildNormals === false ? 0 : 1
@@ -695,7 +707,8 @@ export class LiquidEngine {
     const follow = lead === aHandle ? bHandle : aHandle
     const from = lead.material.uniforms
     const into = follow.material.uniforms
-    for (const name of ["uTime", "uPress", "uMutation", "uRadius"]) into[name].value = from[name].value
+    for (const name of ["uTime", "uPress", "uMutation", "uRadius", "uSlosh"]) into[name].value = from[name].value
+    ;(into.uGravity.value as Vector3).copy(from.uGravity.value as Vector3)
     ;(into.uPtr.value as Vector3).copy(from.uPtr.value as Vector3)
     ;(into.uPtrN.value as Vector3).copy(from.uPtrN.value as Vector3)
     ;(into.uPointer.value as Vector2).copy(from.uPointer.value as Vector2)
@@ -1242,7 +1255,7 @@ export class LiquidEngine {
     // off with no perceptible lag (§5.4).
     // A recording drives the pointer itself, so the loop is the same every
     // time and closes on itself.
-    const scripted = this.scriptedPointer()
+    const scripted = this.scriptedPointer() ?? this.pointerOverride
     this.smoothed.lerp(scripted ?? this.pointer, scripted ? 0.5 : 0.34)
     if (scripted) this.pointerSeen = true
     ;(u.uPointer.value as Vector2).copy(this.smoothed)
@@ -1257,6 +1270,18 @@ export class LiquidEngine {
       0,
     )
     mesh.updateMatrixWorld(true)
+
+    if (this.sloshAmount > 0) {
+      // A damped spring toward the target, so a quick tilt overshoots and
+      // settles instead of the surface snapping to the new level.
+      const dt = Math.min(deltaMs, 100) / 1000
+      this.gravityVelocity.addScaledVector(this.gravityTarget.clone().sub(this.gravity), 38 * dt)
+      this.gravityVelocity.multiplyScalar(Math.exp(-4.2 * dt))
+      this.gravity.addScaledVector(this.gravityVelocity, dt * 6)
+      this.worldToObject.copy(mesh.matrixWorld).invert()
+      const local = this.gravity.clone().transformDirection(this.worldToObject).multiplyScalar(Math.min(1.4, this.gravity.length()))
+      ;(u.uGravity.value as Vector3).copy(local)
+    }
 
     // The flat projection is what this used to do and what almost every version
     // of this effect still does: map the pointer straight onto the object's
@@ -1535,10 +1560,29 @@ export class LiquidEngine {
    * applies backpressure.
    */
   async renderFrames(
-    options: { seconds?: number; fps?: number; width?: number; height?: number },
-    onFrame: (canvas: HTMLCanvasElement, index: number, timestampUs: number) => void | Promise<void>,
+    options: {
+      seconds?: number
+      fps?: number
+      width?: number
+      height?: number
+      /**
+       * Renders per output frame, each a fraction of a frame apart, all handed
+       * to `onFrame` with their index — average them for motion blur.
+       * @default 1
+       */
+      subframes?: number
+      /** Called before every step, with the frame, the subframe and the time in seconds — to drive the look from a timeline or a soundtrack. */
+      beforeStep?: (frame: number, subframe: number, seconds: number) => void
+      /** Move the pointer around a closed figure-of-eight, so the surface is disturbed. @default true */
+      scriptedPointer?: boolean
+      /** Run the tail of the loop first, so the first frame matches the last. Off for timelines that do not loop. @default true */
+      preroll?: boolean
+    },
+    onFrame: (canvas: HTMLCanvasElement, index: number, timestampUs: number, subframe: number) => void | Promise<void>,
   ): Promise<number> {
-    const { seconds = 4, fps = 30, width = 3840, height = 2160 } = options
+    const { seconds = 4, fps = 30, width = 3840, height = 2160, beforeStep } = options
+    const subframes = Math.max(1, Math.min(16, Math.round(options.subframes ?? 1)))
+    const scriptedPointer = options.scriptedPointer ?? true
     if (!this.mesh || !this.handle) throw new Error("liquidforge: nothing to render yet")
 
     const wasRunning = this.running
@@ -1554,8 +1598,8 @@ export class LiquidEngine {
     this.frameCamera()
 
     const frames = Math.max(1, Math.round(seconds * fps))
-    const stepMs = 1000 / fps
-    this.scripted = { startedAt: 0, durationMs: seconds * 1000, progress: 0 }
+    const stepMs = 1000 / fps / subframes
+    this.scripted = scriptedPointer ? { startedAt: 0, durationMs: seconds * 1000, progress: 0 } : null
     this.trail.clear()
 
     try {
@@ -1563,15 +1607,21 @@ export class LiquidEngine {
       // already has the ripples and the eased pointer the last frame leaves
       // behind. Starting from a still surface is what made the old loop visibly
       // jump at the seam.
-      const preroll = Math.min(frames, Math.round(fps * 1.5))
+      const preroll = options.preroll === false ? 0 : Math.min(frames, Math.round(fps * 1.5))
       for (let i = frames - preroll; i < frames; i++) {
-        this.scripted.progress = i / frames
-        this.step(stepMs)
+        for (let sub = 0; sub < subframes; sub++) {
+          if (this.scripted) this.scripted.progress = (i + sub / subframes) / frames
+          beforeStep?.(i, sub, (i + sub / subframes) / fps)
+          this.step(stepMs)
+        }
       }
       for (let i = 0; i < frames; i++) {
-        this.scripted.progress = i / frames
-        this.step(stepMs)
-        await onFrame(this.canvas, i, Math.round((i * 1_000_000) / fps))
+        for (let sub = 0; sub < subframes; sub++) {
+          if (this.scripted) this.scripted.progress = (i + sub / subframes) / frames
+          beforeStep?.(i, sub, (i + sub / subframes) / fps)
+          this.step(stepMs)
+          await onFrame(this.canvas, i, Math.round((i * 1_000_000) / fps), sub)
+        }
       }
     } finally {
       this.scripted = null
@@ -1600,6 +1650,65 @@ export class LiquidEngine {
   }
 
   private readonly scratchPointer = new Vector2()
+
+  /**
+   * Drive the pointer from code instead of the mouse: a tracked hand, a stream
+   * alert, a remote cursor. `x` and `y` are normalised device coordinates
+   * (-1 to 1 across the canvas). Pass null to hand the pointer back.
+   */
+  setPointerOverride(point: { x: number; y: number } | null): void {
+    if (!point) {
+      this.pointerOverride = null
+      return
+    }
+    this.pointerOverride = (this.pointerOverride ?? new Vector2()).set(point.x, point.y)
+    this.pointerSeen = true
+  }
+
+  /**
+   * Wrap a picture around the object as its surroundings — the page it sits on,
+   * a photograph, a video frame. The canvas is read as an equirectangular
+   * panorama, straight ahead in the middle. Call again with the same canvas
+   * after drawing into it to refresh; pass null to go back to the studio.
+   */
+  setEnvironment(source: HTMLCanvasElement | null, mix = 0.85): void {
+    if (!source) {
+      this.environment?.texture.dispose()
+      this.environment = null
+    } else if (this.environment && this.environment.texture.image === source) {
+      this.environment.texture.needsUpdate = true
+      this.environment.mix = mix
+    } else {
+      this.environment?.texture.dispose()
+      const texture = new CanvasTexture(source)
+      texture.colorSpace = NoColorSpace
+      texture.generateMipmaps = true
+      texture.minFilter = LinearMipmapLinearFilter
+      texture.magFilter = LinearFilter
+      texture.needsUpdate = true
+      this.environment = { texture, mix }
+    }
+    for (const form of this.forms.values()) for (const handle of form.handles.values()) this.bindEnvironment(handle)
+    if (!this.running) this.renderOnce()
+  }
+
+  private bindEnvironment(handle: LiquidMaterialHandle): void {
+    const u = handle.material.uniforms
+    u.uEnvMap.value = this.environment?.texture ?? null
+    u.uEnvMix.value = this.environment ? this.environment.mix : 0
+  }
+
+  /**
+   * Let the surface slosh toward a direction, as a tilted phone would pour it.
+   * `x`, `y`, `z` are in view space — +x right, +y up, +z toward the viewer —
+   * and their length is how hard it pulls. `amount` scales the whole effect;
+   * zero turns it off.
+   */
+  setGravity(x: number, y: number, z: number, amount = 0.12): void {
+    this.gravityTarget.set(x, y, z)
+    this.sloshAmount = Math.max(0, amount)
+    for (const form of this.forms.values()) for (const handle of form.handles.values()) handle.material.uniforms.uSlosh.value = this.sloshAmount
+  }
 
   /**
    * A burst: rings thrown up across the whole surface at once, and the surface

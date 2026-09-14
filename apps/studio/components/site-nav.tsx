@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/live", label: "Live" },
   { href: "/community", label: "Community" },
   { href: "/mcp", label: "MCP" },
+  { href: "/beta", label: "Beta" },
   { href: "/studio", label: "Studio" },
 ]
 

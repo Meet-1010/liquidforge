@@ -37,6 +37,8 @@ uniform float uRippleSpeed;
 uniform float uRippleTight;
 uniform float uAdvection;
 uniform float uMutation;    // 0..1, how far into a melt-and-reform the surface is
+uniform vec3  uGravity;     // object-space pull, for a tilted phone: the pool swells toward it
+uniform float uSlosh;       // how far the surface follows that pull
 
 uniform float uPress;       // 0..1, how hard the cursor is pressing in
 uniform vec3  uPtr;         // object-space point on the surface under the cursor
@@ -138,6 +140,12 @@ float lf_height(vec3 p, vec3 n){
   float facingP = smoothstep(-0.65, 0.15, dot(n, uPtrN));
 
   float f = -exp(-dP * dP * 38.0) * uPress * uDimple * facingP;
+  // Tilt: the side facing down swells and the side facing up draws in, with a
+  // travelling wave across it, so a tipped object reads as liquid settling.
+  if (uSlosh > 0.0) {
+    float lean = dot(n, uGravity);
+    f += (lean * 0.75 + sin(dot(p / uRadius, uGravity) * 7.0 - uTime * 5.0) * 0.18 * length(uGravity)) * uSlosh * uRadius;
+  }
 #ifdef LF_FERRO
   f += lf_spikes(p);
 #endif

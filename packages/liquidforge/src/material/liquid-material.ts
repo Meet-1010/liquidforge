@@ -88,6 +88,10 @@ export function createLiquidMaterial(
       uAdvection: { value: preset.surface.advection },
       uMutation: { value: 0 },
       uMorph: { value: 0 },
+      uGravity: { value: new Vector3(0, 0, 0) },
+      uSlosh: { value: 0 },
+      uEnvMap: { value: null as Texture | null },
+      uEnvMix: { value: 0 },
       uSpikes: { value: preset.surface.spikes ?? 0 },
 
       uAtlas: { value: withSurface ? (appearance?.texture ?? null) : null },

@@ -69,6 +69,11 @@ uniform float uIor;
 uniform float uThinFilm;
 uniform float uEmissive;
 
+// An optional picture of the surroundings, wrapped around the object as its
+// studio — the page the object sits on, for instance. Mixed over the computed
+// environment rather than replacing it, so the horizon trick still reads.
+uniform sampler2D uEnvMap;
+uniform float uEnvMix;
 uniform vec3  uEnvTop;
 uniform vec3  uEnvHorizon;
 uniform vec3  uEnvBottom;
@@ -214,6 +219,12 @@ vec3 lf_env(vec3 d, float rough){
   // rays cross each edge a hair apart, which turns one band into three.
   base += uEnvTop * smoothstep(0.55, 0.02, abs(y - 0.42)) * sharp * 0.75;
   base += uEnvTop * smoothstep(0.40, 0.02, abs(y + 0.58)) * sharp * 0.25;
+
+  if (uEnvMix > 0.0) {
+    vec2 uv = vec2(atan(d.x, d.z) / 6.2831853 + 0.5, acos(y) / 3.14159265);
+    vec3 surroundings = texture2D(uEnvMap, uv, rough * 5.0).rgb;
+    base = mix(base, surroundings * 1.15, uEnvMix);
+  }
 
   return base;
 }
