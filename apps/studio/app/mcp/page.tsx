@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 const SITE = "https://liquidforge-pi.vercel.app"
-const VERSION = "0.2.0"
+const VERSION = "0.2.1"
 
 const TOOLS: Array<{ name: string; what: string; where: "both" | "local" }> = [
   { name: "liquidforge_get_started", what: "Learn the library and which tool to use next.", where: "both" },

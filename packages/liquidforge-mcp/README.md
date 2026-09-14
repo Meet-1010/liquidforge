@@ -14,7 +14,7 @@ Full documentation: **https://liquidforge-pi.vercel.app/mcp**
 
 ### Claude Desktop — one click
 
-Download [`liquidforge-0.2.0.mcpb`](https://liquidforge-pi.vercel.app/downloads/liquidforge-0.2.0.mcpb) and double-click it, or drag it into Claude Desktop. The extension carries its own dependencies.
+Download [`liquidforge-0.2.1.mcpb`](https://liquidforge-pi.vercel.app/downloads/liquidforge-0.2.1.mcpb) and double-click it, or drag it into Claude Desktop. The extension carries its own dependencies.
 
 ### Claude Code
 

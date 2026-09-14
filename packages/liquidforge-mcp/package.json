@@ -1,6 +1,6 @@
 {
   "name": "liquidforge-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for Liquidforge — recommends and renders liquid 3D looks, reads a site's colours, and writes the React component or a Webflow, Framer or HTML embed.",
   "keywords": [
     "mcp",
@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "liquidforge": "^0.2.0",
+    "liquidforge": "^0.2.1",
     "puppeteer-core": "^24.43.1",
     "zod": "^3.25.76"
   },

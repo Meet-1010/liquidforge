@@ -1,7 +1,7 @@
 /** Shared constants. */
 
 export const SERVER_NAME = "liquidforge-mcp"
-export const SERVER_VERSION = "0.2.0"
+export const SERVER_VERSION = "0.2.1"
 
 /** Ceiling on any single tool response, so a broad listing can't flood the context. */
 export const CHARACTER_LIMIT = 25_000
