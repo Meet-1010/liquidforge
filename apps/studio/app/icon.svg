@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <!-- The studio the chrome reflects: a lit sky, a hard horizon, a dark floor with a
+         little light bouncing back up. The same three bands the shader computes. -->
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.36" stop-color="#c9d1e0"/>
+      <stop offset="0.585" stop-color="#8c97ad"/>
+      <stop offset="0.586" stop-color="#0d1017"/>
+      <stop offset="0.74" stop-color="#232838"/>
+      <stop offset="1" stop-color="#7d879c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ff9a5c" stop-opacity="0.55"/>
+    </linearGradient>
+    <clipPath id="drop"><path d="M32 5.5C32 5.5 13 27.5 13 40.5a19 19 0 0 0 38 0C51 27.5 32 5.5 32 5.5Z"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#0b0b0f"/>
+  <g transform="translate(32 34) scale(0.9) translate(-32 -34)">
+  <path d="M32 5.5C32 5.5 13 27.5 13 40.5a19 19 0 0 0 38 0C51 27.5 32 5.5 32 5.5Z" fill="url(#chrome)"/>
+  <g clip-path="url(#drop)">
+    <!-- The horizon line itself, the edge a ripple bends. -->
+    <path d="M9 37.6c7.5 2.2 15.2-2.6 23-0.4s15.5 2.6 23 0.4" fill="none" stroke="#ffffff" stroke-width="1.25" stroke-linecap="round"/>
+    <!-- A soft key light high on the left. -->
+    <ellipse cx="24.5" cy="25" rx="3.4" ry="6.2" transform="rotate(28 24.5 25)" fill="#ffffff" opacity="0.9"/>
+  </g>
+  <path d="M32 5.5C32 5.5 13 27.5 13 40.5a19 19 0 0 0 38 0C51 27.5 32 5.5 32 5.5Z" fill="none" stroke="url(#rim)" stroke-width="1.2"/>
+  </g>
+</svg>
