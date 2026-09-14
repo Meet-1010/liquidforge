@@ -27,6 +27,20 @@ export const SECTIONS: Record<BetaSection, { title: string; blurb: string }> = {
 
 export const EXPERIMENTS: Experiment[] = [
   {
+    slug: "timeline",
+    title: "A timeline of melts",
+    pitch: "MELT, then DRIP at two seconds, then a ferrofluid knot at six. Set the moments and every change morphs — never a cut — in a clip ready to post.",
+    section: "clip",
+    rough: "words and six shapes only for now; very different outlines, like a long word into a sphere, pass through a brief blend of both.",
+  },
+  {
+    slug: "visualizer",
+    title: "Song to visualizer",
+    pitch: "Drop in a track. Every kick splashes, hard hits make it boil, the cover art picks the colours — and the render lands on the beat exactly, with the song under it.",
+    section: "about-them",
+    rough: "hits are found in the bass, so songs without a kick drum get fewer of them; the tempo shown is an estimate.",
+  },
+  {
     slug: "vertical",
     title: "Vertical, with sound",
     pitch: "Render any look as a 9:16, 4:5, square or landscape clip with your track under it, with each app's buttons drawn where they'll sit.",

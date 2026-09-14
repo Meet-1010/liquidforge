@@ -83,6 +83,8 @@ interface Form {
   fold: number
   aims: Map<string, MorphAttributes>
   handles: Map<MaterialFamily, LiquidMaterialHandle>
+  /** Tessellated finely enough for ferrofluid spikes. */
+  dense: boolean
 }
 
 interface Transition {
@@ -365,24 +367,41 @@ export class LiquidEngine {
     }
   }
 
-  hasForm(key: string): boolean {
-    return this.forms.has(key)
+  /**
+   * Whether a shape is registered under `key` — and, if `dense` is given,
+   * tessellated to match, since a form built for a smooth family has too few
+   * vertices to grow ferrofluid spikes.
+   */
+  hasForm(key: string, options: { dense?: boolean } = {}): boolean {
+    const form = this.forms.get(key)
+    return Boolean(form) && (options.dense === undefined || form!.dense === options.dense)
+  }
+
+  /** Every registered shape's key, the primary one included. */
+  get formKeys(): string[] {
+    return [...this.forms.keys()]
+  }
+
+  /** Drop one registered shape. The primary one cannot be dropped. */
+  releaseForm(key: string): void {
+    const form = this.forms.get(key)
+    if (!form || key === PRIMARY_FORM) return
+    // A transition may be drawing it as its second picture; the next look rebuilds one.
+    this.transition = null
+    if (this.active === form) {
+      const primary = this.forms.get(PRIMARY_FORM)
+      if (primary) {
+        const handle = this.handleFor(primary, this.preset.family)
+        this.showOnly(primary, handle)
+      }
+    }
+    this.disposeForm(form)
+    for (const other of this.forms.values()) other.aims.delete(key)
   }
 
   /** Drop every registered shape except the primary one. */
   releaseForms(): void {
-    for (const form of [...this.forms.values()]) {
-      if (form.key === PRIMARY_FORM) continue
-      if (this.active === form) {
-        const primary = this.forms.get(PRIMARY_FORM)
-        if (primary) {
-          this.transition = null
-          const handle = this.handleFor(primary, this.preset.family)
-          this.showOnly(primary, handle)
-        }
-      }
-      this.disposeForm(form)
-    }
+    for (const key of this.formKeys) this.releaseForm(key)
   }
 
   /**
@@ -475,7 +494,7 @@ export class LiquidEngine {
       aHandle.apply(this.preset)
       aHandle.material.uniforms.uMorph.value = 0
       this.showOnly(a, aHandle)
-      this.applyClearColor()
+      this.applyClearColor(from.preset, to.preset, k)
       return
     }
 
@@ -526,7 +545,7 @@ export class LiquidEngine {
       fade = smoothstep(centre - 0.28, centre + 0.28, k)
     }
     this.transition = { a: a.mesh, aHandle, b: bMesh, bHandle, fade }
-    this.applyClearColor()
+    this.applyClearColor(from.preset, to.preset, k)
     this.frameCamera()
   }
 
@@ -580,6 +599,7 @@ export class LiquidEngine {
       fold: 0,
       aims: new Map(),
       handles: new Map(),
+      dense,
     }
     form.mesh.visible = false
     this.scene.add(form.mesh)
@@ -932,7 +952,15 @@ export class LiquidEngine {
     this.renderOnce()
   }
 
-  private applyClearColor(): void {
+  private readonly clearColour = new Color()
+  private readonly mixColour = new Color()
+
+  /**
+   * Paint the ground. Between two looks it is mixed from both, so a colourway
+   * lit for a studio-grey page arriving from one lit for black brings its
+   * ground in gradually rather than switching it halfway through the melt.
+   */
+  private applyClearColor(from?: LiquidPreset, to?: LiquidPreset, t = 0): void {
     /*
      * `transparent` is the flag and `background` is a colour, but
      * `background="transparent"` is the obvious thing to write and reads as if
@@ -945,7 +973,15 @@ export class LiquidEngine {
       return
     }
     const colour = this.background ?? backgroundColor(this.preset) ?? "#050506"
-    this.renderer.setClearColor(new Color(colour), 1)
+    if (!this.background && from && to) {
+      const a = backgroundColor(from)
+      const b = backgroundColor(to)
+      if (a && b && a !== b) {
+        this.renderer.setClearColor(this.clearColour.set(a).lerp(this.mixColour.set(b), t), 1)
+        return
+      }
+    }
+    this.renderer.setClearColor(this.clearColour.set(colour), 1)
   }
 
   // -- viewport --------------------------------------------------------------
@@ -1167,7 +1203,22 @@ export class LiquidEngine {
   private audioBins: Uint8Array<ArrayBuffer> | null = null
   private audioElement: HTMLMediaElement | null = null
 
+  /** A level fed from code — a soundtrack analysed ahead of time — instead of an element. */
+  private audioLevelOverride: number | null = null
+
+  /**
+   * Set the audio level directly, 0–1, instead of analysing an element.
+   *
+   * For renders: a track analysed ahead of time drives each frame exactly,
+   * where a live analyser would hear whatever happened to be playing. Null
+   * goes back to the element, if there is one.
+   */
+  setAudioLevel(level: number | null): void {
+    this.audioLevelOverride = level === null ? null : Math.max(0, Math.min(1.5, level))
+  }
+
   private updateAudio(): number {
+    if (this.audioLevelOverride !== null) return this.audioLevelOverride
     const element = this.motion.audio ?? null
     if (!element) return 0
 
@@ -1437,7 +1488,9 @@ export class LiquidEngine {
   renderOnce(): void {
     const mesh = this.mesh
     const handle = this.handle
-    if (!mesh || !handle) return
+    // A recording draws every step itself. A look, a splash or a mutation set
+    // from its `beforeStep` would otherwise draw the frame a second time.
+    if (!mesh || !handle || this.recording) return
     mesh.updateMatrixWorld(true)
     mesh.modelViewMatrix.multiplyMatrices(this.camera.matrixWorldInverse, mesh.matrixWorld)
     this.normalMatrix.getNormalMatrix(mesh.modelViewMatrix)

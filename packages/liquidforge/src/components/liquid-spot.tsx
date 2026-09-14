@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { LiquidCanvas, type LiquidCanvasProps } from "./liquid-canvas"
-import { PRIMARY_FORM, type LiquidEngine, type Look } from "../engine/liquid-engine"
+import type { LiquidEngine } from "../engine/liquid-engine"
+import { applyCheckpointState, prepareSequence } from "../engine/drive"
 import { useReducedMotion } from "../hooks/use-reduced-motion"
 import { checkpointAt, pointAt, samplePath, type SampledPath } from "../placement/path"
 import { resolveAnchors } from "../placement/anchors"
 import { getOverride, getScrub, subscribePlacements } from "../placement/live-store"
 import { warnIfPaintedBehindBackground } from "../placement/layer-check"
 import { breakpointFor, DEFAULT_PLACEMENT, resolveBreakpoint, type Placement, type PlacementPath } from "../placement/types"
-import { blendPresets } from "../breed"
-import { forgeGeometry } from "../forge"
-import { resolvePreset } from "../presets"
 import type { LiquidPreset, ObjectSource } from "../types"
 
 export interface LiquidSpotProps extends LiquidCanvasProps {
@@ -165,15 +163,7 @@ export function LiquidSpot({
    * snap this replaces.
    */
   const baseKey = JSON.stringify(baseObject ?? null)
-  const formKeyOf = useCallback(
-    (object: ObjectSource | undefined) => {
-      const key = JSON.stringify(object ?? null)
-      return key === baseKey ? PRIMARY_FORM : `checkpoint:${key}`
-    },
-    [baseKey],
-  )
   const lastLook = useRef("")
-  const lastMutation = useRef(-1)
   const [formsEpoch, setFormsEpoch] = useState(0)
 
   // An edit to the placement — a new base look, a redrawn route — makes the next
@@ -181,7 +171,6 @@ export function LiquidSpot({
   const pathKey = JSON.stringify(path?.points ?? null)
   useEffect(() => {
     lastLook.current = ""
-    lastMutation.current = -1
   }, [basePreset, pathKey])
 
   const handleEngine = useCallback(
@@ -209,57 +198,19 @@ export function LiquidSpot({
     const engine = engineRef.current
     if (!engine || !hasCheckpoints || !path || formsEpoch === 0) return
     let cancelled = false
-
-    const presets = [basePreset, ...path.points.map((point) => point.preset)].filter(Boolean) as string[]
-    const keepsSurface = presets.some((id) => resolvePreset(id).family === "original")
-    const dense = presets.some((id) => resolvePreset(id).family === "ferrofluid")
-    const objects = new Map<string, ObjectSource>()
-    for (const point of path.points) {
-      if (point.object && formKeyOf(point.object) !== PRIMARY_FORM) objects.set(formKeyOf(point.object), point.object)
-    }
-
-    const registered = [...objects.entries()].map(([key, object]) =>
-      forgeGeometry(object, undefined, {
-        appearance: keepsSurface && (object.type === "model" || object.type === "image" || object.type === "svg"),
-      })
-        .then((geometry) => {
-          if (cancelled || engineRef.current !== engine) return geometry.dispose()
-          engine.registerForm(key, geometry, {
-            forceSphereProbe: object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron"),
-            dense,
-          })
-          geometry.dispose()
-        })
-        .catch(() => {
-          // A checkpoint object that cannot be forged leaves its moment on the
-          // placement's own object, which is better than no object at all.
-        }),
-    )
-
-    void Promise.all(registered).then(() => {
-      if (cancelled || engineRef.current !== engine || !sampled || !effectivePath) return
-      const looks: Look[] = []
-      const pairs: Array<[string, string]> = []
-      let previous = PRIMARY_FORM
-      let previousPreset = basePreset
-      for (const point of path.points) {
-        if (!point.object && !point.preset) continue
-        const form = point.object ? formKeyOf(point.object) : previous
-        const preset = point.preset ?? previousPreset
-        looks.push({ form, preset: resolvePreset(preset) }, { form: previous, preset: resolvePreset(preset) }, { form, preset: resolvePreset(previousPreset) })
-        if (form !== previous) pairs.push([previous, form])
-        previous = form
-        previousPreset = preset
-      }
-      void engine.warm(looks, pairs)
-      lastLook.current = ""
+    void prepareSequence(
+      engine,
+      { object: baseObject, preset: basePreset },
+      path.points.filter((point) => point.object || point.preset),
+      { isCancelled: () => cancelled || engineRef.current !== engine },
+    ).then(() => {
+      if (!cancelled) lastLook.current = ""
     })
-
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formsEpoch, pathKey, hasCheckpoints, basePreset, formKeyOf])
+  }, [formsEpoch, pathKey, hasCheckpoints, basePreset, baseKey])
 
   /*
    * Scroll position, the eased position chasing it, and the last thing written
@@ -302,31 +253,7 @@ export function LiquidSpot({
           const engine = engineRef.current
 
           if (engine) {
-            if (Math.abs(state.mutation - lastMutation.current) > 0.002) {
-              lastMutation.current = state.mutation
-              engine.setMutation(reducedMotion ? 0 : state.mutation)
-            }
-            const fromForm = formKeyOf(state.from.object)
-            const toForm = state.to ? formKeyOf(state.to.object) : ""
-            const look = `${fromForm}|${state.from.preset}|${toForm}|${state.to?.preset}|${state.t.toFixed(4)}`
-            if (look !== lastLook.current) {
-              lastLook.current = look
-              const fromPreset = resolvePreset(state.from.preset)
-              if (!state.to) {
-                engine.setLook({ form: fromForm, preset: fromPreset })
-              } else {
-                const toPreset = resolvePreset(state.to.preset)
-                // One set of bred numbers for both sides; each keeps its own family,
-                // so the shader never has to change in the middle of the scroll.
-                const bred: LiquidPreset =
-                  state.from.preset !== state.to.preset ? blendPresets(fromPreset, toPreset, state.t) : toPreset
-                engine.setLook(
-                  { form: fromForm, preset: { ...bred, family: fromPreset.family } },
-                  { form: toForm, preset: { ...bred, family: toPreset.family } },
-                  state.t,
-                )
-              }
-            }
+            lastLook.current = applyCheckpointState(engine, state, { object: baseObject }, { reducedMotion, lastKey: lastLook.current })
           }
         }
       }
@@ -371,7 +298,7 @@ export function LiquidSpot({
       observer.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame, effectivePath, placement, sampled, reducedMotion, scrub, hasCheckpoints, basePreset, baseKey, formKeyOf])
+  }, [frame, effectivePath, placement, sampled, reducedMotion, scrub, hasCheckpoints, basePreset, baseKey])
 
   // Scroll → target progress.
   useEffect(() => {

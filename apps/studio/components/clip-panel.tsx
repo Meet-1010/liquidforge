@@ -69,6 +69,7 @@ export function ClipPanel({
   preroll,
   extra,
   allowAudio = true,
+  onBusy,
 }: {
   engine: LiquidEngine | null
   settings: ClipSettings
@@ -81,6 +82,8 @@ export function ClipPanel({
   preroll?: boolean
   extra?: ReactNode
   allowAudio?: boolean
+  /** Told when a render starts and ends, so a live preview can stand aside while the engine is recording. */
+  onBusy?: (busy: boolean) => void
 }) {
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +98,7 @@ export function ClipPanel({
     setProgress(0)
     setError(null)
     setDone(null)
+    onBusy?.(true)
     try {
       const blob = await recordClip(engine, {
         seconds: settings.seconds,
@@ -117,6 +121,7 @@ export function ClipPanel({
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setProgress(null)
+      onBusy?.(false)
     }
   }
 

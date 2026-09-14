@@ -38,6 +38,7 @@ export {
 
 // Engine — for anyone who wants the surface without React
 export { LiveValue, type LiquidData } from "./engine/live-value"
+export { applyCheckpointState, formKeyFor, prepareSequence } from "./engine/drive"
 export { useLiveNumber, type LiveNumberOptions } from "./hooks/use-live-number"
 export {
   LiquidEngine,
