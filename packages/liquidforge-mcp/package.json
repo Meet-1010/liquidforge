@@ -1,7 +1,7 @@
 {
   "name": "liquidforge-mcp",
   "version": "0.1.0",
-  "description": "MCP server for Liquidforge \u2014 teaches a coding agent the library, recommends a colourway that suits the site it is looking at, and writes the component.",
+  "description": "MCP server for Liquidforge — teaches a coding agent the library, recommends a colourway that suits the site it is looking at, and writes the component.",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -53,6 +53,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "liquidforge": "^0.1.0",
+    "puppeteer-core": "^24.43.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

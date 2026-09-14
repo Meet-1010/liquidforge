@@ -22,6 +22,7 @@ import { registerPlacementTool } from "./tools/placement.js"
 import { registerProposeTool } from "./tools/propose.js"
 import { registerBreedTool } from "./tools/breed.js"
 import { registerPaletteTool } from "./tools/palette.js"
+import { registerRenderTool } from "./tools/render.js"
 import { configureNodeCatalog } from "./catalog-node.js"
 
 const HELP = `
@@ -102,6 +103,7 @@ async function main(): Promise<void> {
   registerProposeTool(server)
   registerBreedTool(server)
   registerPaletteTool(server)
+  registerRenderTool(server)
 
   await server.connect(new StdioServerTransport())
   console.error(`${SERVER_NAME} v${SERVER_VERSION} ready on stdio`)

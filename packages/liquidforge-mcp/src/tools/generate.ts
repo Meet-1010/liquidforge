@@ -12,7 +12,7 @@ import { configFromPreset, generateCode, generateEmbed } from "liquidforge/codeg
 import type { ObjectSource, Quality } from "liquidforge/presets"
 import { ResponseFormat, fail, reply } from "../format.js"
 
-const ObjectSchema = z
+export const ObjectSchema = z
   .object({
     type: z.enum(["text", "svg", "image", "shape", "model"]),
     value: z.string().optional().describe("For type 'text'"),

@@ -75,7 +75,7 @@ try {
 
   const listed = await request("tools/list", {})
   const names = (listed.result?.tools ?? []).map((tool) => tool.name)
-  check("tools/list returns all eleven", names.length === 11, names.join(", "))
+  check("tools/list returns all thirteen", names.length === 13, names.join(", "))
 
   const started = await request("tools/call", {
     name: "liquidforge_get_started",
@@ -175,6 +175,23 @@ try {
   check("generate_component emits a LiquidHero", code.includes("<LiquidHero"))
   check("generate_component names the preset", code.includes('preset="aurora-2"'))
   check("generate_component passes blend through", code.includes("blend"))
+
+  // Rendering drives a browser installed on this machine; skip where there is none.
+  const { findBrowser } = await import("../dist/render.js")
+  if (findBrowser()) {
+    const rendered = await request("tools/call", {
+      name: "liquidforge_render",
+      arguments: { preset: "ferrofluid-1", object: { type: "shape", shape: "sphere" }, width: 320, height: 256 },
+    })
+    const image = rendered.result.content.find((part) => part.type === "image")
+    check(
+      "render returns a PNG of the look",
+      Boolean(image) && Buffer.from(image.data, "base64").subarray(1, 4).toString() === "PNG",
+      rendered.result.content.find((part) => part.type === "text")?.text,
+    )
+  } else {
+    console.log("  skip  render — no Chromium-based browser on this machine")
+  }
 
   const webflow = await request("tools/call", {
     name: "liquidforge_generate_component",
