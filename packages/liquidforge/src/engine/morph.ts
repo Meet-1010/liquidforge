@@ -413,16 +413,16 @@ export class Crossfade {
    * so without this the first frame of the first crossfade compiles every
    * shader again, which is a visible stall at exactly the wrong moment.
    */
-  async warm(renderer: WebGLRenderer, scene: Scene, camera: import("three").Camera): Promise<void> {
+  warm(renderer: WebGLRenderer, scene: Scene, camera: import("three").Camera): void {
     const [a] = this.ensure(4, 4)
     const previous = renderer.getRenderTarget()
     renderer.setRenderTarget(a)
     try {
-      await renderer.compileAsync(scene, camera)
+      renderer.compile(scene, camera)
     } finally {
       renderer.setRenderTarget(previous)
     }
-    await renderer.compileAsync(this.scene, this.camera)
+    renderer.compile(this.scene, this.camera)
     this.release()
   }
 

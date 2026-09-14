@@ -311,6 +311,33 @@ on the first tap.
 
 ---
 
+## Bound to a number
+
+Give the surface a number and it follows it. As `value` climbs from `min` to
+`max` the look moves toward `to` — or, without one, the same look gets louder —
+and passing a milestone on the way up throws a splash across the whole object.
+
+```tsx
+import { LiquidHero, useLiveNumber } from "liquidforge"
+
+const stars = useLiveNumber("https://api.github.com/repos/vercel/next.js", { path: "stargazers_count" })
+
+<LiquidHero
+  object={{ type: "text", value: "STARS" }}
+  preset="mercury-3"
+  data={stars === undefined ? undefined : { value: stars, min: 100_000, max: 150_000, to: "magma-4", milestones: [150_000] }}
+/>
+```
+
+`useLiveNumber` polls any JSON endpoint that allows cross-origin requests, by dot
+path, and pauses while the tab is hidden. Changes ease in over `ease`
+milliseconds (900 by default) rather than jumping. `engine.splash()` throws a
+splash by hand. On `<liquid-forge>` the same thing is `value`, `value-min`,
+`value-max`, `value-to` and `milestones`, or `value-src` and `value-path` to
+fetch the number.
+
+---
+
 ## The blend-mode trap — read this before using `blend`
 
 The signature effect is a headline that inverts to the complement of the liquid behind it: teal over orange, olive over pink. It's one CSS line, and `<LiquidHero blend>` applies it for you.

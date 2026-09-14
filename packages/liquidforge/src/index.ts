@@ -37,6 +37,8 @@ export {
 } from "./placement"
 
 // Engine — for anyone who wants the surface without React
+export { LiveValue, type LiquidData } from "./engine/live-value"
+export { useLiveNumber, type LiveNumberOptions } from "./hooks/use-live-number"
 export {
   LiquidEngine,
   PRIMARY_FORM,

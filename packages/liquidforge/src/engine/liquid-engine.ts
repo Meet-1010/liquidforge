@@ -201,6 +201,8 @@ export class LiquidEngine {
 
   private press = 0
   private clickPulse = 0
+  /** A milestone splash, decaying: extra rings and a brief simmer. */
+  private splashEnergy = 0
   /**
    * The pointer's resting NDC is (0, 0), which is the dead centre of the
    * canvas — so without this the object renders pressed, with a well and a
@@ -215,6 +217,7 @@ export class LiquidEngine {
   /** The current object's own surface, for the original family. */
   private appearance: MaterialAppearance | null = null
   private readonly forms = new Map<string, Form>()
+  private disposed = false
   private probeSurface: BufferGeometry | null = null
   private active: Form | null = null
   private transition: Transition | null = null
@@ -397,13 +400,22 @@ export class LiquidEngine {
         this.aimFor(b, a)
       }
     }
+    // `compile`, not `compileAsync`. Both hand the shaders to the driver, which
+    // links them in the background where the browser supports that; but
+    // `compileAsync` then polls each program on a timer, and if the engine is
+    // disposed before it finishes — React mounts effects twice in development —
+    // the poll reads a program that no longer exists and throws where nothing
+    // can catch it. Starting the compile is the part that matters: by the time a
+    // transition draws with these materials, the link is done.
+    if (this.disposed) return
     try {
-      await this.renderer.compileAsync(scene, this.camera)
+      this.renderer.compile(scene, this.camera)
       if (pairs.length > 0 || looks.some((look) => look.preset.family !== this.preset.family)) {
-        await this.crossfade.warm(this.renderer, scene, this.camera)
+        this.crossfade.warm(this.renderer, scene, this.camera)
       }
     } catch {
-      // A browser without parallel compile compiles on first draw instead.
+      // A shader that fails here fails the same way on first draw, where the
+      // engine already reports it.
     }
   }
 
@@ -832,6 +844,11 @@ export class LiquidEngine {
     if (!this.running) this.renderOnce()
   }
 
+  /** Whether the render loop is running, as opposed to drawing only on demand. */
+  get isRunning(): boolean {
+    return this.running
+  }
+
   /** Whether the current object carries its own surface. */
   get hasAppearance(): boolean {
     return this.appearance !== null
@@ -1254,6 +1271,18 @@ export class LiquidEngine {
     ;(u.uPtrN.value as Vector3).copy(hit.normal)
 
     this.clickPulse *= 0.9
+    if (this.splashEnergy > 0.002) {
+      this.splashEnergy *= 0.965
+      const simmer = Math.max(this.mutation, this.splashEnergy * 0.5)
+      u.uMutation.value = simmer
+      if (this.transition) {
+        this.transition.aHandle.material.uniforms.uMutation.value = simmer
+        this.transition.bHandle.material.uniforms.uMutation.value = simmer
+      }
+    } else if (this.splashEnergy > 0) {
+      this.splashEnergy = 0
+      u.uMutation.value = this.mutation
+    }
     this.press += ((over ? 1 : 0) - this.press) * 0.14
     u.uPress.value = Math.min(1, this.press + this.clickPulse * 0.45)
 
@@ -1573,6 +1602,37 @@ export class LiquidEngine {
   private readonly scratchPointer = new Vector2()
 
   /**
+   * A burst: rings thrown up across the whole surface at once, and the surface
+   * simmering for a second as it settles.
+   *
+   * For the moment a number a hero is bound to passes a milestone — the
+   * thousandth sign-up, the hundred-thousandth star. The rings land on random
+   * points of the actual mesh, so a word erupts along its letters rather than
+   * across a sphere drawn around it.
+   */
+  splash(strength = 1): void {
+    const mesh = this.mesh
+    if (!mesh || this.reduced) return
+    const position = mesh.geometry.getAttribute("position")
+    const normal = mesh.geometry.getAttribute("flowNormal") ?? mesh.geometry.getAttribute("normal")
+    const rings = Math.min(this.trail.length, Math.max(3, Math.round(5 * strength)))
+    for (let i = 0; i < rings; i++) {
+      const index = Math.floor(Math.random() * position.count)
+      this.splashPoint.fromBufferAttribute(position, index)
+      this.splashNormal.fromBufferAttribute(normal, index).normalize()
+      // Staggered by a fraction of a second, so it reads as an eruption rather
+      // than as every ring starting on the same frame.
+      this.trail.emit(this.splashPoint, this.splashNormal, 2.2 * strength, this.time - i * 0.07)
+    }
+    this.clickPulse = Math.max(this.clickPulse, strength)
+    this.splashEnergy = Math.min(1.5, this.splashEnergy + strength)
+    if (!this.running) this.renderOnce()
+  }
+
+  private readonly splashPoint = new Vector3()
+  private readonly splashNormal = new Vector3()
+
+  /**
    * Disturb the surface from somewhere other than this browser's pointer.
    *
    * `x` and `y` are normalised device coordinates, the same space the local
@@ -1622,6 +1682,7 @@ export class LiquidEngine {
   }
 
   dispose(): void {
+    this.disposed = true
     this.stop()
     for (const off of this.detach) off()
     this.detach = []

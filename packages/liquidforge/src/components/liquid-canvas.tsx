@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, version as reactVersion } from "react"
 import { LiquidEngine } from "../engine/liquid-engine"
+import { LiveValue, type LiquidData } from "../engine/live-value"
 import { LiquidLoading } from "./loading"
 import { forgeGeometry, DEFAULT_OBJECT } from "../forge"
 import { backgroundColor } from "../material/environment"
@@ -92,6 +93,13 @@ export interface LiquidCanvasProps {
    * `engine.posterBlob()`.
    */
   poster?: string
+  /**
+   * Bind the look to a number. As `value` moves between `min` and `max` the
+   * surface moves toward `to` — or grows louder, without one — and passing a
+   * milestone on the way up throws a splash across it. Pair with
+   * `useLiveNumber` to follow a JSON endpoint.
+   */
+  data?: LiquidData
   /** Shown while the object is being forged. */
   fallback?: ReactNode
   /** Shown if WebGL is unavailable or the object fails to build. */
@@ -136,6 +144,7 @@ export function LiquidCanvas({
   background,
   pauseOffscreen = true,
   poster,
+  data,
   fallback,
   errorFallback,
   onReady,
@@ -328,9 +337,34 @@ export function LiquidCanvas({
   }, [objectKey, epoch, wantsSurface, wantsDense])
 
   // -- live settings ---------------------------------------------------------
+  const resolvedRef = useRef(resolved)
+  resolvedRef.current = resolved
+  const liveRef = useRef<LiveValue | null>(null)
+
   useEffect(() => {
     engineRef.current?.setPreset(resolved)
+    // A bound number moves the look relative to this one; put it back on top.
+    liveRef.current?.refresh()
   }, [resolved, epoch])
+
+  // One driver per engine: a rebuilt context gets a fresh one.
+  useEffect(() => {
+    const engine = engineRef.current
+    if (!engine) return
+    const live = new LiveValue(engine, () => resolvedRef.current)
+    liveRef.current = live
+    return () => {
+      live.dispose()
+      if (liveRef.current === live) liveRef.current = null
+    }
+  }, [epoch])
+
+  const dataKey = data ? JSON.stringify(data) : ""
+  useEffect(() => {
+    if (!ready && data) return
+    liveRef.current?.set(data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataKey, epoch, ready])
 
   useEffect(() => {
     engineRef.current?.setMotion(motion ?? {})

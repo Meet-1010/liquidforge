@@ -80,8 +80,13 @@ The surface on its own; fills its container.
 - \`quality\`: \`"auto" | "high" | "balanced" | "low"\` (default \`"auto"\`)
 - \`motion\`: \`{ autoRotate, tilt, draggable, respectReducedMotion }\`
 - \`transparent\`, \`background\`, \`pauseOffscreen\`, \`fallback\`, \`errorFallback\`, \`onReady\`, \`onError\`
+- \`poster\`: a still to paint first; the live surface fades in when the browser is idle
+- \`data\`: bind the look to a number — \`{ value, min, max, to, milestones }\`. As \`value\` rises the look moves toward \`to\` (or gets louder), and crossing a milestone splashes the surface. \`useLiveNumber(url, { path })\` polls a JSON endpoint for the value.
 
 ## Without React
+
+On Webflow, Framer or plain HTML, use \`<liquid-forge>\` from one script tag — \`liquidforge_generate_component\` with \`target\` writes it. Attributes mirror the props (\`text\`/\`shape\`/\`model\`, \`preset\`, \`palette\`, \`value\`, \`value-src\`, \`milestones\`…).
+
 
 \`LiquidEngine\` is exported and owns the whole render loop:
 

@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/showcase", label: "Showcase" },
   { href: "/place", label: "Place" },
   { href: "/assets", label: "Assets" },
+  { href: "/live", label: "Live" },
   { href: "/community", label: "Community" },
   { href: "/studio", label: "Studio" },
 ]
@@ -25,7 +26,8 @@ export function SiteNav() {
         </span>
       </Link>
 
-      <div className="flex min-w-0 items-center gap-1 sm:gap-4">
+      {/* Scrolls sideways on a narrow screen rather than pushing the page wider. */}
+      <div className="-mr-4 flex min-w-0 items-center gap-1 overflow-x-auto pr-4 [scrollbar-width:none] sm:mr-0 sm:gap-4 sm:pr-0 [&::-webkit-scrollbar]:hidden">
         {LINKS.map((link) => {
           const active = pathname === link.href
           if (link.href === "/studio") {

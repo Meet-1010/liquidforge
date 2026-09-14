@@ -2,6 +2,8 @@ import { LiquidEngine } from "../engine/liquid-engine"
 import { forgeGeometry } from "../forge"
 import { backgroundColor } from "../material/environment"
 import { resolvePreset } from "../presets"
+import { LiveValue } from "../engine/live-value"
+import { pickNumber } from "../hooks/pick-number"
 import type { MaterialFamily, ObjectSource, Quality, ShadingOptions, ShapeKind, SurfaceOptions } from "../types"
 
 /**
@@ -24,6 +26,11 @@ import type { MaterialFamily, ObjectSource, Quality, ShadingOptions, ShapeKind, 
  * `transparent`, `background`, `quality`, `auto-rotate`, `draggable="false"`,
  * `poster`. Changing an attribute updates the surface in place.
  *
+ * Bind it to a number with `value`, `value-min`, `value-max`, `value-to` and
+ * `milestones` (comma-separated) — or let it fetch one: `value-src` is a JSON
+ * URL, `value-path` the dot path to the number in it, `value-every` the poll
+ * interval in milliseconds.
+ *
  * Children are the fallback: they are left alone where WebGL is missing, and
  * hidden once the surface is drawing.
  */
@@ -39,6 +46,14 @@ const OBSERVED = [
   "auto-rotate",
   "draggable",
   "poster",
+  "value",
+  "value-min",
+  "value-max",
+  "value-to",
+  "milestones",
+  "value-src",
+  "value-path",
+  "value-every",
 ] as const
 
 const SHAPES: ShapeKind[] = ["sphere", "torus", "torusknot", "capsule", "icosahedron", "rounded-box"]
@@ -104,6 +119,10 @@ export class LiquidForgeElement extends ElementBase {
   private pendingObject = false
   private pendingLook = false
   private scheduled = false
+  private live: LiveValue | null = null
+  private fetched: number | undefined
+  private pollTimer: ReturnType<typeof setTimeout> | undefined
+  private pollUrl = ""
 
   /** The engine, for anything the attributes do not cover — `recordLoop`, `posterBlob`. */
   get engine(): LiquidEngine | null {
@@ -154,6 +173,7 @@ export class LiquidForgeElement extends ElementBase {
       return
     }
     this.syncGround()
+    this.live = new LiveValue(this.engineInstance, () => this.preset())
 
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(this)
@@ -170,6 +190,11 @@ export class LiquidForgeElement extends ElementBase {
   }
 
   disconnectedCallback(): void {
+    this.live?.dispose()
+    this.live = null
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = undefined
+    this.pollUrl = ""
     this.resizeObserver?.disconnect()
     this.intersection?.disconnect()
     this.motionQuery?.removeEventListener?.("change", this.onMotionPreference)
@@ -193,7 +218,10 @@ export class LiquidForgeElement extends ElementBase {
     else if (name === "transparent" || name === "background") this.syncGround()
     else if (name === "auto-rotate" || name === "draggable") this.engineInstance.setMotion(this.motion())
     else if (name === "poster") this.syncPoster()
-    else if (name === "quality") {
+    else if (name.startsWith("value") || name === "milestones") {
+      if (name === "value-src" || name === "value-path" || name === "value-every") this.syncPolling()
+      if (this.ready) this.syncData()
+    } else if (name === "quality") {
       // The tier is baked into the material and the tessellation; rebuilding
       // is the only honest way to change it.
       this.disconnectedCallback()
@@ -218,11 +246,65 @@ export class LiquidForgeElement extends ElementBase {
           // Switching into Original needs the object's own surface, which only
           // a fresh forge carries.
           this.engineInstance?.setPreset(preset)
+          this.live?.refresh()
           if (preset.family === "original" || preset.family === "ferrofluid") this.forge()
           this.syncGround()
         }
       })
     }
+  }
+
+  /** The bound number, from `value` or the last fetch of `value-src`. */
+  private syncData(): void {
+    const own = this.getAttribute("value")
+    const value = own !== null && own !== "" ? Number(own) : this.fetched
+    if (value === undefined || !Number.isFinite(value)) {
+      this.live?.set(null)
+      return
+    }
+    const number = (name: string) => {
+      const raw = this.getAttribute(name)
+      return raw === null || raw === "" || !Number.isFinite(Number(raw)) ? undefined : Number(raw)
+    }
+    this.live?.set({
+      value,
+      min: number("value-min"),
+      max: number("value-max"),
+      to: this.getAttribute("value-to") || undefined,
+      milestones: (this.getAttribute("milestones") ?? "")
+        .split(",")
+        .map((part) => Number(part.trim()))
+        .filter((m) => Number.isFinite(m)),
+    })
+  }
+
+  private syncPolling(): void {
+    const src = this.getAttribute("value-src") ?? ""
+    if (src === this.pollUrl && this.pollTimer) return
+    if (this.pollTimer) clearTimeout(this.pollTimer)
+    this.pollTimer = undefined
+    this.pollUrl = src
+    if (!src || !this.engineInstance) return
+    const every = Math.max(5_000, Number(this.getAttribute("value-every")) || 30_000)
+    const poll = async () => {
+      if (this.pollUrl !== src) return
+      if (document.visibilityState === "visible") {
+        try {
+          const response = await fetch(src, { headers: { accept: "application/json" } })
+          if (response.ok) {
+            const next = pickNumber(await response.json(), this.getAttribute("value-path") ?? undefined)
+            if (next !== undefined && this.pollUrl === src) {
+              this.fetched = next
+              if (this.ready) this.syncData()
+            }
+          }
+        } catch {
+          // Keep the last value; the next poll may succeed.
+        }
+      }
+      if (this.pollUrl === src) this.pollTimer = setTimeout(poll, every)
+    }
+    void poll()
   }
 
   private preset() {
@@ -343,6 +425,8 @@ export class LiquidForgeElement extends ElementBase {
           }
         }
         this.syncRunning()
+        this.syncPolling()
+        this.syncData()
         this.dispatchEvent(new CustomEvent("ready", { detail: { animations: engine.animations } }))
       })
       .catch((error) => {
