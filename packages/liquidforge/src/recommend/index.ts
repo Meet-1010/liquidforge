@@ -274,7 +274,7 @@ export function recommend(input: RecommendInput): Recommendation {
       ? " — and it is one of the two families built for a light page"
       : "",
     target
-      ? `. ${name} is the colourway whose palette sits closest to ${input.brandColor}`
+      ? `. ${name} is the colourway whose palette sits closest to ${input.brandColor ?? input.palette?.[0]}`
       : `. ${name} is the collection's most neutral colourway`,
     ".",
   ].join("")
@@ -293,3 +293,4 @@ export function recommend(input: RecommendInput): Recommendation {
 }
 
 export { extractPalette, type PaletteOptions } from "./palette"
+export { parseColour, readSite, stylesheetLinks, type SiteColours } from "./site"

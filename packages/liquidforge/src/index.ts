@@ -103,7 +103,20 @@ export {
 } from "./catalog"
 
 export { mutatePreset, randomPreset, type MutateOptions } from "./codegen/mutate"
-export { blendPresets, breed, litter, mixHex, type Child, type BreedOptions } from "./breed"
+export {
+  blendPresets,
+  breed,
+  describeChange,
+  litter,
+  lookChanges,
+  mixHex,
+  steer,
+  steerScore,
+  type BreedOptions,
+  type Child,
+  type LookChange,
+  type Steer,
+} from "./breed"
 
 export {
   recommend,

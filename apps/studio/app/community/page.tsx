@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { PRESETS, presetName } from "liquidforge"
-import { litter } from "liquidforge/breed"
+import { describeChange, litter } from "liquidforge/breed"
 import type { ObjectSource } from "liquidforge"
 import { LazyPreview } from "@/components/lazy-preview"
 import { presetForPost, studioLinkFor } from "@/lib/community"
@@ -162,6 +162,7 @@ function Gallery() {
             const preset = presetForPost(entry)
             const href = studioLinkFor(preset, entry.object, entry.preset)
             const parentIndex = parents.indexOf(entry.id)
+            const parent = entry.parentId && !entry.secondParentId ? byId.get(entry.parentId) : undefined
             const bredFrom = entry.secondParentId
               ? [entry.parentId, entry.secondParentId].map((id) => (id ? byId.get(id)?.title ?? "a removed post" : null))
               : null
@@ -242,6 +243,11 @@ function Gallery() {
                 {entry.daily && (
                   <p className="truncate border-t border-rule px-3 py-1.5 font-mono text-[10px] text-bone/35">
                     Today&apos;s object · {entry.daily}
+                  </p>
+                )}
+                {parent && PRESETS[parent.preset] && (
+                  <p className="border-t border-rule px-3 py-1.5 font-mono text-[10px] leading-relaxed text-bone/45">
+                    {describeChange(presetForPost(parent), preset, { than: parent.title })}
                   </p>
                 )}
                 {bredFrom && (

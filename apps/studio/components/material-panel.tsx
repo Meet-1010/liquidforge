@@ -1,6 +1,7 @@
 "use client"
 
-import { COLLECTIONS, PRESETS, presetName } from "liquidforge"
+import { useState } from "react"
+import { COLLECTIONS, PRESETS, describeChange, presetName, resolvePreset } from "liquidforge"
 import type { LiquidConfig } from "liquidforge/codegen"
 import type { MaterialFamily, ShadingOptions, SurfaceOptions } from "liquidforge"
 import { Collapsible, Field, PaletteField, Panel, Slider } from "./ui"
@@ -123,6 +124,8 @@ export function MaterialPanel({
           palette={config.palette}
           onChange={(palette) => onChange({ ...config, palette })}
         />
+        <TunedFrom config={config} />
+        <FromWebsite config={config} onChange={onChange} />
       </Panel>
 
       <Collapsible title="Surface" hint="how it moves" defaultOpen>
@@ -279,5 +282,156 @@ export function MaterialPanel({
         )}
       </Collapsible>
     </>
+  )
+}
+
+/**
+ * What the sliders have done, in a sentence.
+ *
+ * After a few minutes of tuning it is easy to lose track of how far a look has
+ * drifted from the colourway it started as. Saying it plainly — "warmer, and
+ * the ripples travel twice as fast" — also tells someone which slider to reach
+ * for to get back.
+ */
+function TunedFrom({ config }: { config: LiquidConfig }) {
+  const base = PRESETS[config.preset]
+  if (!base) return null
+  const current = resolvePreset(config.preset, {
+    family: config.family,
+    palette: config.palette,
+    surface: config.surface,
+    shading: config.shading,
+    background: config.background,
+  })
+  const sentence = describeChange(base, current, { limit: 3 })
+  if (sentence === "Almost exactly the same.") return null
+  return (
+    <p className="font-mono text-[10px] leading-relaxed text-bone/45">
+      <span className="text-bone/30">Against {base.label} · {presetName(base.id)}: </span>
+      {sentence}
+    </p>
+  )
+}
+
+interface SiteReading {
+  url: string
+  palette: string[]
+  background: "light" | "dark" | "mid"
+  title?: string
+  suggestion: { preset: string; family: MaterialFamily; reason: string }
+}
+
+/**
+ * Colours from a website.
+ *
+ * The brief that comes up most is "make it match our site", and the site is the
+ * one thing everyone already has the address of. The server reads the colours
+ * the site's stylesheets declare — brand tokens and buttons first — and hands
+ * back a palette and the colourway closest to it. Nothing is applied until you
+ * choose to.
+ */
+function FromWebsite({ config, onChange }: { config: LiquidConfig; onChange: (config: LiquidConfig) => void }) {
+  const [url, setUrl] = useState("")
+  const [state, setState] = useState<"idle" | "reading" | "error">("idle")
+  const [reading, setReading] = useState<SiteReading | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const read = async () => {
+    if (!url.trim()) return
+    setState("reading")
+    setError(null)
+    try {
+      const response = await fetch(`/api/palette?url=${encodeURIComponent(url.trim())}`)
+      const data = (await response.json()) as SiteReading & { error?: string }
+      if (!response.ok || data.error) throw new Error(data.error ?? `Failed (${response.status})`)
+      setReading(data)
+      setState("idle")
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+      setState("error")
+    }
+  }
+
+  const applyColours = (startFrom?: string) => {
+    if (!reading) return
+    const base = startFrom ? PRESETS[startFrom] : null
+    onChange({
+      ...config,
+      ...(base
+        ? {
+            preset: base.id,
+            family: base.family,
+            surface: { ...base.surface },
+            shading: { ...base.shading },
+          }
+        : {}),
+      palette: reading.palette.slice(0, 8),
+      background: reading.background,
+    })
+  }
+
+  return (
+    // Not a <Field>: that is a <label>, and a form cannot sit inside one.
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="font-mono text-[11px] text-bone/55">Colours from a website</span>
+        <span className="font-mono text-[10px] text-bone/30">brand colours, from its CSS</span>
+      </div>
+      <form
+        className="flex gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void read()
+        }}
+      >
+        <input
+          type="text"
+          inputMode="url"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="yoursite.com"
+          className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-rule bg-ink px-2.5 py-1.5 font-mono text-[11px] text-bone/85 outline-none placeholder:text-bone/25 focus:border-bone"
+        />
+        <button
+          type="submit"
+          disabled={state === "reading" || !url.trim()}
+          className="shrink-0 rounded-[var(--radius-sm)] border border-rule px-2.5 py-1.5 font-mono text-[10px] text-bone/70 transition-colors hover:border-rule-bright hover:text-bone disabled:opacity-40"
+        >
+          {state === "reading" ? "Reading…" : "Read"}
+        </button>
+      </form>
+      {error && <p className="mt-1.5 font-mono text-[10px] text-bone/55">{error}</p>}
+      {reading && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex h-6 overflow-hidden rounded-[var(--radius-sm)] border border-rule">
+            {reading.palette.map((colour) => (
+              <span key={colour} title={colour} style={{ flex: 1, background: colour }} />
+            ))}
+          </div>
+          <p className="truncate font-mono text-[10px] text-bone/35" title={reading.url}>
+            {reading.title ?? reading.url} · {reading.background} page
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => applyColours()}
+              className="rounded-[var(--radius-pill)] bg-bone px-2.5 py-1 font-mono text-[10px] text-ink transition-colors hover:bg-bone-dim"
+            >
+              Use these colours
+            </button>
+            {PRESETS[reading.suggestion.preset] && reading.suggestion.preset !== config.preset && (
+              <button
+                type="button"
+                onClick={() => applyColours(reading.suggestion.preset)}
+                title={reading.suggestion.reason}
+                className="rounded-[var(--radius-pill)] border border-rule px-2.5 py-1 font-mono text-[10px] text-bone/70 transition-colors hover:border-rule-bright hover:text-bone"
+              >
+                …on {PRESETS[reading.suggestion.preset].label}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

@@ -249,3 +249,5 @@ export function litter(
 ): Child[] {
   return Array.from({ length: count }, (_, i) => breed(a, b, (seed + i * 7919) >>> 0, options))
 }
+
+export { describeChange, lookChanges, steer, steerScore, type LookChange, type Steer } from "./describe"
