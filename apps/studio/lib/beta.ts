@@ -132,6 +132,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "each app decides whether a preview GIF plays — some animate it, some show only its first frame; GIFs nobody opens for a long time fall back to a still.",
   },
   {
+    slug: "desk",
+    title: "Put it on your desk",
+    pitch: "One tap on a phone and the rippling object is sitting on the table in AR — and a GLB and USDZ to take into Blender, Reality Composer or anywhere else.",
+    section: "formats",
+    rough: "the shader can't travel into AR, so the material is a simpler real-world one; Android plays the ripple loop, iPhone shows it still.",
+  },
+  {
     slug: "stream",
     title: "Stream overlay",
     pitch: "Your name, liquid, in the corner of your stream. Chat ripples it, cheers and subs splash it, a raid makes it erupt — one OBS browser source, no login.",
