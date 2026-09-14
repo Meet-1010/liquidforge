@@ -81,6 +81,51 @@ export default function PrivacyPage() {
           </Item>
         </Section>
 
+        <Section title="The beta">
+          <p>
+            The beta is a set of experiments behind an &ldquo;Enter the beta&rdquo; switch, which is only a flag in your
+            browser&apos;s local storage. Most experiments run entirely on your device. Those that store or send anything:
+          </p>
+          <Item term="Moving links">
+            Making a link stores its title, word, colourway and the GIF your browser made in the Neon database, public to
+            anyone with the link, with a salted hash of your IP address for rate limiting. When GIFs outgrow their storage
+            budget, the least recently viewed are dropped and the link shows a still instead; links stay until removal is
+            requested.
+          </Item>
+          <Item term="Creator packs">
+            A pack&apos;s handle, name, looks and use counts are stored and public. Its edit key is stored only as a hash,
+            and kept in your browser&apos;s local storage for convenience; a salted hash of your IP address limits how many
+            packs can be claimed. Packs stay until deleted with their key or on request.
+          </Item>
+          <Item term="Crowd surface">
+            Joining a room connects your browser directly to the others in it over WebRTC, found through public Nostr
+            relays. As on any video call, the people in the room can see your IP address. Only your pointer position is
+            sent, and nothing is stored.
+          </Item>
+          <Item term="Camera experiments">
+            Hand tracking and the chrome selfie process your camera on your device and never upload video or photos. The
+            tracking and depth models are downloaded from jsDelivr, Google&apos;s model storage and Hugging Face, which
+            receive your IP address when they serve them.
+          </Item>
+          <Item term="Your brand on your site">
+            The address you enter is fetched by this site&apos;s server with its stylesheets and logo, and the result may be
+            cached for up to an hour. Nothing else about the request is stored.
+          </Item>
+          <Item term="Stream overlay">
+            The overlay reads a Twitch channel&apos;s public chat anonymously, from your browser or OBS directly to Twitch.
+            Nothing from chat reaches Liquidforge.
+          </Item>
+          <Item term="Talk and words">
+            Speaking to &ldquo;Talk to it&rdquo; uses your browser&apos;s speech recognition; in Chrome that sends the audio
+            to Google&apos;s speech service. &ldquo;Words to object&rdquo; sends the word you search for to the Iconify API.
+            Typing instead of speaking sends nothing.
+          </Item>
+          <Item term="Everything else">
+            Songs, doodles, selfies, page reflections, AR models and rendered clips are made in your browser and stay
+            there unless you save or share them.
+          </Item>
+        </Section>
+
         <Section title="The npm package and <liquid-forge> element">
           <p>
             The <code>liquidforge</code> library runs entirely in your visitors&apos; browsers. It contains no telemetry and
@@ -128,14 +173,17 @@ export default function PrivacyPage() {
         <Section title="Who else sees data">
           <p>
             No data is sold or shared for advertising. The service providers involved are Vercel (hosting and request
-            logs), Neon (the database for gallery posts and contact messages), and the catalogues and websites your own
-            actions fetch from. Gallery posts are public by design.
+            logs), Neon (the database for gallery posts, contact messages, moving links and creator packs), and the
+            catalogues, websites and services your own actions reach — in the beta, also Nostr relays, Twitch, Iconify,
+            your browser&apos;s speech service, and the model hosts named above. Gallery posts, moving links and packs
+            are public by design.
           </p>
         </Section>
 
         <Section title="Keeping and removing data">
           <p>
-            Gallery posts are kept until removed. Contact messages are deleted within twelve months. Hosting logs are
+            Gallery posts, moving links and creator packs are kept until removed. Contact messages are deleted within
+            twelve months. Hosting logs are
             kept for Vercel&apos;s standard retention period. To have a post or a message removed, or to ask what is held
             about you, send a message below with the topic &ldquo;Privacy or data removal&rdquo;; requests are handled
             within thirty days. Liquidforge is not directed at children under 13 and does not knowingly collect their
