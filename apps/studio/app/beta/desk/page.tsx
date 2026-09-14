@@ -85,7 +85,7 @@ function DeskDemo() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_22rem]">
       <div className="relative h-[min(70vh,38rem)] overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-[radial-gradient(circle_at_50%_40%,#2a2d36,#0a0a0d)]">
         {files && viewerReady ? (
           <model-viewer

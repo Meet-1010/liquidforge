@@ -63,7 +63,7 @@ export default function DoodlePage() {
 
   return (
     <BetaShell slug="doodle" wide>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-[repeating-conic-gradient(#141418_0%_25%,#101013_0%_50%)] [background-size:24px_24px]">
             <canvas

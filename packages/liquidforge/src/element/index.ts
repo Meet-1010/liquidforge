@@ -353,7 +353,8 @@ export class LiquidForgeElement extends ElementBase {
     // The element paints the ground too, so the box is the right colour before
     // the first frame rather than flashing white on a light page.
     this.style.background = transparent ? "transparent" : (background ?? backgroundColor(this.preset()) ?? "#050506")
-    this.style.touchAction = this.getAttribute("draggable") === "false" ? "" : "none"
+    // Vertical swipes scroll the page on a phone; sideways drags turn the object.
+    this.style.touchAction = this.getAttribute("draggable") === "false" ? "" : "pan-y"
   }
 
   private syncPoster(): void {

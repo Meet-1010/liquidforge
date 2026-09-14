@@ -92,7 +92,7 @@ export default function TalkPage() {
 
   return (
     <BetaShell slug="talk" wide>
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div>
           <div className="overflow-hidden rounded-[var(--radius-lg)] border border-rule">
             <LiquidCanvas object={state.object} preset={state.preset} onEngine={setEngine} style={{ height: 460, minHeight: 0 }} />

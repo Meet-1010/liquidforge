@@ -591,7 +591,7 @@ const AssetCard = memo(function AssetCard({
             href={merged.sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-[10px] text-muted hover:text-bone"
+            className="-my-2 py-2 pl-2 font-mono text-[10px] text-muted hover:text-bone"
           >
             Source
           </a>

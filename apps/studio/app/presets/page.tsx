@@ -58,13 +58,13 @@ export default function PresetsPage() {
           <LazyPreview preset={look} object={object} height={190} filter={filter} />
         </div>
         <div className="flex items-baseline justify-between gap-2 px-3 pt-1 pb-3">
-          <Link href={href} className="font-mono text-[11px] text-bone/75 hover:text-bone">
+          <Link href={href} className="-my-2 inline-block py-2 font-mono text-[11px] text-bone/75 hover:text-bone">
             {preset.label}
             <span className="ml-1.5 text-muted group-hover:text-bone/60">{presetName(preset.id)}</span>
           </Link>
           <Link
             href={href}
-            className="shrink-0 font-mono text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-bone"
+            className="-my-2 shrink-0 py-2 pl-2 font-mono text-[10px] text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-bone [@media(pointer:coarse)]:opacity-100"
           >
             Open
           </Link>

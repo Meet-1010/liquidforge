@@ -138,7 +138,7 @@ function LessonBlock({ lesson, index }: { lesson: Lesson; index: number }) {
   const [on, setOn] = useState(true)
 
   return (
-    <section className="grid gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+    <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.1fr] lg:items-center">
       <div className="order-2 lg:order-1">
         {/* The number is real here: these are four steps in one pipeline, in
             the order the surface goes through them. */}
@@ -158,6 +158,7 @@ function LessonBlock({ lesson, index }: { lesson: Lesson; index: number }) {
           className="mt-5 flex items-center gap-3 rounded-[var(--radius-pill)] border border-rule px-3 py-2 transition-colors hover:border-rule-bright"
         >
           <span
+            data-compact
             className={`relative h-4 w-7 shrink-0 rounded-[var(--radius-pill)] transition-colors ${
               on ? "bg-bone" : "bg-rule-bright"
             }`}

@@ -44,6 +44,53 @@
         }
       ],
       "ease": 0.09
+    },
+    "breakpoints": {
+      "phone": {
+        "origin": {
+          "x": 0.82,
+          "y": 0.14,
+          "size": 0.3
+        },
+        "path": {
+          "points": [
+            {
+              "x": 0.82,
+              "y": 0.14,
+              "size": 0.3
+            },
+            {
+              "x": 0.8,
+              "y": 0.62,
+              "size": 0.34,
+              "object": {
+                "type": "text",
+                "value": "MELT",
+                "depth": 0.45,
+                "bevel": 0.03
+              },
+              "preset": "aurora-3"
+            },
+            {
+              "x": 0.2,
+              "y": 0.82,
+              "size": 0.24,
+              "object": {
+                "type": "shape",
+                "shape": "capsule",
+                "detail": 160
+              },
+              "preset": "magma-4"
+            },
+            {
+              "x": 0.8,
+              "y": 0.2,
+              "size": 0.3
+            }
+          ],
+          "ease": 0.09
+        }
+      }
     }
   }
 }

@@ -79,7 +79,7 @@ export default function WordsPage() {
 
   return (
     <BetaShell slug="words" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
         <div>
           <form
             className="flex gap-2"

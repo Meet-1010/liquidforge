@@ -51,7 +51,7 @@ export default function StreamPage() {
 
   return (
     <BetaShell slug="stream" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="min-w-0 space-y-3">
           <div
             className="relative aspect-video overflow-hidden rounded-[var(--radius-lg)] border border-rule"

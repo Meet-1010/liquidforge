@@ -429,9 +429,10 @@ export function LiquidCanvas({
     minHeight: 320,
     overflow: "hidden",
     background: pageBackground,
-    // Dragging is on unless it is turned off, so the browser must not claim
-    // the gesture for a scroll first.
-    touchAction: motion?.draggable === false ? undefined : "none",
+    // On a phone the page has to keep scrolling past a hero that fills the
+    // screen, so vertical swipes stay the browser's and sideways drags turn the
+    // object. Only pinch-to-zoom needs every gesture, and it is opt-in.
+    touchAction: motion?.draggable === false ? undefined : controls?.zoom ? "none" : "pan-y",
     ...style,
   }
 

@@ -199,14 +199,14 @@ function Gallery() {
                       href={entry.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-mono text-[10px] text-muted hover:text-bone"
+                      className="-my-1.5 inline-block py-1.5 font-mono text-[10px] text-muted hover:text-bone"
                     >
                       {entry.author}
                     </a>
                   </div>
                   {/* A link beside the surface, not around it: the preview
                       takes the drag gesture. */}
-                  <a href={href} className="shrink-0 font-mono text-[10px] text-muted hover:text-bone">
+                  <a href={href} className="-my-2 shrink-0 py-2 font-mono text-[10px] text-muted hover:text-bone">
                     {preset.label} · {presetName(entry.preset)}
                   </a>
                 </div>
@@ -216,7 +216,7 @@ function Gallery() {
                 <div className="flex flex-wrap items-center gap-2 border-t border-rule px-3 py-2">
                   <Link
                     href={studioLinkFor(preset, entry.object, entry.preset, { from: entry.id })}
-                    className="rounded-[var(--radius-pill)] border border-rule px-2.5 py-1 font-mono text-[10px] text-bone/60 transition-colors hover:border-rule-bright hover:text-bone"
+                    className="inline-flex min-h-8 items-center rounded-[var(--radius-pill)] border border-rule px-3 font-mono text-[10px] text-bone/60 transition-colors hover:border-rule-bright hover:text-bone"
                   >
                     Remix
                   </Link>

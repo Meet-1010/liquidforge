@@ -36,7 +36,7 @@ export function Collapsible({
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-bone/45">
             {title}
           </span>
-          {hint && <span className="font-mono text-[9px] text-bone/25">{hint}</span>}
+          {hint && <span className="font-mono text-[10px] text-bone/35">{hint}</span>}
         </span>
         <span
           className={`font-mono text-[10px] text-bone/30 transition-transform ${open ? "rotate-90" : ""}`}
@@ -399,7 +399,8 @@ export function PaletteField({
                 type="button"
                 onClick={() => onChange(palette.filter((_, i) => i !== index))}
                 aria-label={`Remove colour ${index + 1}`}
-                className="absolute -top-1 -right-1 hidden h-4 w-4 items-center justify-center rounded-[var(--radius-pill)] border border-rule bg-ink font-mono text-[9px] text-bone/60 group-hover:flex hover:text-bone"
+                data-compact
+                className="absolute -top-1.5 -right-1.5 hidden h-5 w-5 items-center before:absolute before:-inset-2 before:content-[''] justify-center rounded-[var(--radius-pill)] border border-rule bg-ink font-mono text-[10px] text-bone/60 group-hover:flex hover:text-bone [@media(pointer:coarse)]:flex"
               >
                 x
               </button>

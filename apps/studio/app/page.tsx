@@ -57,7 +57,7 @@ export default function Home() {
           blend
         >
           <h1 className="display m-0 text-[clamp(3rem,13vw,10rem)]">liquidforge</h1>
-          <p className="mt-4 font-mono text-[12px] tracking-[0.24em] uppercase">
+          <p className="mt-4 px-4 font-mono text-[10px] tracking-[0.14em] uppercase sm:text-[12px] sm:tracking-[0.24em]">
             Liquid hero sections, one component
           </p>
         </LiquidHero>
@@ -199,7 +199,7 @@ export default function Home() {
               href="/presets"
               className="inline-flex rounded-[var(--radius-pill)] bg-bone px-4 py-2 font-mono text-[11px] text-ink transition-colors hover:bg-bone-dim"
             >
-              See all 90
+              See all 108
             </Link>
             <Link
               href="/showcase"
@@ -213,15 +213,15 @@ export default function Home() {
         <footer className="flex flex-wrap items-center justify-between gap-3 py-10 font-mono text-[11px] text-muted">
           <span>MIT · Meet Chauhan</span>
           <div className="flex gap-4">
-            <Link href="/studio" className="hover:text-bone">
+            <Link href="/studio" className="-my-2 inline-block py-2 hover:text-bone">
               Studio
             </Link>
-            <Link href="/presets" className="hover:text-bone">
+            <Link href="/presets" className="-my-2 inline-block py-2 hover:text-bone">
               Presets
             </Link>
             <a
               href="https://github.com/Meet-1010/liquidforge"
-              className="hover:text-bone"
+              className="-my-2 inline-block py-2 hover:text-bone"
               target="_blank"
               rel="noreferrer"
             >

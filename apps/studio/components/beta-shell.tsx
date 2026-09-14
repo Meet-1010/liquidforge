@@ -20,11 +20,11 @@ export function BetaShell({ slug, children, wide = false }: { slug: string; chil
       <SiteNav />
       <main className={`mx-auto px-4 py-10 sm:px-5 ${wide ? "max-w-6xl" : "max-w-5xl"}`}>
         <div className="mb-8 flex flex-wrap items-center gap-2 font-mono text-[11px]">
-          <Link href="/beta" className="text-bone/45 transition-colors hover:text-bone">
+          <Link href="/beta" className="-my-2 inline-block py-2 pr-1 text-bone/45 transition-colors hover:text-bone">
             ← Beta
           </Link>
           <span className="text-bone/20">/</span>
-          <span className="rounded-[var(--radius-pill)] border border-bone/40 px-2 py-0.5 text-[9px] tracking-[0.18em] text-bone/70 uppercase">
+          <span className="rounded-[var(--radius-pill)] border border-bone/40 px-2 py-0.5 text-[10px] tracking-[0.18em] text-bone/70 uppercase">
             Beta
           </span>
         </div>

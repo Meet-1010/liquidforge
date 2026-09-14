@@ -1057,7 +1057,9 @@ export class LiquidEngine {
       )
       if (this.dragging) {
         this.spin.x += (event.clientX - this.dragFrom.x) * 0.005
-        this.spin.y += (event.clientY - this.dragFrom.y) * 0.005
+        // A finger moving up or down is scrolling the page, which the browser
+        // handles; tipping the object with it as well would fight the scroll.
+        if (event.pointerType !== "touch" || this.controls.zoom) this.spin.y += (event.clientY - this.dragFrom.y) * 0.005
         this.dragFrom.set(event.clientX, event.clientY)
       }
     }
@@ -1073,8 +1075,11 @@ export class LiquidEngine {
       }
     }
 
-    const up = () => {
+    const up = (event: PointerEvent) => {
       this.dragging = false
+      // A mouse stays where it was left; a lifted finger is gone. Without this
+      // the dent, and ferrofluid's spikes, stay pinned where the last touch was.
+      if (event.pointerType === "touch") this.pointerSeen = false
     }
 
     /**

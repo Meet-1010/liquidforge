@@ -913,6 +913,9 @@ function Toolbar(props: ToolbarProps) {
   useEffect(() => setDraftSrc(src), [src])
 
   const breakpointName = props.bucket === "phone" ? `Phone ≤${BREAKPOINTS.phone}px` : props.bucket === "tablet" ? `Tablet ≤${BREAKPOINTS.tablet}px` : "Desktop"
+  // On a phone the full bar covers most of the page it is editing; folded, it
+  // keeps only the modes and the actions, and leaves the page free to drag on.
+  const [folded, setFolded] = useState(false)
 
   return (
     <div
@@ -933,8 +936,18 @@ function Toolbar(props: ToolbarProps) {
         color: BONE,
         boxShadow: "0 14px 44px rgba(0,0,0,.55)",
         width: "min(94vw, 900px)",
+        maxHeight: "min(56vh, 620px)",
+        overflowY: "auto",
       }}
     >
+      <button
+        type="button"
+        onClick={() => setFolded((value) => !value)}
+        aria-expanded={!folded}
+        style={{ ...pillStyle, position: "sticky", top: 0, alignSelf: "flex-end", marginBottom: -6, padding: "3px 10px", fontSize: 11, background: INK, zIndex: 1 }}
+      >
+        {folded ? "More" : "Less"}
+      </button>
       {/*
         What it is, before where it goes. Native selects rather than grids of
         swatches: this bar floats over someone else's page and has to stay small,
@@ -942,7 +955,7 @@ function Toolbar(props: ToolbarProps) {
         With a point selected, this row edits that point — which makes it a
         checkpoint the object melts into as the page scrolls past it.
       */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: folded ? "none" : "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ ...labelStyle, color: props.elementLabel === "Element" ? undefined : COPPER, opacity: props.elementLabel === "Element" ? 0.45 : 1 }}>
           {props.elementLabel}
         </span>
@@ -1080,7 +1093,7 @@ function Toolbar(props: ToolbarProps) {
         </button>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+      <div style={{ display: folded ? "none" : "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         {props.mode === "rotate" ? (
           <>
             <Range label={props.selected != null ? `Turn · point ${props.selected + 1}` : "Turn"} min={-180} max={180} step={1} value={Math.round(props.rotation.turn * 360)} onChange={(value) => props.onRotation({ turn: value / 360 })} format={(value) => `${value}°`} />
@@ -1115,7 +1128,7 @@ function Toolbar(props: ToolbarProps) {
         {props.hasCheckpoints && <Range label="Morph" min={0.01} max={0.2} step={0.005} value={props.morph} onChange={props.onMorph} format={(value) => `±${Math.round(value * 100)}%`} />}
       </div>
 
-      <div style={{ fontSize: 11, opacity: 0.55, lineHeight: 1.5 }}>
+      <div style={{ display: folded && !props.status ? "none" : "block", fontSize: 11, opacity: 0.55, lineHeight: 1.5 }}>
         {props.status ??
           (props.mode === "pin"
             ? "Click an element on the page. The selected point will be reached when that element is at the same height on screen. Esc cancels."

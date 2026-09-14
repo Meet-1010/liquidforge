@@ -44,7 +44,7 @@ export function ClipFrame({ format, showSafe, children, maxHeight = 560 }: { for
             <div className="absolute inset-x-0 bottom-0 bg-[#ff5a4f]/15" style={{ height: `${bottom * 100}%` }} />
             <div className="absolute right-0 bg-[#ff5a4f]/15" style={{ top: `${top * 100}%`, bottom: `${bottom * 100}%`, width: `${right * 100}%` }} />
             <div className="absolute left-0 bg-[#ff5a4f]/15" style={{ top: `${top * 100}%`, bottom: `${bottom * 100}%`, width: `${left * 100}%` }} />
-            <p className="absolute bottom-1 left-2 font-mono text-[9px] text-[#ffb3ae]">covered by the app</p>
+            <p className="absolute bottom-1 left-2 font-mono text-[10px] text-[#ffb3ae]">covered by the app</p>
           </div>
         )}
       </div>

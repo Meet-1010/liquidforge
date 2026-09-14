@@ -15,7 +15,7 @@ export default function VerticalPage() {
 
   return (
     <BetaShell slug="vertical" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
         <ClipFrame format={settings.format} showSafe={showSafe}>
           <LiquidCanvas
             object={{ type: "text", value: word || "DROP", depth: 0.5, bevel: 0.03 }}

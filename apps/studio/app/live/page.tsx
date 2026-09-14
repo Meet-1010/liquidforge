@@ -119,7 +119,7 @@ export function Hero() {
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.35fr_1fr]">
           <div>
             <div className="overflow-hidden rounded-[var(--radius-lg)] border border-rule">
               <LiquidCanvas

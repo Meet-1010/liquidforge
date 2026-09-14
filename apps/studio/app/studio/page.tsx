@@ -123,7 +123,7 @@ function Studio() {
   })
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col">
       <SiteNav />
 
       <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
@@ -133,7 +133,7 @@ function Studio() {
           1,950px scroll in a 900px window — the most important control in the
           product and the hardest one to reach.
         */}
-        <aside className="flex w-full shrink-0 flex-col border-rule lg:w-[340px] lg:border-r">
+        <aside className="flex min-h-0 w-full flex-1 flex-col border-rule lg:w-[340px] lg:flex-none lg:shrink-0 lg:border-r">
           <div className="min-h-0 flex-1 overflow-y-auto">
           <FrontDoor
             dismissed={doorDone}
@@ -308,7 +308,7 @@ function Studio() {
           </div>
         </aside>
 
-        <main className="relative min-h-[320px] flex-1">
+        <main className="relative h-[42svh] shrink-0 border-b border-rule lg:h-auto lg:min-h-[320px] lg:flex-1 lg:shrink lg:border-b-0">
           <LiquidCanvas
             object={config.object}
             preset={preset}

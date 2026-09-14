@@ -185,7 +185,7 @@ export default function TimelinePage() {
 
   return (
     <BetaShell slug="timeline" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
         <div className="min-w-0 space-y-5">
           <ClipFrame format={settings.format} showSafe={showSafe}>
             <LiquidCanvas
@@ -248,6 +248,7 @@ export default function TimelinePage() {
                     <button
                       type="button"
                       aria-label={`Moment at ${moment.at}s`}
+                      data-compact
                       disabled={index === 0}
                       onPointerDown={(event) => {
                         if (index === 0) return
@@ -255,7 +256,7 @@ export default function TimelinePage() {
                         dragging.current = moment.id
                         bar.current?.setPointerCapture(event.pointerId)
                       }}
-                      className={`absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
+                      className={`absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 before:absolute before:-inset-3 before:content-[''] ${
                         inside ? "border-bone bg-ink" : "border-bone/25 bg-ink"
                       } ${index === 0 ? "cursor-default" : "cursor-grab"}`}
                       style={{ left: `${left}%` }}

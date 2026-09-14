@@ -194,7 +194,7 @@ function Option({ title, badge, body, children }: { title: string; badge?: strin
     <div className="flex min-w-0 flex-col rounded-[var(--radius-lg)] border border-rule bg-ink-2 p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="font-mono text-[12px] text-bone">{title}</h3>
-        {badge && <span className="rounded-[var(--radius-pill)] bg-bone px-2 py-0.5 font-mono text-[9px] text-ink">{badge}</span>}
+        {badge && <span className="rounded-[var(--radius-pill)] bg-bone px-2 py-0.5 font-mono text-[10px] text-ink">{badge}</span>}
       </div>
       <p className="mt-2 mb-4 flex-1 text-[13px] leading-relaxed text-bone/60">{body}</p>
       <div>{children}</div>

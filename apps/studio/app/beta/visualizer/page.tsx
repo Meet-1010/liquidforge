@@ -239,7 +239,7 @@ export default function VisualizerPage() {
 
   return (
     <BetaShell slug="visualizer" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
         <div className="min-w-0 space-y-5">
           <ClipFrame format={settings.format} showSafe={showSafe}>
             <LiquidCanvas object={object} preset={look} motion={{ autoRotate: 0 }} onEngine={setEngine} style={{ position: "absolute", inset: 0, minHeight: 0 }} />

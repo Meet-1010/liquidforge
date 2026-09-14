@@ -70,7 +70,7 @@ export default function ProfileKitPage() {
 
   return (
     <BetaShell slug="profile-kit" wide>
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_1fr]">
         <div>
           <div className="overflow-hidden rounded-[var(--radius-lg)] border border-rule">
             <LiquidCanvas object={{ type: "text", value: word, depth: 0.45, bevel: 0.03 }} preset={preset} onEngine={setEngine} style={{ height: 360, minHeight: 0 }} />

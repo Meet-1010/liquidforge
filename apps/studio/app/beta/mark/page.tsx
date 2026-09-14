@@ -22,7 +22,7 @@ export default function MarkPage() {
 
   return (
     <BetaShell slug="mark" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
         <div className="space-y-6">
           <ClipFrame format={settings.format} showSafe={showSafe} maxHeight={460}>
             <LiquidCanvas object={{ type: "shape", shape: "torus", detail: 200 }} preset="halo-5" onEngine={setEngine} style={{ position: "absolute", inset: 0, minHeight: 0 }} />

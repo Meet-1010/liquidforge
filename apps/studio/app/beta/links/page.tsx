@@ -64,7 +64,7 @@ export default function LinksPage() {
 
   return (
     <BetaShell slug="links" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="relative aspect-[1200/628] overflow-hidden rounded-[var(--radius-lg)] border border-rule bg-ink">
           <LiquidCanvas object={{ type: "text", value: word.trim() || "HELLO", depth: 0.5, bevel: 0.03 }} preset={preset} onEngine={setEngine} style={{ position: "absolute", inset: 0, minHeight: 0 }} />
           <span className="pointer-events-none absolute left-3 top-3 font-mono text-[10px] text-bone/35">the preview a link unfurls as · 1.91 : 1</span>

@@ -176,3 +176,37 @@ input[type="color"]::-webkit-color-swatch {
     }
   }
 }
+
+/*
+ * Fingers are wider than cursors. On a touch screen the small pill buttons,
+ * selects and checkboxes get a target a thumb can hit, without changing how
+ * anything looks under a mouse. Controls drawn as markers or switches opt out
+ * with data-compact and carry their own padding instead.
+ */
+@media (pointer: coarse) {
+  button:not([data-compact]),
+  select {
+    min-height: 2.25rem;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+  /* The track is the input's own 4px background, so the hit area grows with
+     transparent borders instead: the same thin line, a thumb-sized target. */
+  input[type="range"] {
+    box-sizing: border-box;
+    height: 28px;
+    border-block: 12px solid transparent;
+    background-clip: content-box;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+}

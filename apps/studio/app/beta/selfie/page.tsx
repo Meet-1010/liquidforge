@@ -146,7 +146,7 @@ function SelfieDemo() {
   const look = looks[Math.min(active, looks.length - 1)]
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
       <div className="min-w-0 space-y-4">
         <ClipFrame format={settings.format} showSafe={showSafe}>
           {look ? (

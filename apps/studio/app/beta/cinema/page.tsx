@@ -18,7 +18,7 @@ export default function CinemaPage() {
 
   return (
     <BetaShell slug="cinema" wide>
-      <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_24rem]">
         <div>
           <ClipFrame format={settings.format} showSafe={showSafe}>
             <LiquidCanvas
