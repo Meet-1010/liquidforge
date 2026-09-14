@@ -25,7 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Liquidforge — liquid hero sections, one component",
   description:
-    "Drop a liquid chrome, glass or molten hero into any React app with one component. Forge the object in your browser from text, an SVG, an image or a shape — 45 colourways across five material families.",
+    "Drop a liquid chrome, glass or molten hero into any React app with one component. Forge the object in your browser from text, an SVG, an image, a 3D model or a shape — 108 colourways across twelve material families, ferrofluid included.",
   keywords: ["liquid", "chrome", "webgl", "hero section", "react", "three.js", "shader", "glass"],
   /*
    * Every link this project produces used to unfurl blank, which for something

@@ -90,6 +90,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "stills only for now; platforms crop banners differently on phones, so very long names can be clipped.",
   },
   {
+    slug: "stream",
+    title: "Stream overlay",
+    pitch: "Your name, liquid, in the corner of your stream. Chat ripples it, cheers and subs splash it, a raid makes it erupt — one OBS browser source, no login.",
+    section: "formats",
+    rough: "Twitch only, read from chat, so follows don't show (those need Twitch's authorised API); YouTube isn't wired yet.",
+  },
+  {
     slug: "crowd",
     title: "Crowd surface",
     pitch: "Everyone on the page is a ripple. On launch day the liquid shows how many people are there by how much it moves — and every screenshot counts them.",
