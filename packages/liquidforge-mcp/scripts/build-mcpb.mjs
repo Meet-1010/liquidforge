@@ -57,18 +57,20 @@ writeFileSync(
 )
 rmSync(join(stage, tarball))
 
-// Nothing the tools never load: three and React are peers of the library,
-// and source maps and TypeScript sources only make the download bigger.
-for (const name of ["three", "@types/three", "react", "react-dom"]) {
+// Nothing the tools never load: three and React are peers of the library, and
+// source maps, type declarations, TypeScript sources and readmes are for
+// editors, not for Node. They were over a third of the unpacked bundle.
+for (const name of ["three", "@types", "react", "react-dom"]) {
   rmSync(join(stage, "server", "node_modules", name), { recursive: true, force: true })
 }
+const unused = /(\.map|\.d\.[cm]?ts|(?<!\.d)\.[cm]?ts|\.md|\.markdown)$/i
 const prune = (dir) => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name)
     if (entry.isDirectory()) {
       if (entry.name === "src" && dir.endsWith(join("node_modules", "liquidforge"))) rmSync(path, { recursive: true, force: true })
       else prune(path)
-    } else if (entry.name.endsWith(".map")) {
+    } else if (unused.test(entry.name) && !/^licen[cs]e/i.test(entry.name)) {
       rmSync(path)
     }
   }

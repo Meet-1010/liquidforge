@@ -7,7 +7,11 @@
   "long_description": "Liquidforge turns any object — a word, a logo, a shape or a 3D model — into a live liquid surface that reacts to the cursor: tinted chrome, glass, molten metal, iridescent oil, ferrofluid that spikes toward the pointer, or the object's own textures made liquid.\n\nThis extension teaches Claude the library and gives it tools to do the work: recommend a colourway for a described site, read a website's brand colours from its CSS, render a look to an image with the browser already on your computer so Claude can see it, search about 46,900 open 3D models, write the React component or a Webflow, Framer or plain HTML embed, place an object on an existing page along a scroll path, and breed two looks into new ones.\n\nEverything runs on your machine. Rendering uses a Chrome, Edge, Brave or Chromium you already have installed, headless.",
   "author": {
     "name": "Meet Chauhan",
-    "url": "https://liquidforge-pi.vercel.app"
+    "url": "https://github.com/Meet-1010"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Meet-1010/liquidforge"
   },
   "homepage": "https://liquidforge-pi.vercel.app/mcp",
   "documentation": "https://liquidforge-pi.vercel.app/mcp",
