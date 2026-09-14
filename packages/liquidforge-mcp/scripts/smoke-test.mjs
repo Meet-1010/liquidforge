@@ -101,7 +101,7 @@ try {
   })
   const parsed = JSON.parse(collections.result.content[0].text)
   const total = parsed.collections.reduce((sum, entry) => sum + entry.colourways.length, 0)
-  check("list_collections returns 99 colourways", total === 99, String(total))
+  check("list_collections returns 108 colourways", total === 108, String(total))
 
   const inspected = await request("tools/call", {
     name: "liquidforge_inspect_preset",

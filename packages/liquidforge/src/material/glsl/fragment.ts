@@ -13,12 +13,13 @@ export const FAMILY_INDEX: Record<MaterialFamily, number> = {
   jade: 8,
   plasma: 9,
   original: 10,
+  ferrofluid: 11,
 }
 
 /**
  * The look.
  *
- * One shader, eleven families, selected by `#define` so a preset compiles down to
+ * One shader, twelve families, selected by `#define` so a preset compiles down to
  * exactly the branch it uses and nothing else. They share the expensive parts:
  * the advected hue field, the analytic studio environment, and the colour ramp.
  *
@@ -45,6 +46,7 @@ export function fragmentGlsl(trail: number, family: MaterialFamily, appearance =
   return /* glsl */ `
 #define LF_FAMILY ${FAMILY_INDEX[family]}
 ${appearance ? "#define LF_APPEARANCE" : ""}
+${family === "ferrofluid" ? "#define LF_FERRO" : ""}
 
 ${fieldGlsl(trail)}
 ${ADVECT_GLSL}
@@ -416,6 +418,32 @@ void main(){
   col += lf_ramp(clamp(0.35 + filament * 0.65, 0.0, 1.0)) * filament * uEmissive;
   col += lf_env(R, max(uRoughness, 0.5)) * 0.12 * uMetalness;
   col = mix(col, uEnvHorizon, fres * uFresnel * 0.3);
+
+#elif LF_FAMILY == 11
+  // ---- Ferrofluid: black magnetic liquid, spiking toward the cursor ---------
+  // Almost no body colour: ferrofluid is a suspension of iron in oil, so what
+  // you see is the room reflected in a near-perfect black gloss. The spikes are
+  // in the geometry and the rebuilt normal; here they only have to catch light.
+  // The first palette colour is the body, the rest tint the reflection and the
+  // thin rim of light a spike carries on its edges.
+  float gloss = uRoughness * 0.5;
+  vec3 reflection = lf_env(R, gloss) + lf_key(R, A, gloss);
+  vec3 tint = lf_palette(hue);
+  // Oil over iron reflects about a sixth of the light head-on, and nearly all
+  // of it at a grazing angle. Lower than that and the object is a hole in the
+  // page with no shape; higher and it stops reading as black.
+  float coat = mix(0.16, 1.0, fres) * mix(0.6, 1.0, uFresnel);
+  col = uPalette[0] * (0.04 + 0.1 * clamp(ndl, 0.0, 1.0));
+  col += reflection * coat * mix(vec3(1.0), tint, 0.45);
+  // Two highlights: the key as a hard glint, and a broad soft one that sweeps
+  // across the body as it turns, which is what shows the round of the pool.
+  col += vec3(1.0) * pow(clamp(dot(R, A), 0.0, 1.0), uSpecPower) * 1.4;
+  col += tint * pow(clamp(dot(R, A), 0.0, 1.0), 6.0) * 0.1;
+  col += tint * pow(1.0 - ndv, 5.0) * 0.32;
+  // Where the magnet has pulled the surface up, a faint sheen along the spike
+  // flanks, so a field of spikes reads as sharp rather than as noise.
+  float lift = clamp(vHeight / (uRadius * 0.12 + 1e-4), 0.0, 1.0);
+  col += reflection * lift * 0.12 * (1.0 - ndv);
 
 #else
   // ---- Original: the object's own surface, with the liquid on top ---------

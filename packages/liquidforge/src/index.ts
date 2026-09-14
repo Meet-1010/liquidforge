@@ -37,7 +37,14 @@ export {
 } from "./placement"
 
 // Engine — for anyone who wants the surface without React
-export { LiquidEngine, type LiquidEngineOptions, type RecordOptions } from "./engine/liquid-engine"
+export {
+  LiquidEngine,
+  PRIMARY_FORM,
+  type GeometryOptions,
+  type LiquidEngineOptions,
+  type Look,
+  type RecordOptions,
+} from "./engine/liquid-engine"
 export { prepareGeometry, type PrepareOptions, type PreparedGeometry } from "./engine/prepare-geometry"
 export { SurfaceProbe, type ProbeMode, type SurfaceHit } from "./engine/pointer"
 export {

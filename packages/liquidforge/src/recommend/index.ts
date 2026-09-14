@@ -132,6 +132,16 @@ const SIGNALS: Record<MaterialFamily, { words: string[]; register: string }> = {
     ],
     register: "faithful to the object's own look",
   },
+  ferrofluid: {
+    // Physical, strange and a little dangerous: hardware, science, audio, and
+    // anything that wants to feel like it has a field around it.
+    words: [
+      "ferrofluid", "magnet", "magnetic", "iron", "spike", "spiky", "hedgehog", "science",
+      "physics", "lab", "experimental", "speaker", "bass", "subwoofer", "audio hardware",
+      "sci-fi", "alien", "venom", "symbiote", "dark matter", "black liquid",
+    ],
+    register: "physical, magnetic and strange",
+  },
 }
 
 /**

@@ -94,6 +94,12 @@ export type MaterialFamily =
    * object looks like; this one keeps it and makes it move.
    */
   | "original"
+  /**
+   * A black magnetic liquid. Where the cursor touches, spikes stand up out of the
+   * surface as if a magnet were held underneath, sharpening as they grow, and
+   * slump back into the pool when it leaves.
+   */
+  | "ferrofluid"
 
 /** How the surface moves. Every field is in object-space units on a 2-unit object. */
 export interface SurfaceOptions {
@@ -111,6 +117,11 @@ export interface SurfaceOptions {
   trailSpacing: number
   /** Strength of the per-pixel vortex that winds the colour into a spiral. @default 0.68 */
   advection: number
+  /**
+   * Ferrofluid only: how tall the spikes stand where the magnet pulls hardest,
+   * as a fraction of the object's radius. Other families ignore it.
+   */
+  spikes?: number
 }
 
 /** How the surface takes light. */

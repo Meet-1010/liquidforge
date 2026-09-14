@@ -26,7 +26,7 @@ apps/studio/                The site — landing, Studio, presets, community
 | **CLI** | `npx liquidforge init` to scaffold, `npx liquidforge add` to eject the source |
 | **MCP server** | Teaches an agent the library, recommends a colourway for the site it's looking at, and finds the model. Not on npm yet — run it from this checkout, see [its README](packages/liquidforge-mcp/README.md) |
 | **`/studio`** | Forge an object, tune the material live, copy the component |
-| **`/presets`** | The collection gallery — eleven families, 99 colourways, each a live render |
+| **`/presets`** | The collection gallery — twelve families, 108 colourways, each a live render |
 | **`/how`** | Four switches that break the effect on purpose, so you can see what each one was buying |
 | **Loop export** | The Studio records a seamless 4-second loop at up to 4K — the drawing buffer is resized for the take, so the export is not limited to how big the preview happens to be |
 | **`/showcase`** | Five complete demo sites you can open and use, plus a layout explorer for the eight placements |

@@ -78,7 +78,7 @@ function mixPalettes(a: string[], b: string[], t: number): string[] {
  * slides in from 0 instead of 1.45 is a lens flipping inside out for the first
  * frame of the blend.
  */
-const IMPLIED: Record<string, number> = { transmission: 0, ior: 1.45, thinFilm: 0, emissive: 0 }
+const IMPLIED: Record<string, number> = { transmission: 0, ior: 1.45, thinFilm: 0, emissive: 0, spikes: 0 }
 
 function mixNumbers<T extends object>(a: T, b: T, t: number): T {
   const out = { ...a } as Record<string, unknown>
@@ -143,6 +143,7 @@ export interface BreedOptions {
 }
 
 const RANGES: Record<string, [number, number]> = {
+  spikes: [0, 0.35],
   noise: [0, 0.16],
   dimple: [0.02, 0.4],
   rippleAmp: [0, 0.25],

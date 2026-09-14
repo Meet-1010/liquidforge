@@ -186,11 +186,11 @@ export default function Home() {
         <section className="border-b border-rule py-16">
           <p className="label mb-4">04 — Material</p>
           <h2 className="display max-w-2xl text-[clamp(1.8rem,4.5vw,3rem)]">
-            Eleven families. Ninety-nine colourways.
+            Twelve families. A hundred and eight colourways.
           </h2>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
             Chrome, oil slick, glass, molten, matte pearl, lacquer, velvet, holographic foil,
-            translucent stone and plasma filaments. Each family is a different technique rather
+            translucent stone, plasma filaments, your object's own surface, and ferrofluid that spikes toward the cursor. Each family is a different technique rather
             than a different palette, and each is a palette plus about twenty numbers — data you
             can edit, not code you have to fork.
           </p>

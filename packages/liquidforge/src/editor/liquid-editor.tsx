@@ -872,7 +872,7 @@ function Toolbar(props: ToolbarProps) {
       {/*
         What it is, before where it goes. Native selects rather than grids of
         swatches: this bar floats over someone else's page and has to stay small,
-        and a select holds ninety-nine options without taking room until opened.
+        and a select holds a hundred and eight options without taking room until opened.
         With a point selected, this row edits that point — which makes it a
         checkpoint the object melts into as the page scrolls past it.
       */}

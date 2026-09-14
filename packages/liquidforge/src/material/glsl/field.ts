@@ -57,6 +57,74 @@ vec3 lf_rotAxis(vec3 v, vec3 axis, float a){
 /** How long a ring stays alive, in seconds. Past this it contributes nothing. */
 #define RING_LIFE 1.9
 
+#ifdef LF_FERRO
+uniform float uSpikes;
+
+vec3 lf_hash3(vec3 p){
+  p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+  return fract(sin(p) * 43758.5453123);
+}
+
+/**
+ * Distance from p to the nearest spike root, in cell units.
+ *
+ * Spike roots are jittered points in a 3D grid, each wandering slowly on its own
+ * phase, so the field of spikes shifts like a liquid rather than sitting on a
+ * lattice. Working in object space means the same code spikes a word, a torus
+ * and a scanned model, the same way the ripples do.
+ */
+float lf_nearestRoot(vec3 q){
+  vec3 cell = floor(q);
+  vec3 f = q - cell;
+  float best = 8.0;
+  for (int x = -1; x <= 1; x++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int z = -1; z <= 1; z++) {
+        vec3 o = vec3(float(x), float(y), float(z));
+        vec3 h = lf_hash3(cell + o);
+        vec3 root = o + 0.5 + 0.3 * sin(uTime * 0.55 + 6.2831853 * h);
+        vec3 r = f - root;
+        best = min(best, dot(r, r));
+      }
+    }
+  }
+  return sqrt(best);
+}
+
+/**
+ * How hard the magnet pulls at p, 0–1.
+ *
+ * Mostly the cursor: a wide falloff around the point under it, scaled by how
+ * firmly the pointer is over the object. With no cursor, a weaker magnet orbits
+ * slowly around the object, so a few spikes are always rising somewhere and the
+ * surface never reads as a still black blob.
+ */
+float lf_magnet(vec3 p){
+  float dP = length(p - uPtr) / uRadius;
+  float cursor = exp(-dP * dP * 8.5) * uPress;
+  float t = uTime * 0.33;
+  vec3 idle = uRadius * vec3(sin(t) * 0.95, sin(t * 0.77) * 0.45, cos(t) * 0.95);
+  float dI = length(p - idle) / uRadius;
+  float drift = exp(-dI * dI * 3.4) * 0.34 * (1.0 - uPress);
+  return clamp(cursor + drift, 0.0, 1.0);
+}
+
+/** Spike height at p: a cone with a rounded foot, taller and sharper where the pull is stronger. */
+float lf_spikes(vec3 p){
+  float m = lf_magnet(p);
+  if (m < 0.004) return 0.0;
+  // Dense enough that a letter's stroke carries several spikes and keeps its
+  // outline; sparser and a word turns into one spiny lump.
+  float d = lf_nearestRoot(p / uRadius * 13.0);
+  // Wide enough that neighbouring cones meet in a valley instead of leaving flat
+  // ground between them, and blunt enough at the tip that the mesh can resolve
+  // it — a needle thinner than a triangle renders as nothing at all.
+  float s = clamp(1.0 - d / 0.78, 0.0, 1.0);
+  s = pow(s, mix(1.25, 2.1, m));
+  return s * smoothstep(0.0, 0.3, m) * uSpikes * uRadius * 1.15;
+}
+#endif
+
 /**
  * Surface height at an object-space point, along that point's own normal.
  *
@@ -70,6 +138,9 @@ float lf_height(vec3 p, vec3 n){
   float facingP = smoothstep(-0.65, 0.15, dot(n, uPtrN));
 
   float f = -exp(-dP * dP * 38.0) * uPress * uDimple * facingP;
+#ifdef LF_FERRO
+  f += lf_spikes(p);
+#endif
   f += exp(-pow(dP - 0.25, 2.0) * 105.0) * uPress * uDimple * 0.33 * facingP;
 
   for (int i = 0; i < TRAIL; i++) {

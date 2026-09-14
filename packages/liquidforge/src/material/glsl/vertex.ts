@@ -29,9 +29,10 @@ import { fieldGlsl } from "./field"
  * open along every edge. `flowNormal` is welded across position, so the seam
  * holds; `normal` still shades it, so the crease stays crisp.
  */
-export function vertexGlsl(trail: number, appearance = false): string {
+export function vertexGlsl(trail: number, appearance = false, ferrofluid = false): string {
   return /* glsl */ `
 ${appearance ? "#define LF_APPEARANCE" : ""}
+${ferrofluid ? "#define LF_FERRO" : ""}
 ${fieldGlsl(trail)}
 
 attribute vec3 flowNormal;

@@ -25,7 +25,7 @@ Two things make it different from the many liquid-chrome repos on GitHub:
 1. **It is a package, not a boilerplate.** No fork, no "now replace model.glb
    with your own" — the object is forged in the browser from a word, an SVG, a
    PNG or a parametric shape.
-2. **The material system is the product.** Eleven families, nine colourways each,
+2. **The material system is the product.** Twelve families, nine colourways each,
    shipped as data rather than as a shader you are expected to edit.
 
 Peer dependencies are \`react\` and \`three\` and nothing else. The environment
@@ -173,7 +173,7 @@ production. Download the file and serve it yourself.`,
 
   presets: `# Presets
 
-99 colourways across eleven families. A preset is data — a palette and about
+108 colourways across twelve families. A preset is data — a palette and about
 twenty numbers — so it can be edited, serialised, and inlined into a component.
 
 Each family is a different *technique*, not a different palette. Mercury mirrors
@@ -191,6 +191,8 @@ the environment, Prism refracts it, Velvet refuses to reflect it at all.
 | **Halo** | holographic foil | streetwear, drops, merch. Loud and prismatic |
 | **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
+| **Original** | the object's own textures and colours | a product, mascot or model that already looks right |
+| **Ferrofluid** | black magnetic liquid that spikes toward the cursor | hardware, audio, science; tune spike height with \`surface.spikes\` |
 
 Every colourway declares the ground it expects: \`dark\`, \`mid\`, \`light\` or
 \`transparent\`. **Pearl** and **Jade** are lit for a light page. **Obsidian**,

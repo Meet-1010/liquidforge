@@ -208,6 +208,8 @@ export function LiquidCanvas({
    */
   const wantsSurface =
     resolved.family === "original" && (object.type === "model" || object.type === "image" || object.type === "svg")
+  /** Ferrofluid needs finer geometry for its spikes, so switching into or out of it re-tessellates. */
+  const wantsDense = resolved.family === "ferrofluid"
 
   useEffect(() => setWebglOk(supportsWebGL()), [])
 
@@ -301,7 +303,7 @@ export function LiquidCanvas({
         const forceSphereProbe =
           object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron")
 
-        engine.setGeometry(geometry, { forceSphereProbe })
+        engine.setGeometry(geometry, { forceSphereProbe, dense: wantsDense })
         geometry.dispose()
 
         const container = containerRef.current
@@ -323,7 +325,7 @@ export function LiquidCanvas({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectKey, epoch, wantsSurface])
+  }, [objectKey, epoch, wantsSurface, wantsDense])
 
   // -- live settings ---------------------------------------------------------
   useEffect(() => {

@@ -86,7 +86,7 @@ function postId(value: unknown): string | undefined {
 
 const FAMILIES = [
   "mercury", "aurora", "prism", "magma", "pearl", "obsidian",
-  "velvet", "halo", "jade", "plasma", "original",
+  "velvet", "halo", "jade", "plasma", "original", "ferrofluid",
 ] as const
 const BACKGROUNDS = ["dark", "mid", "light", "transparent"] as const
 
@@ -99,6 +99,7 @@ const SURFACE: Record<keyof Look["surface"], [number, number]> = {
   rippleTightness: [4, 160],
   trailSpacing: [0.01, 0.4],
   advection: [0, 1.5],
+  spikes: [0, 0.35],
 }
 const SHADING: Record<keyof Look["shading"], [number, number]> = {
   metalness: [0, 1],

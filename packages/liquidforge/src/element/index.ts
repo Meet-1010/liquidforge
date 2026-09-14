@@ -218,7 +218,7 @@ export class LiquidForgeElement extends ElementBase {
           // Switching into Original needs the object's own surface, which only
           // a fresh forge carries.
           this.engineInstance?.setPreset(preset)
-          if (preset.family === "original") this.forge()
+          if (preset.family === "original" || preset.family === "ferrofluid") this.forge()
           this.syncGround()
         }
       })
@@ -330,6 +330,7 @@ export class LiquidForgeElement extends ElementBase {
         }
         engine.setGeometry(geometry, {
           forceSphereProbe: object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron"),
+          dense: preset.family === "ferrofluid",
         })
         geometry.dispose()
         this.resize()

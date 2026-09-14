@@ -3,7 +3,7 @@
   "name": "liquid-hero",
   "type": "registry:block",
   "title": "Liquid hero",
-  "description": "A liquid chrome, glass or molten hero section that reacts to the cursor. Ten material families, ninety colourways, and the object forged in the browser from text, an SVG, an image or a shape.",
+  "description": "A liquid chrome, glass or molten hero section that reacts to the cursor. Twelve material families, 108 colourways, and the object forged in the browser from text, an SVG, an image or a shape.",
   "dependencies": ["liquidforge", "three"],
   "files": [
     {

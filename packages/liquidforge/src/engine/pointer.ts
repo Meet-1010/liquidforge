@@ -1,4 +1,4 @@
-import { Matrix4, Mesh, Ray, Raycaster, Vector2, Vector3, type Camera } from "three"
+import { Matrix4, Mesh, Ray, Raycaster, Vector2, Vector3, type BufferGeometry, type Camera } from "three"
 
 export type ProbeMode = "mesh" | "sphere"
 
@@ -58,7 +58,12 @@ export class SurfaceProbe {
     return this
   }
 
-  probe(pointer: Vector2, camera: Camera, mesh: Mesh, mode: ProbeMode): SurfaceHit {
+  /**
+   * `surface`, when given, is raycast in place of the mesh's own geometry — a
+   * lighter version of the same shape, so a heavily refined mesh can still be
+   * probed exactly. It shares the mesh's transform.
+   */
+  probe(pointer: Vector2, camera: Camera, mesh: Mesh, mode: ProbeMode, surface?: BufferGeometry | null): SurfaceHit {
     this.raycaster.setFromCamera(pointer, camera)
 
     mesh.updateWorldMatrix(true, false)
@@ -66,7 +71,14 @@ export class SurfaceProbe {
     this.localRay.copy(this.raycaster.ray).applyMatrix4(this.inverse)
 
     if (mode === "mesh") {
-      const hits = this.raycaster.intersectObject(mesh, false)
+      const own = mesh.geometry
+      if (surface) mesh.geometry = surface
+      let hits
+      try {
+        hits = this.raycaster.intersectObject(mesh, false)
+      } finally {
+        mesh.geometry = own
+      }
       const first = hits[0]
       if (first) {
         this.point.copy(first.point).applyMatrix4(this.inverse)

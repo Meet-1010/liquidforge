@@ -17,6 +17,7 @@ const FAMILIES: Array<{ value: MaterialFamily; label: string }> = [
   { value: "jade", label: "Jade" },
   { value: "plasma", label: "Plasma" },
   { value: "original", label: "Original" },
+  { value: "ferrofluid", label: "Ferrofluid" },
 ]
 
 /**
@@ -57,7 +58,7 @@ export function MaterialPanel({
   return (
     <>
       <Panel title="Material">
-        {/* A grid rather than a segmented control: eleven families do not fit on
+        {/* A grid rather than a segmented control: twelve families do not fit on
             one row, and wrapping a segmented control looks like a mistake. */}
         <div className="grid grid-cols-3 gap-1.5">
           {FAMILIES.map((entry) => (
@@ -125,6 +126,16 @@ export function MaterialPanel({
       </Panel>
 
       <Collapsible title="Surface" hint="how it moves" defaultOpen>
+        {config.family === "ferrofluid" && (
+          <Slider
+            label="Spikes"
+            min={0}
+            max={0.35}
+            step={0.005}
+            value={config.surface.spikes ?? 0}
+            onChange={surface("spikes")}
+          />
+        )}
         <Slider
           label="Drift"
           min={0}

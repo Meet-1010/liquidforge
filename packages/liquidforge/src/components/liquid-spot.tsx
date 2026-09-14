@@ -212,6 +212,7 @@ export function LiquidSpot({
 
     const presets = [basePreset, ...path.points.map((point) => point.preset)].filter(Boolean) as string[]
     const keepsSurface = presets.some((id) => resolvePreset(id).family === "original")
+    const dense = presets.some((id) => resolvePreset(id).family === "ferrofluid")
     const objects = new Map<string, ObjectSource>()
     for (const point of path.points) {
       if (point.object && formKeyOf(point.object) !== PRIMARY_FORM) objects.set(formKeyOf(point.object), point.object)
@@ -225,6 +226,7 @@ export function LiquidSpot({
           if (cancelled || engineRef.current !== engine) return geometry.dispose()
           engine.registerForm(key, geometry, {
             forceSphereProbe: object.type === "shape" && (object.shape === "sphere" || object.shape === "icosahedron"),
+            dense,
           })
           geometry.dispose()
         })

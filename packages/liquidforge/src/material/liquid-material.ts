@@ -66,7 +66,7 @@ export function createLiquidMaterial(
   // the atlas lookup and the loop over its rects.
   const withSurface = preset.family === "original" && Boolean(appearance)
   const material = new ShaderMaterial({
-    vertexShader: vertexGlsl(trail, withSurface),
+    vertexShader: vertexGlsl(trail, withSurface, preset.family === "ferrofluid"),
     fragmentShader: fragmentGlsl(trail, preset.family, withSurface),
     // Contour-traced geometry can wind either way and a deep ripple can turn a
     // face over, so both sides have to draw. The fragment shader flips the
@@ -88,6 +88,7 @@ export function createLiquidMaterial(
       uAdvection: { value: preset.surface.advection },
       uMutation: { value: 0 },
       uMorph: { value: 0 },
+      uSpikes: { value: preset.surface.spikes ?? 0 },
 
       uAtlas: { value: withSurface ? (appearance?.texture ?? null) : null },
       uAtlasRects: { value: atlasRects(withSurface ? appearance?.rects : undefined) },
@@ -153,6 +154,7 @@ export function applyPreset(material: ShaderMaterial, preset: LiquidPreset): voi
   u.uRippleSpeed.value = preset.surface.rippleSpeed
   u.uRippleTight.value = preset.surface.rippleTightness
   u.uAdvection.value = preset.surface.advection
+  if (u.uSpikes) u.uSpikes.value = preset.surface.spikes ?? 0
 
   u.uMetalness.value = preset.shading.metalness
   u.uRoughness.value = preset.shading.roughness

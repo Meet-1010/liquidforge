@@ -137,7 +137,7 @@ animate.
 
 ## Presets
 
-Ninety-nine colourways across eleven families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
+A hundred and eight colourways across twelve families. A preset is **data** — a palette and about twenty numbers — so you can edit one, serialise it, or inline it.
 
 Each family is a different *technique*, not a different palette. If a look can be reached by recolouring an existing family, it is a colourway rather than a family.
 
@@ -154,6 +154,7 @@ Each family is a different *technique*, not a different palette. If a look can b
 | **Jade** | translucent stone | the second light-page family; wellness, craft, ceramics |
 | **Plasma** | filaments in a dark body | AI, data, networks. Electric and technical |
 | **Original** | the object's own textures and colours, made liquid | a model, logo or illustration that already looks right — you want it to move, not to become chrome |
+| **Ferrofluid** | black magnetic liquid; spikes stand up toward the cursor | hardware, audio, science, anything that should feel like it has a field around it |
 
 Each colourway declares the ground it expects: `dark`, `mid`, `light` or
 `transparent`. **Pearl** and **Jade** are lit for a light page. **Obsidian**, **Velvet** and
@@ -439,7 +440,7 @@ npx liquidforge add material    # just the shader and the render loop
 npx liquidforge add forge       # just the object generators
 ```
 
-Copies the real source into your project. The shader is in `material/glsl/`; `fragment.ts` is where a new family goes, as a `#define` branch alongside the eleven that ship.
+Copies the real source into your project. The shader is in `material/glsl/`; `fragment.ts` is where a new family goes, as a `#define` branch alongside the twelve that ship.
 
 ---
 

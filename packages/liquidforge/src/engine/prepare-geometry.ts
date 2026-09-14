@@ -20,6 +20,16 @@ export interface PreparedGeometry {
   /** Half-extents on each axis, for framing the camera. */
   extents: Vector3
   triangles: number
+  /**
+   * The surface before it was refined, for finding the point under the cursor.
+   *
+   * Refinement can multiply a word's triangles several times over — ferrofluid
+   * asks for fine geometry everywhere — and past the raycast limit the cursor
+   * probe gives up on the mesh and uses the bounding sphere, which for a flat
+   * word is a point in mid-air in front of it. The unrefined surface is the
+   * same shape to within a hair and a fraction of the triangles.
+   */
+  probe?: BufferGeometry
   /** Triangle count before decimation, when the input was too heavy to process. */
   decimatedFrom?: number
   /**
@@ -112,16 +122,28 @@ export function prepareGeometry(
     decimatedFrom = inputTriangles
   }
 
-  // Uniform 1-to-4 splits, not longest-edge splits: every triangle subdivides
-  // the same way, so neighbours always agree on their shared edge. Splitting
-  // selectively would leave T-junctions, and a T-junction is exactly where a
-  // displaced surface cracks open.
-  let guard = rigged ? 0 : 6
+  /*
+   * Split only the edges that are too long.
+   *
+   * This used to split every triangle 1-to-4, which kept neighbours agreeing on
+   * their shared edges but spent the whole vertex budget where the mesh was
+   * already dense. Extruded text is the worst case: its outlines are thousands
+   * of tiny edges and each letter face is a few huge triangles, so the uniform
+   * pass hit the budget on the outlines and the faces stayed flat — no dimple
+   * in the middle of a letter, and no ferrofluid spike anywhere on one.
+   *
+   * Refining by edge keeps the no-crack property without the waste: whether an
+   * edge splits depends only on its own two endpoints, so both triangles that
+   * share it make the same decision and put the midpoint in the same place.
+   */
+  const unrefined = positions
+  let guard = rigged ? 0 : 10
   while (guard-- > 0) {
-    const vertexCount = positions.length / 3
-    if (vertexCount * 4 > vertexBudget) break
-    if (edgePercentile(positions, 0.95) <= target) break
-    ;({ positions, extras } = subdivide(positions, extras))
+    // No sampled early-out here: a sample of a text mesh's edges is nearly all
+    // outline, and would report no long edges while every letter face had them.
+    const refined = refine(positions, extras, target, Math.floor(vertexBudget / 3))
+    if (!refined) break
+    ;({ positions, extras } = refined)
   }
 
   const creaseCos = Math.cos((creaseAngle * Math.PI) / 180)
@@ -166,6 +188,16 @@ export function prepareGeometry(
     geometry: out,
     radius,
     extents,
+    ...(positions !== unrefined
+      ? {
+          probe: (() => {
+            const probe = new BufferGeometry()
+            probe.setAttribute("position", new BufferAttribute(unrefined, 3))
+            probe.computeBoundingSphere()
+            return probe
+          })(),
+        }
+      : {}),
     triangles: positions.length / 9,
     decimatedFrom,
     weld: { groups, creaseCos },
@@ -280,31 +312,6 @@ function cluster(
   return { positions: new Float32Array(out), extras: extras ? new Float32Array(outExtras) : null }
 }
 
-/**
- * Edge length at a given percentile.
- *
- * The *longest* edge is the wrong measure: earcut leaves one sliver spanning a
- * whole letter, and chasing it would burn the entire vertex budget subdividing
- * everything else along with it.
- */
-function edgePercentile(positions: Float32Array, percentile: number): number {
-  const triangles = positions.length / 9
-  const step = Math.max(1, Math.floor(triangles / 4000))
-  const lengths: number[] = []
-
-  for (let t = 0; t < triangles; t += step) {
-    const o = t * 9
-    lengths.push(
-      dist(positions, o, o + 3),
-      dist(positions, o + 3, o + 6),
-      dist(positions, o + 6, o),
-    )
-  }
-  if (lengths.length === 0) return 0
-  lengths.sort((a, b) => a - b)
-  return lengths[Math.min(lengths.length - 1, Math.floor(lengths.length * percentile))]
-}
-
 function dist(p: Float32Array, a: number, b: number): number {
   const dx = p[a] - p[b]
   const dy = p[a + 1] - p[b + 1]
@@ -312,60 +319,111 @@ function dist(p: Float32Array, a: number, b: number): number {
   return Math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 
-/** Split every triangle into four by its edge midpoints. */
-function subdivide(
+/**
+ * One pass of edge-based refinement: every edge longer than `target` is split at
+ * its midpoint, and each triangle is re-triangulated by how many of its edges
+ * split — one into two, two into three, three into four — keeping its winding.
+ * Returns null, and changes nothing, if the result would pass `maxTriangles`.
+ */
+function refine(
   positions: Float32Array,
   extras: Float32Array | null,
-): { positions: Float32Array; extras: Float32Array | null } {
+  target: number,
+  maxTriangles: number,
+): { positions: Float32Array; extras: Float32Array | null } | null {
   const triangles = positions.length / 9
-  const out = new Float32Array(triangles * 4 * 9)
-  const mid = new Float32Array(9) // ab, bc, ca
+  const flags = new Uint8Array(triangles)
+  let outTriangles = 0
+  let splitAny = false
+  for (let t = 0; t < triangles; t++) {
+    const o = t * 9
+    const f =
+      (dist(positions, o, o + 3) > target ? 1 : 0) |
+      (dist(positions, o + 3, o + 6) > target ? 2 : 0) |
+      (dist(positions, o + 6, o) > target ? 4 : 0)
+    flags[t] = f
+    const count = (f & 1) + ((f >> 1) & 1) + ((f >> 2) & 1)
+    outTriangles += 1 + count
+    if (count) splitAny = true
+  }
+  if (!splitAny || outTriangles > maxTriangles) return null
 
   const S = APPEARANCE_STRIDE
-  const outExtras = extras ? new Float32Array(triangles * 4 * 3 * S) : null
-  const midExtras = new Float32Array(3 * S)
-
+  const out = new Float32Array(outTriangles * 9)
+  const outExtras = extras ? new Float32Array(outTriangles * 3 * S) : null
+  // Corners 0–2, then the midpoints of edges 0 (v0v1), 1 (v1v2) and 2 (v2v0).
+  const corner = new Float32Array(18)
+  const cornerExtras = new Float32Array(6 * S)
   let w = 0
   let we = 0
-  const push = (source: Float32Array, offset: number) => {
-    out[w++] = source[offset]
-    out[w++] = source[offset + 1]
-    out[w++] = source[offset + 2]
-  }
-  const pushExtras = (source: Float32Array, offset: number) => {
-    if (!outExtras) return
-    for (let s = 0; s < S; s++) outExtras[we++] = source[offset + s]
+
+  const emit = (a: number, b: number, c: number) => {
+    for (const k of [a, b, c]) {
+      out[w++] = corner[k * 3]
+      out[w++] = corner[k * 3 + 1]
+      out[w++] = corner[k * 3 + 2]
+      if (outExtras) for (let s = 0; s < S; s++) outExtras[we++] = cornerExtras[k * S + s]
+    }
   }
 
   for (let t = 0; t < triangles; t++) {
     const o = t * 9
     const oe = t * 3 * S
     for (let k = 0; k < 3; k++) {
+      corner[k * 3] = positions[o + k * 3]
+      corner[k * 3 + 1] = positions[o + k * 3 + 1]
+      corner[k * 3 + 2] = positions[o + k * 3 + 2]
       const a = o + k * 3
       const b = o + ((k + 1) % 3) * 3
-      mid[k * 3] = (positions[a] + positions[b]) * 0.5
-      mid[k * 3 + 1] = (positions[a + 1] + positions[b + 1]) * 0.5
-      mid[k * 3 + 2] = (positions[a + 2] + positions[b + 2]) * 0.5
+      corner[(3 + k) * 3] = (positions[a] + positions[b]) * 0.5
+      corner[(3 + k) * 3 + 1] = (positions[a + 1] + positions[b + 1]) * 0.5
+      corner[(3 + k) * 3 + 2] = (positions[a + 2] + positions[b + 2]) * 0.5
       if (extras) {
-        // A midpoint of a UV is exactly what the rasteriser would have
-        // interpolated there, so subdividing never moves the texture.
-        const ea = oe + k * S
-        const eb = oe + ((k + 1) % 3) * S
-        for (let s = 0; s < S; s++) midExtras[k * S + s] = (extras[ea + s] + extras[eb + s]) * 0.5
+        for (let s = 0; s < S; s++) {
+          cornerExtras[k * S + s] = extras[oe + k * S + s]
+          // A midpoint of a UV is exactly what the rasteriser would have
+          // interpolated there, so refining never moves the texture.
+          cornerExtras[(3 + k) * S + s] = (extras[oe + k * S + s] + extras[oe + ((k + 1) % 3) * S + s]) * 0.5
+        }
       }
     }
 
-    // (a, ab, ca) (ab, b, bc) (ca, bc, c) (ab, bc, ca)
-    push(positions, o); push(mid, 0); push(mid, 6)
-    push(mid, 0); push(positions, o + 3); push(mid, 3)
-    push(mid, 6); push(mid, 3); push(positions, o + 6)
-    push(mid, 0); push(mid, 3); push(mid, 6)
-
-    if (extras) {
-      pushExtras(extras, oe); pushExtras(midExtras, 0); pushExtras(midExtras, 2 * S)
-      pushExtras(midExtras, 0); pushExtras(extras, oe + S); pushExtras(midExtras, S)
-      pushExtras(midExtras, 2 * S); pushExtras(midExtras, S); pushExtras(extras, oe + 2 * S)
-      pushExtras(midExtras, 0); pushExtras(midExtras, S); pushExtras(midExtras, 2 * S)
+    const f = flags[t]
+    const count = (f & 1) + ((f >> 1) & 1) + ((f >> 2) & 1)
+    if (count === 0) {
+      emit(0, 1, 2)
+    } else if (count === 3) {
+      // (v0, m0, m2) (m0, v1, m1) (m2, m1, v2) (m0, m1, m2)
+      emit(0, 3, 5)
+      emit(3, 1, 4)
+      emit(5, 4, 2)
+      emit(3, 4, 5)
+    } else if (count === 1) {
+      const k = f & 1 ? 0 : f & 2 ? 1 : 2
+      const v0 = k
+      const v1 = (k + 1) % 3
+      const v2 = (k + 2) % 3
+      emit(v0, 3 + k, v2)
+      emit(3 + k, v1, v2)
+    } else {
+      // Two split edges, k and k+1, meet at corner k+1.
+      const k = !(f & 4) ? 0 : !(f & 1) ? 1 : 2
+      const v0 = k
+      const v1 = (k + 1) % 3
+      const v2 = (k + 2) % 3
+      const m1 = 3 + k
+      const m2 = 3 + ((k + 1) % 3)
+      emit(m1, v1, m2)
+      // The remaining quad, split along its shorter diagonal.
+      const d1 = Math.hypot(corner[v0 * 3] - corner[m2 * 3], corner[v0 * 3 + 1] - corner[m2 * 3 + 1], corner[v0 * 3 + 2] - corner[m2 * 3 + 2])
+      const d2 = Math.hypot(corner[m1 * 3] - corner[v2 * 3], corner[m1 * 3 + 1] - corner[v2 * 3 + 1], corner[m1 * 3 + 2] - corner[v2 * 3 + 2])
+      if (d1 <= d2) {
+        emit(v0, m1, m2)
+        emit(v0, m2, v2)
+      } else {
+        emit(v0, m1, v2)
+        emit(m1, m2, v2)
+      }
     }
   }
 

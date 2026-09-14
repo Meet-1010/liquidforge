@@ -44,6 +44,18 @@ export interface Look {
   preset: LiquidPreset
 }
 
+export interface GeometryOptions {
+  /** Raycast the bounding sphere instead of the mesh; exact for a sphere. */
+  forceSphereProbe?: boolean
+  /**
+   * Tessellate finer than the quality tier normally would. Ferrofluid spikes are
+   * about a tenth of the object's radius across, and a spike needs several
+   * vertices over that width to come to a point rather than a lump. Defaults to
+   * whether the current look is ferrofluid.
+   */
+  dense?: boolean
+}
+
 /**
  * One shape, prepared and kept.
  *
@@ -62,6 +74,8 @@ interface Form {
   appearance: MaterialAppearance | null
   rig: LiquidRig | null
   probeMode: ProbeMode
+  /** A lighter copy of the surface for the cursor raycast, when the mesh was refined. */
+  probeSurface: BufferGeometry | null
   radial: RadialMap | null
   /** How far the shape sits inside its own radial envelope; see `envelopeError`. */
   fold: number
@@ -201,6 +215,7 @@ export class LiquidEngine {
   /** The current object's own surface, for the original family. */
   private appearance: MaterialAppearance | null = null
   private readonly forms = new Map<string, Form>()
+  private probeSurface: BufferGeometry | null = null
   private active: Form | null = null
   private transition: Transition | null = null
   private readonly crossfade = new Crossfade()
@@ -305,7 +320,7 @@ export class LiquidEngine {
    * Swap in new geometry. Takes ownership: the mesh's prepared copy is disposed
    * on the next swap or on `dispose()`, but the geometry handed in is not.
    */
-  setGeometry(geometry: BufferGeometry, options: { forceSphereProbe?: boolean } = {}): void {
+  setGeometry(geometry: BufferGeometry, options: GeometryOptions = {}): void {
     this.transition = null
     const form = this.buildForm(PRIMARY_FORM, geometry, options)
     const handle = this.handleFor(form, this.preset.family)
@@ -324,7 +339,7 @@ export class LiquidEngine {
    * one is a morph between two things already on the GPU rather than a forge and
    * a pop. Replacing a key that is on screen swaps it in place.
    */
-  registerForm(key: string, geometry: BufferGeometry, options: { forceSphereProbe?: boolean } = {}): void {
+  registerForm(key: string, geometry: BufferGeometry, options: GeometryOptions = {}): void {
     const wasActive = this.active?.key === key
     const form = this.buildForm(key, geometry, options)
     if (wasActive) {
@@ -493,10 +508,11 @@ export class LiquidEngine {
     this.frameCamera()
   }
 
-  private buildForm(key: string, geometry: BufferGeometry, options: { forceSphereProbe?: boolean }): Form {
+  private buildForm(key: string, geometry: BufferGeometry, options: GeometryOptions): Form {
+    const dense = options.dense ?? this.preset.family === "ferrofluid"
     const prepared = prepareGeometry(geometry, {
-      maxEdge: this.profile.maxEdge,
-      vertexBudget: this.profile.vertexBudget,
+      maxEdge: dense ? Math.min(this.profile.maxEdge, this.profile.maxEdge * 0.45) : this.profile.maxEdge,
+      vertexBudget: dense ? this.profile.vertexBudget * 2 : this.profile.vertexBudget,
     })
 
     const previous = this.forms.get(key)
@@ -533,7 +549,11 @@ export class LiquidEngine {
       appearance,
       rig: null,
       probeMode:
-        options.forceSphereProbe || prepared.triangles > RAYCAST_TRIANGLE_LIMIT ? "sphere" : "mesh",
+        options.forceSphereProbe ||
+        (prepared.probe ? prepared.probe.getAttribute("position").count / 3 : prepared.triangles) > RAYCAST_TRIANGLE_LIMIT
+          ? "sphere"
+          : "mesh",
+      probeSurface: prepared.probe ?? null,
       radial: null,
       fold: 0,
       aims: new Map(),
@@ -624,6 +644,7 @@ export class LiquidEngine {
     this.appearance = form.appearance
     this.rig = form.rig
     this.probeMode = form.probeMode
+    this.probeSurface = form.probeSurface
     handle.material.uniforms.uMutation.value = this.mutation
   }
 
@@ -633,6 +654,7 @@ export class LiquidEngine {
     form.rig?.dispose()
     form.appearance?.texture?.dispose()
     form.mesh.geometry.dispose()
+    form.probeSurface?.dispose()
     for (const handle of form.handles.values()) handle.dispose()
     this.forms.delete(form.key)
     if (this.active === form) {
@@ -1226,7 +1248,7 @@ export class LiquidEngine {
     const hit =
       mode === "flat"
         ? this.probe.flat(this.smoothed, mesh)
-        : this.probe.probe(this.smoothed, this.camera, mesh, this.probeMode)
+        : this.probe.probe(this.smoothed, this.camera, mesh, this.probeMode, this.probeSurface)
     const over = hit.over && this.pointerSeen
     ;(u.uPtr.value as Vector3).copy(hit.point)
     ;(u.uPtrN.value as Vector3).copy(hit.normal)
@@ -1569,6 +1591,7 @@ export class LiquidEngine {
       this.camera,
       mesh,
       this.probeMode,
+      this.probeSurface,
     )
     if (!hit.over) return
     this.trail.emit(hit.point, hit.normal, Math.min(2.4, Math.max(0, amplitude)), this.time)

@@ -477,6 +477,52 @@ const ORIGINAL: Collection = {
   ],
 }
 
+// -- Ferrofluid --------------------------------------------------------------
+
+/**
+ * Black magnetic liquid.
+ *
+ * The one family whose effect is a shape rather than a colour: spikes stand up
+ * where the cursor is, as if a magnet were held under the surface, and slump
+ * back when it moves on. The body is always near-black — the colourway is the
+ * light caught in it, which is how ferrofluid actually looks: a black mirror
+ * with coloured highlights on every spike.
+ */
+const FERROFLUID: Collection = {
+  name: "Ferrofluid",
+  family: "ferrofluid",
+  blurb: "Black magnetic liquid. Spikes rise toward the cursor like a magnet underneath.",
+  // A black object on a black page is invisible; studio grey gives the spikes an edge.
+  background: "mid",
+  surface: {
+    noise: 0.018,
+    dimple: 0.03,
+    rippleAmp: 0.02,
+    rippleSpeed: 0.6,
+    rippleTightness: 60,
+    trailSpacing: 0.09,
+    advection: 0.2,
+    spikes: 0.13,
+  },
+  shading: { metalness: 0.2, roughness: 0.04, fresnel: 0.9, specPower: 110 },
+  colourways: [
+    { name: "Classic", palette: ["#050506", "#8a8f99", "#d7dbe3", "#3a3d45"] },
+    { name: "Oil slick", palette: ["#040405", "#4b3a8e", "#1f9fc8", "#d7b35a"] },
+    { name: "Magnet", palette: ["#070404", "#7a1c1c", "#ff5a4f", "#ffd6cf"] },
+    { name: "Gunmetal", palette: ["#0b0c0f", "#4b5563", "#9aa5b1", "#1f242c"], surface: { spikes: 0.1 } },
+    { name: "Gold leaf", palette: ["#070604", "#6b4f16", "#f0c14e", "#fff3cc"] },
+    { name: "Toxic", palette: ["#040604", "#1e5a2a", "#6bff8a", "#dcffe4"], surface: { spikes: 0.17 } },
+    { name: "Midnight", palette: ["#030409", "#16244f", "#4a78ff", "#cdd9ff"] },
+    { name: "Rose", palette: ["#080506", "#5a2342", "#ec86b9", "#ffe3f0"] },
+    {
+      name: "Hedgehog",
+      palette: ["#060607", "#c9ced6", "#ffffff", "#6b7280"],
+      surface: { spikes: 0.24 },
+      shading: { specPower: 140 },
+    },
+  ],
+}
+
 export const COLLECTIONS: Collection[] = [
   MERCURY,
   AURORA,
@@ -489,4 +535,5 @@ export const COLLECTIONS: Collection[] = [
   JADE,
   PLASMA,
   ORIGINAL,
+  FERROFLUID,
 ]

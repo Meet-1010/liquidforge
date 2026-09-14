@@ -34,7 +34,7 @@ export default function PresetsPage() {
         <header className="mb-10">
           <p className="label mb-3">01 — Collections</p>
           <h1 className="display text-[clamp(2.2rem,6vw,3.6rem)]">
-            Eleven families, nine colourways each.
+            Twelve families, nine colourways each.
           </h1>
           <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-bone-dim">
             A colourway is data — a palette and about twenty numbers. Every card below is the
