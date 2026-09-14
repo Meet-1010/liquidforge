@@ -15,6 +15,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@neondatabase/serverless": "^1.1.0",
+    "gifenc": "^1.0.3",
     "liquidforge": "*",
     "liquidforge-mcp": "*",
     "mediabunny": "^1.56.2",

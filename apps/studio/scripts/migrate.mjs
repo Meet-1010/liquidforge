@@ -79,6 +79,27 @@ const statements = [
      on contact_messages (submitter_key, created_at desc)`,
   `create index if not exists community_posts_daily_idx
      on community_posts (daily, created_at desc) where daily is not null`,
+  // Moving links: a look and the looping GIF made from it in the sharer's
+  // browser, so a pasted link unfurls moving. The GIF is the only large thing
+  // in the database, so it is capped in total and the least recently viewed
+  // are dropped first; the look stays, and the link falls back to a still.
+  `create table if not exists moving_links (
+     id             text primary key,
+     created_at     timestamptz not null default now(),
+     title          text not null,
+     object         jsonb not null,
+     preset         text not null,
+     width          int not null,
+     height         int not null,
+     gif            bytea,
+     gif_bytes      int not null default 0,
+     last_viewed_at timestamptz not null default now(),
+     submitter_key  text not null
+   )`,
+  `create index if not exists moving_links_submitter_idx
+     on moving_links (submitter_key, created_at desc)`,
+  `create index if not exists moving_links_viewed_idx
+     on moving_links (last_viewed_at) where gif is not null`,
 ]
 
 for (const statement of statements) {

@@ -118,6 +118,13 @@ export const EXPERIMENTS: Experiment[] = [
     rough: "stills only for now; platforms crop banners differently on phones, so very long names can be clipped.",
   },
   {
+    slug: "links",
+    title: "Links that move",
+    pitch: "Make a share link whose preview moves — a looping GIF of your liquid object in the chat, and the live, touchable object when it's opened.",
+    section: "formats",
+    rough: "each app decides whether a preview GIF plays — some animate it, some show only its first frame; GIFs nobody opens for a long time fall back to a still.",
+  },
+  {
     slug: "stream",
     title: "Stream overlay",
     pitch: "Your name, liquid, in the corner of your stream. Chat ripples it, cheers and subs splash it, a raid makes it erupt — one OBS browser source, no login.",
