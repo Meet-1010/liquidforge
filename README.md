@@ -1,5 +1,8 @@
 # Liquidforge
 
+
+![Liquidforge Demo](liquidforge-demo.gif)
+
 **Liquid 3D hero sections for React, one component.** Any object — text, an SVG, a logo, a primitive, a `.glb` — rendered as a living chrome, glass or molten surface that reacts to the cursor.
 
 ```tsx
