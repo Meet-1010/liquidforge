@@ -1,7 +1,7 @@
 # Liquidforge
 
 
-https://github.com/user-attachments/assets/045fab00-0b6a-4dd2-ac3f-73eeeed9fe44
+https://github.com/user-attachments/assets/bdcc6366-956d-4b44-87cf-a7709a8aecca
 
 **Liquid 3D hero sections for React, one component.** Any object — text, an SVG, a logo, a primitive, a `.glb` — rendered as a living chrome, glass or molten surface that reacts to the cursor.
 
